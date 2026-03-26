@@ -237,14 +237,42 @@ function openPinned(type) {
         <button class="sbtn" onclick="sendAI()">➤</button>
       </div>`;
     scrollBot(); showChatView();
-  } else {
-    const names = { social: ['Общение','♥','g5'], video: ['Видео','🎬','g7'] };
-    const [name, em, g] = names[type] || ['?','?','g1'];
+  } else if (type === 'video') {
+    const shorts = [
+      'dQw4w9WgXcQ','ZbZSe6N_BXs','kJQP7kiw5Fk','RgKAFK5djSk','9bZkp7q19f0',
+      'OPf0YbXqDm0','3JZ_D3ELwOQ','hTWKbfoikeg','2Vv-BfVoq4g','JGwWNGJdvx8',
+      'fJ9rUzIMcZQ','YQHsXMglC9A','IcrbM1l_BoI','CevxZvSJLk8','kXYiU_JCYtU',
+      'lp-EO5I60KA','60ItHLz5WEA','nfs8NYg7yQM','DyDfgMOUjCI','pRpeEdMmmQ0',
+      'SlPhMPnQ58k','e-ORhEE9VVg','7PCkvCPvDXk','RBumgq5yVrA','hT_nvWreIhg',
+      'KMU0tzLwhbE','JRfuAukYTKg','PT2_F-1esPk','QYh6mYIJG2Y','bo_efYhYU2A',
+      'WXBHCQYxwr0','FuXNumBwDOM','papuvlVeZg8','450p7goxZqg','XqZsoesa55w',
+      'YykjpeuMNEk','VMHp3MUDBes','UceaB4D0jpo','bx1Bh8ZvH84','izGwDsrQ1eQ',
+      'HP-MbfHFUqs','PIh2xe4jnpk','mNEUkqVU_Ug','HCjNJDNzw8Y','djV11Xbc914',
+      'L_jWHffIx5E','Zi_XLOBDo_Y','09R8_2nJtjg','QcIy9NiNbmo','eVTXPUF4Oz4',
+    ];
+    let vidIdx = 0;
     main.innerHTML = `
       <div class="chat-hdr">
         <button class="back-btn" onclick="goBack()">‹</button>
-        <div class="hav ${g} sq"><span>${em}</span></div>
-        <div class="hinfo"><div class="hname">${name}</div><div class="hsub">в разработке</div></div>
+        <div class="hav g7 sq"><span>🎬</span></div>
+        <div class="hinfo"><div class="hname">Видео</div><div class="hsub">YouTube Shorts</div></div>
+      </div>
+      <div id="shortsContainer" style="flex:1;overflow:hidden;position:relative;background:#000;scroll-snap-type:y mandatory;overflow-y:scroll">
+        ${shorts.map((id, i) => `
+          <div class="shorts-slide" data-idx="${i}" style="scroll-snap-align:start;width:100%;height:100%;flex-shrink:0;display:flex;align-items:center;justify-content:center;position:relative">
+            ${i === 0 ? `<iframe id="shortsFrame" src="https://www.youtube.com/embed/${id}?autoplay=1&loop=1&mute=1&playsinline=1&controls=1" style="width:100%;height:100%;border:none" allow="autoplay;encrypted-media" allowfullscreen></iframe>` : `<div style="color:#fff;font-size:18px">Загрузка...</div>`}
+            <div style="position:absolute;bottom:16px;left:16px;color:#fff;font-size:13px;opacity:.7">${i+1}/${shorts.length}</div>
+          </div>
+        `).join('')}
+      </div>`;
+    showChatView();
+    initShortsScroll(shorts);
+  } else {
+    main.innerHTML = `
+      <div class="chat-hdr">
+        <button class="back-btn" onclick="goBack()">‹</button>
+        <div class="hav g5 sq"><span>♥</span></div>
+        <div class="hinfo"><div class="hname">Общение</div><div class="hsub">в разработке</div></div>
       </div>
       <div class="msg-area" id="msgArea">
         <div class="datediv"><span>Сегодня</span></div>
@@ -327,6 +355,48 @@ async function sendAI() {
     area.appendChild(d.firstChild);
     scrollBot();
   }
+}
+
+// ── Shorts scroll ────────────────────────────────────────────────────────────
+function initShortsScroll(shorts) {
+  var container = document.getElementById('shortsContainer');
+  if (!container) return;
+  var currentIdx = 0;
+
+  function loadSlide(idx) {
+    var slides = container.querySelectorAll('.shorts-slide');
+    if (!slides[idx]) return;
+    var sl = slides[idx];
+    if (!sl.querySelector('iframe')) {
+      sl.innerHTML = '<iframe src="https://www.youtube.com/embed/' + shorts[idx] + '?autoplay=1&loop=1&mute=1&playsinline=1&controls=1" style="width:100%;height:100%;border:none" allow="autoplay;encrypted-media" allowfullscreen></iframe>' +
+        '<div style="position:absolute;bottom:16px;left:16px;color:#fff;font-size:13px;opacity:.7">' + (idx+1) + '/' + shorts.length + '</div>';
+    }
+  }
+
+  function unloadFar(idx) {
+    var slides = container.querySelectorAll('.shorts-slide');
+    slides.forEach(function(sl, i) {
+      if (Math.abs(i - idx) > 1 && sl.querySelector('iframe')) {
+        sl.innerHTML = '<div style="color:#fff;font-size:18px;text-align:center">Свайпни для загрузки</div>' +
+          '<div style="position:absolute;bottom:16px;left:16px;color:#fff;font-size:13px;opacity:.7">' + (i+1) + '/' + shorts.length + '</div>';
+      }
+    });
+  }
+
+  function onScroll() {
+    var idx = Math.round(container.scrollTop / container.clientHeight);
+    if (idx === currentIdx) return;
+    currentIdx = idx;
+    loadSlide(idx);
+    unloadFar(idx);
+  }
+
+  // scrollend не везде поддерживается — используем debounced scroll
+  var scrollTimer = null;
+  container.addEventListener('scroll', function() {
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(onScroll, 150);
+  });
 }
 
 function togE() { document.getElementById('ep')?.classList.toggle('open'); }
