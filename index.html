@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Космос</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<!-- SPLASH -->
+<div class="splash" id="splash">
+  <div class="stars" id="stars"></div>
+  <div class="orb" style="width:420px;height:420px;background:#3b82f6;top:-120px;right:-100px"></div>
+  <div class="orb" style="width:320px;height:320px;background:#7c3aed;bottom:-100px;left:-80px;animation-delay:3.5s"></div>
+  <div class="sp-logo">Кос<span>мос</span></div>
+  <div class="sp-tag">Привет, ты в космосе ✦</div>
+  <button class="sp-btn" onclick="closeSplash()">Начать общение →</button>
+</div>
+
+<!-- AUTH -->
+<div class="auth" id="auth">
+  <div class="auth-card">
+    <div class="auth-constellation">
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+        <circle cx="8" cy="8" r="3" fill="#63b4ff"/>
+        <circle cx="24" cy="6" r="2" fill="#63b4ff" opacity=".6"/>
+        <circle cx="16" cy="16" r="4" fill="#63b4ff"/>
+        <circle cx="6" cy="24" r="2" fill="#63b4ff" opacity=".4"/>
+        <circle cx="26" cy="22" r="2.5" fill="#63b4ff" opacity=".7"/>
+        <line x1="8" y1="8" x2="16" y2="16" stroke="#63b4ff" stroke-width=".5" opacity=".3"/>
+        <line x1="24" y1="6" x2="16" y2="16" stroke="#63b4ff" stroke-width=".5" opacity=".3"/>
+        <line x1="16" y1="16" x2="26" y2="22" stroke="#63b4ff" stroke-width=".5" opacity=".3"/>
+        <line x1="16" y1="16" x2="6" y2="24" stroke="#63b4ff" stroke-width=".5" opacity=".3"/>
+      </svg>
+      <div class="auth-logo">Кос<em>мос</em></div>
+    </div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchTab('login')">Войти</button>
+      <button class="auth-tab" onclick="switchTab('register')">Регистрация</button>
+    </div>
+
+    <div id="authForm">
+      <div class="auth-error" id="authError"></div>
+      <div class="auth-success" id="authSuccess"></div>
+
+      <div id="regFields" style="display:none">
+        <div class="auth-welcome">Создать аккаунт</div>
+        <div class="auth-sub">// выберите имя и @username</div>
+        <div class="auth-label">Имя</div>
+        <input class="auth-input" id="authName" type="text" placeholder="Твоё имя...">
+        <div class="auth-label">@username</div>
+        <input class="auth-input" id="authHandle" type="text" placeholder="только латиница, цифры, _" autocomplete="off" autocapitalize="none">
+      </div>
+
+      <div id="loginFields">
+        <div class="auth-welcome">Добро пожаловать</div>
+        <div class="auth-sub">// введите seed-фразу для восстановления доступа</div>
+        <div class="seed-grid" id="seedGrid"></div>
+      </div>
+
+      <div id="seedResult" style="display:none">
+        <div class="auth-welcome">Ваш ключ доступа</div>
+        <div class="auth-sub" style="color:#f59e0b">// запишите и сохраните — это единственный способ войти</div>
+        <div class="seed-grid" id="seedShowGrid" style="margin-bottom:14px"></div>
+        <button onclick="copySeed()" class="auth-btn-ghost" style="margin-bottom:8px">📋 Скопировать фразу</button>
+        <span id="seedCopied" style="font-family:'Space Mono',monospace;font-size:11px;color:#34d399;display:none;text-align:center;margin-bottom:8px">Скопировано!</span>
+        <button class="auth-btn" onclick="enterAfterReg()">Войти в Космос →</button>
+      </div>
+
+      <button class="auth-btn" id="authBtn" onclick="submitAuth()">Войти в Космос →</button>
+      <button class="auth-btn-ghost" id="authToggleBtn" onclick="switchTab('register')">Создать новый аккаунт</button>
+
+      <div class="auth-hint" id="authHint">
+        <span id="seedPhrase" style="display:none"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sidebar">
+  <div class="logo-wrap">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between">
+      <div>
+        <div class="logo">Кос<em>мос</em></div>
+        <div class="logo-sub" id="logoSub">мессенджер</div>
+      </div>
+      <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Сменить тему">☀️</button>
+    </div>
+  </div>
+  <div class="search-wrap">
+    <div class="search">
+      <span style="color:var(--muted);font-size:15px">⌕</span>
+      <input type="text" placeholder="Поиск пользователей..." oninput="sidebarSearch(this.value)">
+    </div>
+  </div>
+  <div id="sidebarResults" style="display:none;padding:0 9px"></div>
+
+  <!-- Закреплённые -->
+  <div class="chat-list" style="flex-shrink:0">
+    <div class="ci" onclick="openPinned('important')">
+      <div class="av g4 sq"><span style="color:#fff">★</span></div>
+      <div class="ci-info"><div class="ci-name">Важное</div><div class="ci-prev">Заметки для себя</div></div>
+    </div>
+    <div class="ci" onclick="openPinned('ai')">
+      <div class="av g1 sq"><span style="color:#fff">🤖</span></div>
+      <div class="ci-info"><div class="ci-name">ГигаЧАТ AI</div><div class="ci-prev">Скоро буду доступен</div></div>
+    </div>
+    <div class="ci" onclick="openPinned('social')">
+      <div class="av g5 sq"><span style="color:#fff">♥</span></div>
+      <div class="ci-info"><div class="ci-name">Общение</div><div class="ci-prev">Скоро буду доступен</div></div>
+    </div>
+    <div class="ci" onclick="openPinned('video')">
+      <div class="av g7 sq"><span style="color:#fff">🎬</span></div>
+      <div class="ci-info"><div class="ci-name">Видео</div><div class="ci-prev">Лента видео</div></div>
+    </div>
+  </div>
+
+  <div id="chSection">
+    <div class="sec-label">Каналы</div>
+    <div class="chat-list" id="chList"></div>
+  </div>
+  <div id="dmSection">
+    <div class="sec-label">Сообщения</div>
+    <div class="chat-list grow" id="dmList"></div>
+  </div>
+  <button class="new-btn" onclick="openModal()">＋ Новый чат</button>
+  <button class="logout-btn" onclick="logout()">Выйти</button>
+</div>
+
+<div class="main" id="mainArea">
+  <div class="empty">
+    <div class="empty-card">
+      <div class="empty-icon">🚀</div>
+      <h2>Добро пожаловать в Космос</h2>
+      <p>Выбери чат слева или создай новый</p>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-title">Новый чат</div>
+    <div class="rg" style="margin-bottom:18px">
+      <label><input type="radio" name="ct" value="chat" checked style="accent-color:var(--accent)" onchange="onChatTypeChange()"> 💬 Личный</label>
+      <label><input type="radio" name="ct" value="channel" style="accent-color:var(--accent)" onchange="onChatTypeChange()"> 📢 Канал</label>
+    </div>
+    <div id="userSearchWrap">
+      <input class="minp" id="userSearch" type="text" placeholder="🔍  Поиск по имени или email..." oninput="searchUsers(this.value)" autocomplete="off">
+      <div class="user-results" id="userResults"></div>
+    </div>
+    <div id="channelNameWrap" style="display:none">
+      <input class="minp" type="text" id="ncName" placeholder="Название канала..." maxlength="30">
+      <div class="mbtns">
+        <button class="bcnl" onclick="closeModal()">Отмена</button>
+        <button class="bcrte" onclick="createChat()">Создать →</button>
+      </div>
+    </div>
+    <div id="chatCancelWrap">
+      <button class="bcnl" style="width:100%;margin-top:4px" onclick="closeModal()">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/ui.js"></script>
+<script src="js/api.js"></script>
+<script src="js/socket.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
