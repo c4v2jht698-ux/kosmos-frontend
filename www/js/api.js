@@ -1,12 +1,16 @@
 // ── API: load chats, search, create chat ────────────────────────────────────
 
-async function loadMyChats() {
+async function loadMyChats(retries) {
   if (!jwtToken) return;
+  retries = retries || 0;
   try {
     const r = await fetch(`${API}/my-chats`, {
       headers: { 'Authorization': `Bearer ${jwtToken}` }
     });
-    if (!r.ok) { if (r.status === 401) logout(); return; }
+    if (!r.ok) {
+      if (r.status === 401) logout();
+      return;
+    }
     const data = await r.json();
 
     channels.length = 0;
@@ -48,7 +52,11 @@ async function loadMyChats() {
       dms.forEach(d => socket.emit('join', d.id));
     }
   } catch(e) {
-    console.error('[api] loadMyChats:', e);
+    console.warn('[api] loadMyChats failed:', e.message);
+    if (retries < 3) {
+      console.log('[api] retry in 5s... (' + (retries+1) + '/3)');
+      setTimeout(() => loadMyChats(retries + 1), 5000);
+    }
   }
 }
 
