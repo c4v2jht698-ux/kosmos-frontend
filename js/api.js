@@ -1,163 +1,222 @@
-// ── API: all fetch requests to the server ───────────────────────────────────
+// ── API: load chats, search, create chat ────────────────────────────────────
 
 async function loadMyChats() {
   if (!jwtToken) return;
   try {
-    const res = await fetch(`${API}/my-chats`, { headers: { 'Authorization': `Bearer ${jwtToken}` } });
-    if (!res.ok) return;
-    const data = await res.json();
-    channels.length = 0; dms.length = 0;
-    for (const ch of data.channels) {
-      channels.push({ id: ch.id, type: 'channel', name: ch.name, slug: ch.slug || '', g: GS[ch.name.charCodeAt(0) % GS.length], em: '📢', members: String(ch.members || 1), prev: ch.last_text || '', time: ch.last_time || '', unread: 0, msgs: [], created_by: ch.created_by });
-    }
-    for (const dm of data.dms) {
-      dms.push({ id: dm.chat_id, type: 'chat', name: dm.name, g: GS[dm.name.charCodeAt(0) % GS.length], em: dm.name[0].toUpperCase(), online: false, prev: dm.last_text || '', time: dm.last_time || '', unread: 0, msgs: [] });
-    }
-    render();
-  } catch(e) { console.warn('[loadMyChats]', e); }
-}
+    const r = await fetch(`${API}/my-chats`, {
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    });
+    if (!r.ok) { if (r.status === 401) logout(); return; }
+    const data = await r.json();
 
-// Modal search (users only)
-let searchDebounce = null;
-async function searchUsers(q) {
-  const results = document.getElementById('userResults');
-  clearTimeout(searchDebounce);
-  if (!q.trim()) { results.innerHTML = ''; return; }
-  searchDebounce = setTimeout(async () => {
-    try {
-      const res = await fetch(`${API}/users?search=${encodeURIComponent(q)}`, {
-        headers: { 'Authorization': `Bearer ${jwtToken}` },
+    channels.length = 0;
+    dms.length = 0;
+
+    (data.channels || []).forEach(ch => {
+      channels.push({
+        id: ch.id, type: 'channel', name: ch.name, slug: ch.slug,
+        g: GS[ch.name.charCodeAt(0) % GS.length],
+        em: ch.name[0].toUpperCase(),
+        members: ch.members || 0,
+        prev: ch.last_text || '',
+        time: ch.last_time || '',
+        _ts: ch.last_ts || 0,
+        unread: 0, msgs: [], _loaded: false,
+        created_by: ch.created_by,
       });
-      if (!res.ok) {
-        if (res.status === 401) { results.innerHTML = `<div class="user-results-empty">Сессия истекла</div>`; setTimeout(logout, 2000); }
-        return;
-      }
-      const users = await res.json();
-      if (!users.length) {
-        results.innerHTML = `<div class="user-results-empty">Пользователи не найдены</div>`;
-        return;
-      }
-      results.innerHTML = users.map(u => `
-        <div class="user-result" onclick="selectUser('${u.id}','${u.username.replace(/'/g,"\\'")}','${(u.handle||'').replace(/'/g,"\\'")}')">
-          <div class="ur-av ${GS[u.username.charCodeAt(0) % GS.length]}">${u.username[0].toUpperCase()}</div>
-          <div><div class="ur-name">${u.username}</div><div class="ur-email">${u.handle ? '@'+u.handle : u.email}</div></div>
-        </div>`).join('');
-    } catch (e) {
-      results.innerHTML = `<div class="user-results-empty">Ошибка запроса</div>`;
-    }
-  }, 280);
-}
+    });
 
-function selectUser(userId, username, handle) {
-  const chatId = `dm-${[currentUser.id, userId].sort().join('-')}`;
-  let item = findItem(chatId);
-  if (!item) {
-    const displayName = handle ? username + ' @' + handle : username;
-    item = { id: chatId, type: 'chat', name: displayName, g: GS[username.charCodeAt(0) % GS.length], em: username[0].toUpperCase(), online: false, prev: 'Начните общение', time: '', unread: 0, msgs: [] };
-    dms.unshift(item);
+    (data.dms || []).forEach(dm => {
+      const name = dm.name || 'Пользователь';
+      dms.push({
+        id: dm.chat_id, type: 'chat', name,
+        g: GS[name.charCodeAt(0) % GS.length],
+        em: name[0].toUpperCase(),
+        online: false,
+        prev: dm.last_text || '',
+        time: dm.last_time || '',
+        _ts: dm.last_ts || 0,
+        unread: 0, msgs: [], _loaded: false,
+      });
+    });
+
     render();
+
+    // Переподписаться на все каналы после загрузки
+    if (socket && socket.connected) {
+      channels.forEach(c => socket.emit('join', c.id));
+      dms.forEach(d => socket.emit('join', d.id));
+    }
+  } catch(e) {
+    console.error('[api] loadMyChats:', e);
   }
-  closeModal();
-  openChat(chatId);
 }
 
-// Sidebar search (users + channels)
-let sidebarDebounce = null;
-function sidebarSearch(q) {
-  filterChats(q);
-  clearTimeout(sidebarDebounce);
-  const box = document.getElementById('sidebarResults');
-  if (!q.trim()) { box.innerHTML = ''; box.style.display = 'none'; return; }
-  sidebarDebounce = setTimeout(async () => {
-    if (!jwtToken) { box.innerHTML = '<div class="ci-prev" style="padding:12px;text-align:center">Войдите чтобы искать</div>'; box.style.display = 'block'; return; }
+let searchTimeout;
+async function sidebarSearch(q) {
+  clearTimeout(searchTimeout);
+  const sr = document.getElementById('sidebarResults');
+  if (!q.trim()) {
+    sr.style.display = 'none';
+    document.getElementById('chSection').style.display = '';
+    const dmSec = document.getElementById('dmSection');
+    if (dmSec) dmSec.style.display = 'none';
+    return;
+  }
+
+  sr.style.display = 'block';
+  document.getElementById('chSection').style.display = 'none';
+  const dmSec = document.getElementById('dmSection');
+  if (dmSec) dmSec.style.display = 'none';
+
+  searchTimeout = setTimeout(async () => {
     try {
-      const enc = encodeURIComponent(q);
-      const hdrs = { 'Authorization': `Bearer ${jwtToken}` };
-      const [usersRes, chRes] = await Promise.all([
-        fetch(`${API}/users?search=${enc}`, { headers: hdrs }),
-        fetch(`${API}/channels?search=${enc}`, { headers: hdrs }),
+      const [ur, cr] = await Promise.all([
+        fetch(`${API}/users?search=${encodeURIComponent(q)}`, {
+          headers: { 'Authorization': `Bearer ${jwtToken}` }
+        }).then(r => r.ok ? r.json() : []),
+        fetch(`${API}/channels?search=${encodeURIComponent(q)}`, {
+          headers: { 'Authorization': `Bearer ${jwtToken}` }
+        }).then(r => r.ok ? r.json() : []),
       ]);
-      if (usersRes.status === 401 || chRes.status === 401) {
-        box.innerHTML = '<div class="ci-prev" style="padding:12px;text-align:center">Сессия истекла</div>'; box.style.display = 'block'; setTimeout(logout, 2000); return;
-      }
-      const users = usersRes.ok ? await usersRes.json() : [];
-      const chs = chRes.ok ? await chRes.json() : [];
-      if (!users.length && !chs.length) { box.innerHTML = '<div class="ci-prev" style="padding:12px;text-align:center">Ничего не найдено</div>'; box.style.display = 'block'; return; }
+
       let html = '';
-      if (chs.length) {
-        html += `<div class="sec-label" style="padding:8px 10px 4px">Каналы</div>` + chs.map(c => `
-          <div class="ci" onclick="joinChannel('${c.id}','${c.name.replace(/'/g,"\\'")}','${c.created_by||''}','${(c.slug||'').replace(/'/g,"\\'")}')">
-            <div class="av ${GS[c.name.charCodeAt(0) % GS.length]} sq"><span style="color:#fff">📢</span></div>
-            <div class="ci-info"><div class="ci-name">${c.name}</div><div class="ci-prev">${c.slug ? '@'+c.slug+' · ' : ''}${c.members} уч.</div></div>
+
+      if (ur.length) {
+        html += '<div class="sec-label" style="padding:10px 11px 4px">Пользователи</div>';
+        html += ur.map(u => `
+          <div class="ci" onclick="startDM('${u.id}','${escSearch(u.username)}','${escSearch(u.handle || '')}')">
+            <div class="av ${GS[u.username.charCodeAt(0) % GS.length]}">${u.username[0].toUpperCase()}</div>
+            <div class="ci-info">
+              <div class="ci-name">${u.username}</div>
+              <div class="ci-prev">@${u.handle || ''}</div>
+            </div>
           </div>`).join('');
       }
-      if (users.length) {
-        html += `<div class="sec-label" style="padding:8px 10px 4px">Пользователи</div>` + users.map(u => `
-          <div class="ci" onclick="startDM('${u.id}','${u.username.replace(/'/g,"\\'")}','${(u.handle||'').replace(/'/g,"\\'")}')">
-            <div class="av ${GS[u.username.charCodeAt(0) % GS.length]}"><span style="color:#fff">${u.username[0].toUpperCase()}</span></div>
-            <div class="ci-info"><div class="ci-name">${u.username}</div><div class="ci-prev">${u.handle ? '@'+u.handle : ''}</div></div>
+
+      if (cr.length) {
+        html += '<div class="sec-label" style="padding:10px 11px 4px">Каналы</div>';
+        html += cr.map(c => `
+          <div class="ci" onclick="joinChannel('${c.id}','${escSearch(c.name)}','${escSearch(c.slug || '')}')">
+            <div class="av ${GS[c.name.charCodeAt(0) % GS.length]} sq">${c.name[0].toUpperCase()}</div>
+            <div class="ci-info">
+              <div class="ci-name">${c.name}</div>
+              <div class="ci-prev">${c.members || 0} участников</div>
+            </div>
           </div>`).join('');
       }
-      box.style.display = 'block';
-      box.innerHTML = html;
-    } catch(e) { box.innerHTML = '<div class="ci-prev" style="padding:12px;text-align:center">Нет связи с сервером</div>'; box.style.display = 'block'; }
+
+      if (!html) html = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">Ничего не найдено</div>';
+      sr.innerHTML = html;
+    } catch(e) {
+      console.error('[api] search:', e);
+    }
   }, 300);
 }
 
-function startDM(userId, username, handle) {
-  const chatId = 'dm-' + [currentUser.id, userId].sort().join('-');
-  let item = findItem(chatId);
-  if (!item) {
-    const displayName = handle ? username + ' @' + handle : username;
-    item = { id: chatId, type: 'chat', name: displayName, g: GS[username.charCodeAt(0) % GS.length], em: username[0].toUpperCase(), online: false, prev: 'Начните общение', time: '', unread: 0, msgs: [] };
-    dms.unshift(item);
-  }
-  document.getElementById('sidebarResults').innerHTML = '';
-  document.getElementById('sidebarResults').style.display = 'none';
-  document.querySelector('.search input').value = '';
-  filterChats('');
-  openChat(chatId);
+function escSearch(s) {
+  return String(s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 
-async function joinChannel(channelId, name, createdBy, slug) {
-  document.getElementById('sidebarResults').innerHTML = '';
-  document.getElementById('sidebarResults').style.display = 'none';
+function startDM(userId, username, handle) {
+  // Закрываем поиск
   document.querySelector('.search input').value = '';
-  filterChats('');
-  if (jwtToken) {
-    try { await fetch(`${API}/channels/${channelId}/join`, { method: 'POST', headers: { 'Authorization': `Bearer ${jwtToken}` } }); } catch(e) {}
-  }
-  let item = findItem(channelId);
+  document.getElementById('sidebarResults').style.display = 'none';
+  document.getElementById('chSection').style.display = '';
+
+  const myId = currentUser.id;
+  const ids = [myId, userId].sort();
+  const chatId = 'dm-' + ids[0] + '-' + ids[1];
+
+  let item = dms.find(d => d.id === chatId);
   if (!item) {
-    item = { id: channelId, type: 'channel', name, slug: slug || '', g: GS[name.charCodeAt(0) % GS.length], em: '📢', members: '?', prev: '', time: '', unread: 0, msgs: [], created_by: createdBy };
+    const name = username + (handle ? ' @' + handle : '');
+    item = {
+      id: chatId, type: 'chat', name,
+      g: GS[username.charCodeAt(0) % GS.length],
+      em: username[0].toUpperCase(),
+      online: false, prev: '', time: '', _ts: 0,
+      unread: 0, msgs: [], _loaded: false,
+    };
+    dms.unshift(item);
+    render();
+  }
+
+  openChat(chatId);
+  closeModal();
+}
+
+async function joinChannel(id, name, slug) {
+  document.querySelector('.search input').value = '';
+  document.getElementById('sidebarResults').style.display = 'none';
+  document.getElementById('chSection').style.display = '';
+
+  await fetch(`${API}/channels/${id}/join`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${jwtToken}` }
+  });
+
+  let item = channels.find(c => c.id === id);
+  if (!item) {
+    item = {
+      id, type: 'channel', name, slug,
+      g: GS[name.charCodeAt(0) % GS.length],
+      em: name[0].toUpperCase(),
+      members: '?', prev: '', time: '', _ts: 0,
+      unread: 0, msgs: [], _loaded: false,
+    };
     channels.unshift(item);
     render();
   }
-  openChat(channelId);
+  openChat(id);
+}
+
+async function searchUsers(q) {
+  if (!q.trim()) { document.getElementById('userResults').innerHTML = ''; return; }
+  try {
+    const r = await fetch(`${API}/users?search=${encodeURIComponent(q)}`, {
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    });
+    const users = r.ok ? await r.json() : [];
+    document.getElementById('userResults').innerHTML = users.length
+      ? users.map(u => `
+        <div class="user-result" onclick="startDM('${u.id}','${escSearch(u.username)}','${escSearch(u.handle || '')}')">
+          <div class="ur-av ${GS[u.username.charCodeAt(0) % GS.length]}">${u.username[0].toUpperCase()}</div>
+          <div><div class="ur-name">${u.username}</div><div class="ur-email">@${u.handle || ''}</div></div>
+        </div>`).join('')
+      : '<div class="user-results-empty">Не найдено</div>';
+  } catch(e) {
+    console.error('[api] searchUsers:', e);
+  }
 }
 
 async function createChat() {
-  const name = document.getElementById('ncName').value.trim();
-  if (!name) return;
-  try {
-    const res = await fetch(`${API}/channels`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` },
-      body: JSON.stringify({ name }),
-    });
-    const data = await res.json();
-    if (!res.ok) { alert(data.error || 'Ошибка создания канала'); return; }
-    const ni = { id: data.id, type: 'channel', name, slug: data.slug || '', g: GS[Math.floor(Math.random() * GS.length)], em: '📢', members: '1', prev: '@' + (data.slug || ''), time: 'сейчас', unread: 0, msgs: [], created_by: currentUser?.id };
-    channels.unshift(ni);
-    closeModal(); render(); openChat(ni.id);
-  } catch (e) {
-    const ni = {
-      id: 'local-' + Date.now(), type: 'channel', name,
-      g: GS[Math.floor(Math.random() * GS.length)], em: '📢',
-      members: '1', prev: 'Только что создан', time: 'сейчас', unread: 0,
-      msgs: [{ id: 1, text: `Канал «${name}» создан!`, time: 'сейчас', views: 1, reacts: [], from: 'them' }],
-    };
-    channels.unshift(ni);
-    closeModal(); render(); openChat(ni.id);
+  const isCh = document.querySelector('input[name="ct"]:checked').value === 'channel';
+  if (isCh) {
+    const name = document.getElementById('ncName').value.trim();
+    if (!name) return;
+    try {
+      const r = await fetch(`${API}/channels`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${jwtToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+      if (!r.ok) return;
+      const ch = await r.json();
+      const item = {
+        id: ch.id, type: 'channel', name: ch.name, slug: ch.slug,
+        g: GS[ch.name.charCodeAt(0) % GS.length],
+        em: ch.name[0].toUpperCase(),
+        members: 1, prev: '', time: '', _ts: Date.now() / 1000,
+        unread: 0, msgs: [], _loaded: true,
+        created_by: currentUser.id,
+      };
+      channels.unshift(item);
+      render();
+      closeModal();
+      openChat(ch.id);
+    } catch(e) {
+      console.error('[api] createChannel:', e);
+    }
   }
 }
