@@ -3,12 +3,18 @@
 function findItem(id) { return channels.find(x => x.id === id) || dms.find(x => x.id === id); }
 
 function render() {
-  document.getElementById('chList').innerHTML = channels.map(c => itm(c)).join('');
-  document.getElementById('dmList').innerHTML = dms.map(c => itm(c)).join('');
+  const all = [...channels, ...dms].sort((a, b) => {
+    const ta = a.time || ''; const tb = b.time || '';
+    return tb.localeCompare(ta);
+  });
+  const chEl = document.getElementById('chList');
+  const dmEl = document.getElementById('dmList');
+  if (chEl) chEl.innerHTML = all.map(c => itm(c)).join('');
+  if (dmEl) dmEl.innerHTML = '';
   const chSec = document.getElementById('chSection');
   const dmSec = document.getElementById('dmSection');
-  if (chSec) chSec.style.display = channels.length ? '' : 'none';
-  if (dmSec) dmSec.style.display = dms.length ? '' : 'none';
+  if (chSec) chSec.style.display = '';
+  if (dmSec) dmSec.style.display = 'none';
 }
 
 function itm(c) {
