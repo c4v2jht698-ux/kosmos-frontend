@@ -257,6 +257,30 @@ function openPinned(type) {
     document.getElementById('feedArea').addEventListener('scroll', function() {
       if (this.scrollTop + this.clientHeight >= this.scrollHeight - 200 && !feedLoading) loadFeed();
     });
+    // Auto-refresh every 60s for new agent posts
+    if (window._feedRefresh) clearInterval(window._feedRefresh);
+    window._feedRefresh = setInterval(function() {
+      var list = document.getElementById('feedList');
+      if (!list) { clearInterval(window._feedRefresh); return; }
+      // Reload from top without clearing
+      fetch(API + '/feed?offset=0', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var posts = data.posts || [];
+          if (posts.length && list.children.length) {
+            // Check if first post ID differs
+            var firstId = list.children[0]?.getAttribute('data-pid');
+            if (posts[0].id !== firstId) {
+              var newHtml = '';
+              for (var i = 0; i < posts.length; i++) {
+                if (posts[i].id === firstId) break;
+                newHtml += postCard(posts[i]);
+              }
+              if (newHtml) list.insertAdjacentHTML('afterbegin', newHtml);
+            }
+          }
+        }).catch(function() {});
+    }, 60000);
   } else if (type === 'social') {
     main.innerHTML = `
       <div class="chat-hdr">
@@ -396,7 +420,7 @@ function postCard(p) {
     ? '<button onclick="toggleSub(\'' + p.channel_id + '\',this)" style="background:none;border:1px solid var(--sep);border-radius:8px;color:#8899aa;font-size:12px;padding:5px 10px;cursor:pointer">Отписаться</button>'
     : '<button onclick="toggleSub(\'' + p.channel_id + '\',this)" style="background:#007AFF;border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:600;padding:6px 12px;cursor:pointer">Подписаться</button>'
   ) : '';
-  return '<div style="background:var(--card);border-bottom:0.5px solid var(--sep);padding:14px 16px">' +
+  return '<div data-pid="' + p.id + '" style="background:var(--card);border-bottom:0.5px solid var(--sep);padding:14px 16px">' +
     '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
       '<div class="' + g + '" style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px;flex-shrink:0">' + initial + '</div>' +
       '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;color:var(--text)">' + escHtml(name) + '</div><div style="font-size:12px;color:#556677">' + (slug?'@'+escHtml(slug)+' · ':'') + time + '</div></div>' +
