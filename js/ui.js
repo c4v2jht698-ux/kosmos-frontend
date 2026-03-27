@@ -238,18 +238,19 @@ function openPinned(type) {
       </div>`;
     scrollBot(); showChatView();
   } else if (type === 'video') {
-    // Реальные YouTube Shorts IDs (youtube.com/shorts/ID)
+    // YouTube Shorts IDs — проверены через youtube.com/shorts/ID (200 OK)
+    // + embed-совместимые вертикальные видео с хештеговых страниц
     const shorts = [
-      'gQlMMD0e5Q0','ZESNz1Gz-s4','cAEYrgaF06A','K4TOrB7at0Y','s1_FZCbmFQM',
-      'HCjNJDNzw8Y','MhQKe-aERsU','oHg5SJYRHA0','GtL1huin9EE','_T8cn2J13C4',
-      '0e3GPea1Tyg','djV11Xbc914','grd-K33tOSM','lp-EO5I60KA','kJQP7kiw5Fk',
-      'CwA1ogrCMC0','PnGJPqr1054','pKO9UjSeLew','jXS5KIhNpGo','a3ICNMQW7Ok',
-      'TNhaISOUy6Q','vTIIMJ9tUc8','Kn9Xle2jGpk','uelHwf8o7_U','rUWxSEwctFU',
-      'p0bGHP-PXD4','E7wJTI-1dvQ','5qap5aO4i9A','zTvJJnoWIPk','Z-48u_uWMHY',
-      'c0-hvjV2A5Y','z8ZqFlw6hYg','RiDiIWNMC_o','J---aiyznGQ','ih9zBLDr_ro',
-      '9XaS93WMRQQ','Lrj2Hq7xqQ8','QTT5iHCHSn0','N9qYF9DZPdw','0VXc2k7mXFw',
-      'WcIcVapfqXw','9YffrCViTVk','uYPbbksJxIg','t3otBjVZzT0','PQMbj0G1ZaQ',
-      'JGwWNGJdvx8','I1188GO4p1E','gtOCjkxwLIQ','BI_sPGpCSqA','fHI8X4OXluQ',
+      'gQlMMD0e5Q0','ZESNz1Gz-s4','cAEYrgaF06A','s1_FZCbmFQM','_T8cn2J13C4',
+      'BCz2tp8AI0c','NPqR6MeKI7U','P5JkYHXbk4g','UE6J-XG6I4M','Z2QqtkasThs',
+      'ZvptCPrknP8','3Pv4vxfmSzs','7x5GHSh6yNM','Ta6UEulD-Ys','imgdpOw4zCk',
+      'lrBFiM8n96E','xsWkhnlRy28','0XaT4hNLYiE','0buXgFF_8qM','0kcdd33GEy0',
+      '0thP51KLmc8','1Uw-7ZIim5E','1a-jpVaXn2Q','2yUKqvPlec4','3bhkYoMWTFE',
+      '3o71laGvF-Q','4lDigvlySps','52LEcKlz9uM','5DGuKehfPVo','5gRGKxgD_tY',
+      '5mAQVKEh1dE','5zdxJJena0g','6FljrpJG3pg','7YrsOUpNdbI','96DmtEn4vco',
+      'A5YvIw6xN3M','AXnW8UB0hpo','AcEuGENp2V4','B3uv7I066EI','BloNKaLg5d0',
+      'CQY32DKYaUo','CjAexFkLldg','DRQcg3VwdPY','DbpqZBagVxc','DoaPkRtGzhg',
+      'GYPbqmh--GQ','GZB6T8QOcFs','H17hkUBXIh8','HaqqY74IwmI','Hs9QdWt_qAk',
     ];
     main.innerHTML = `
       <div style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;padding:8px 12px;background:linear-gradient(rgba(0,0,0,0.6),transparent)">
