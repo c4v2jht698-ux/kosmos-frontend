@@ -230,6 +230,7 @@ body{
 .ur-name{font-weight:500;font-size:15px;color:var(--text)}
 .ur-email{font-size:13px;color:var(--text3)}
 .user-results-empty{padding:16px;text-align:center;font-size:14px;color:var(--text3)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
 
 /* Dark theme is now default — no body.dark overrides needed */
 

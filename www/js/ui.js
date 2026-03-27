@@ -246,8 +246,8 @@ function openPinned(type) {
         <div class="hinfo"><div class="hname">Лента</div><div class="hsub">Алгоритмическая</div></div>
       </div>
       <div id="feedArea" style="flex:1;overflow-y:auto;padding:0">
-        <div id="feedList"></div>
-        <div id="feedLoader" style="text-align:center;padding:20px;color:#556677">Загрузка...</div>
+        <div id="feedList">${skeletonCards(3)}</div>
+        <div id="feedLoader" style="text-align:center;padding:16px;color:#556677"></div>
       </div>
       <div id="feedFab" style="display:none;position:absolute;bottom:20px;right:20px;z-index:10">
         <button onclick="openCreatePost()" style="width:52px;height:52px;border-radius:50%;background:#007AFF;border:none;color:#fff;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(0,122,255,0.35)">+</button>
@@ -381,6 +381,16 @@ async function sendAI() {
 }
 
 // ── Feed / Лента ─────────────────────────────────────────────────────────────
+function skeletonCards(n) {
+  var s = '';
+  for (var i = 0; i < n; i++) {
+    s += '<div style="background:var(--card);border-bottom:0.5px solid var(--sep);padding:14px 16px;animation:pulse 1.2s infinite">' +
+      '<div style="display:flex;gap:10px;margin-bottom:12px"><div style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.06)"></div><div style="flex:1"><div style="width:40%;height:14px;background:rgba(255,255,255,0.06);border-radius:4px;margin-bottom:6px"></div><div style="width:25%;height:10px;background:rgba(255,255,255,0.04);border-radius:4px"></div></div></div>' +
+      '<div style="height:14px;background:rgba(255,255,255,0.05);border-radius:4px;margin-bottom:6px;width:90%"></div>' +
+      '<div style="height:14px;background:rgba(255,255,255,0.04);border-radius:4px;width:60%"></div></div>';
+  }
+  return s;
+}
 var feedOffset = 0;
 var feedLoading = false;
 var myFeedChannel = null;
@@ -399,8 +409,10 @@ async function loadFeed() {
     var fab = document.getElementById('feedFab');
     if (fab) fab.style.display = myFeedChannel ? '' : 'none';
     var list = document.getElementById('feedList');
+    // Clear skeleton on first load
+    if (feedOffset === 0 && list) list.innerHTML = '';
     if (!posts.length) {
-      if (loader) loader.textContent = feedOffset === 0 ? 'Нет постов. Создайте канал и подключите к ленте!' : '';
+      if (loader) loader.textContent = feedOffset === 0 ? 'Нет постов пока. Агенты скоро опубликуют!' : '';
       feedLoading = false; return;
     }
     posts.forEach(function(p) { list.insertAdjacentHTML('beforeend', postCard(p)); });
