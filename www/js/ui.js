@@ -239,31 +239,33 @@ function openPinned(type) {
     scrollBot(); showChatView();
   } else if (type === 'video') {
     const shorts = [
-      'dQw4w9WgXcQ','ZbZSe6N_BXs','kJQP7kiw5Fk','RgKAFK5djSk','9bZkp7q19f0',
-      'OPf0YbXqDm0','3JZ_D3ELwOQ','hTWKbfoikeg','2Vv-BfVoq4g','JGwWNGJdvx8',
-      'fJ9rUzIMcZQ','YQHsXMglC9A','IcrbM1l_BoI','CevxZvSJLk8','kXYiU_JCYtU',
-      'lp-EO5I60KA','60ItHLz5WEA','nfs8NYg7yQM','DyDfgMOUjCI','pRpeEdMmmQ0',
-      'SlPhMPnQ58k','e-ORhEE9VVg','7PCkvCPvDXk','RBumgq5yVrA','hT_nvWreIhg',
-      'KMU0tzLwhbE','JRfuAukYTKg','PT2_F-1esPk','QYh6mYIJG2Y','bo_efYhYU2A',
-      'WXBHCQYxwr0','FuXNumBwDOM','papuvlVeZg8','450p7goxZqg','XqZsoesa55w',
-      'YykjpeuMNEk','VMHp3MUDBes','UceaB4D0jpo','bx1Bh8ZvH84','izGwDsrQ1eQ',
-      'HP-MbfHFUqs','PIh2xe4jnpk','mNEUkqVU_Ug','HCjNJDNzw8Y','djV11Xbc914',
-      'L_jWHffIx5E','Zi_XLOBDo_Y','09R8_2nJtjg','QcIy9NiNbmo','eVTXPUF4Oz4',
+      'oBpaFPv4vmk','3nQNiWdeH2Q','cd0BjNVoEbw','tQ0yjYpFjIo','bJC00XdO_GI',
+      'j8PxqgliIno','ZEcqHA7dbwM','lHFYmEdNoGk','tVlcKp3bWH8','e5LgQFjVjFc',
+      '2b1IexhKPz4','H8L2PFmkkqE','n1WpP7iowLc','hCuMWrfXG4E','Zz5bR2Hkdiw',
+      'iik25wqIuFo','rt-2cxAiGmQ','3AtDnEC4zak','FkKPsLxgpuY','B7bqAsxee4I',
+      'R2fujvtO6qc','QH2-TGUlwu4','MtN1YnoL46Q','LXb3EKWsInQ','KlyXNRrsk4A',
+      'pBkHHoOIIn8','wCDIYvFmgW8','HQmmM_qwG4k','OQSNhk5ICTI','zJqnLbkBEgw',
+      'gCYcHz2k5x0','N3oCS85HvpY','MhQKe-aERsU','BQ0mxQXmLsk','rfabb_5BVEM',
+      'XFkzRNyygfk','hDCMi0AQbx0','z0GKGpFnGag','Ct6BUPvE2sM','EqWRaAF6_WY',
+      'T68Nwx2VzVE','xwtdhWltSIg','V1bFr2SWP1I','nSDgHBxUbVQ','ktvTqknDobU',
+      'lDK9QqIzhwk','YR5ApYxkU-U','fwNJo8CVFpM','PDJLvF1dUek','W6NZfDfMEbE',
     ];
-    let vidIdx = 0;
     main.innerHTML = `
-      <div class="chat-hdr">
-        <button class="back-btn" onclick="goBack()">‹</button>
-        <div class="hav g7 sq"><span>🎬</span></div>
-        <div class="hinfo"><div class="hname">Видео</div><div class="hsub">YouTube Shorts</div></div>
+      <div style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;padding:8px 12px;background:linear-gradient(rgba(0,0,0,0.6),transparent)">
+        <button onclick="goBack()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;padding:4px 8px">‹</button>
+        <span style="color:#fff;font-size:15px;font-weight:600;margin-left:8px">Shorts</span>
       </div>
-      <div id="shortsContainer" style="flex:1;overflow:hidden;position:relative;background:#000;scroll-snap-type:y mandatory;overflow-y:scroll">
-        ${shorts.map((id, i) => `
-          <div class="shorts-slide" data-idx="${i}" style="scroll-snap-align:start;width:100%;height:100%;flex-shrink:0;display:flex;align-items:center;justify-content:center;position:relative">
-            ${i === 0 ? `<iframe id="shortsFrame" src="https://www.youtube.com/embed/${id}?autoplay=1&loop=1&mute=1&playsinline=1&controls=1" style="width:100%;height:100%;border:none" allow="autoplay;encrypted-media" allowfullscreen></iframe>` : `<div style="color:#fff;font-size:18px">Загрузка...</div>`}
-            <div style="position:absolute;bottom:16px;left:16px;color:#fff;font-size:13px;opacity:.7">${i+1}/${shorts.length}</div>
-          </div>
-        `).join('')}
+      <div id="shortsContainer" style="width:100%;height:100%;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;background:#000">
+        ${shorts.map(function(id, i) {
+          return '<div class="shorts-slide" data-vid="' + id + '" data-idx="' + i + '" style="scroll-snap-align:start;scroll-snap-stop:always;width:100%;height:100%;position:relative;display:flex;align-items:center;justify-content:center;background:#000;flex-shrink:0">' +
+            (i <= 1 ? '<iframe src="https://www.youtube.com/embed/' + id + '?autoplay=' + (i===0?1:0) + '&mute=1&loop=1&controls=0&playsinline=1&rel=0&modestbranding=1" style="position:absolute;inset:0;width:100%;height:100%;border:none" allow="autoplay;encrypted-media" allowfullscreen></iframe>' : '<div style="color:#333;font-size:14px">⏳</div>') +
+            '<div style="position:absolute;right:12px;bottom:80px;display:flex;flex-direction:column;gap:18px;align-items:center">' +
+              '<button onclick="toggleShortsLike(this)" style="background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px"><span style="font-size:28px">🤍</span><span style="color:#fff;font-size:11px">Лайк</span></button>' +
+              '<button onclick="shareShortsLink(\'' + id + '\')" style="background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px"><span style="font-size:24px">↗</span><span style="color:#fff;font-size:11px">Поделиться</span></button>' +
+            '</div>' +
+            '<div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(255,255,255,0.15)"><div class="shorts-progress" style="height:100%;background:#fff;width:' + ((i+1)/shorts.length*100).toFixed(1) + '%;transition:width .3s"></div></div>' +
+          '</div>';
+        }).join('')}
       </div>`;
     showChatView();
     initShortsScroll(shorts);
@@ -366,46 +368,71 @@ async function sendAI() {
   }
 }
 
-// ── Shorts scroll ────────────────────────────────────────────────────────────
+// ── Shorts scroll & helpers ───────────────────────────────────────────────────
 function initShortsScroll(shorts) {
   var container = document.getElementById('shortsContainer');
   if (!container) return;
   var currentIdx = 0;
+  var slides = container.querySelectorAll('.shorts-slide');
 
-  function loadSlide(idx) {
-    var slides = container.querySelectorAll('.shorts-slide');
-    if (!slides[idx]) return;
+  function makeIframe(vid, autoplay) {
+    return '<iframe src="https://www.youtube.com/embed/' + vid + '?autoplay=' + (autoplay?1:0) + '&mute=1&loop=1&controls=0&playsinline=1&rel=0&modestbranding=1" style="position:absolute;inset:0;width:100%;height:100%;border:none" allow="autoplay;encrypted-media" allowfullscreen></iframe>';
+  }
+
+  function ensureLoaded(idx, autoplay) {
+    if (idx < 0 || idx >= slides.length) return;
     var sl = slides[idx];
     if (!sl.querySelector('iframe')) {
-      sl.innerHTML = '<iframe src="https://www.youtube.com/embed/' + shorts[idx] + '?autoplay=1&loop=1&mute=1&playsinline=1&controls=1" style="width:100%;height:100%;border:none" allow="autoplay;encrypted-media" allowfullscreen></iframe>' +
-        '<div style="position:absolute;bottom:16px;left:16px;color:#fff;font-size:13px;opacity:.7">' + (idx+1) + '/' + shorts.length + '</div>';
+      // Сохраняем боковые кнопки и прогресс
+      var btns = sl.querySelector('div[style*="right:12px"]');
+      var prog = sl.querySelector('div[style*="bottom:0"]');
+      var btnsHtml = btns ? btns.outerHTML : '';
+      var progHtml = prog ? prog.outerHTML : '';
+      sl.innerHTML = makeIframe(shorts[idx], autoplay) + btnsHtml + progHtml;
     }
   }
 
   function unloadFar(idx) {
-    var slides = container.querySelectorAll('.shorts-slide');
     slides.forEach(function(sl, i) {
-      if (Math.abs(i - idx) > 1 && sl.querySelector('iframe')) {
-        sl.innerHTML = '<div style="color:#fff;font-size:18px;text-align:center">Свайпни для загрузки</div>' +
-          '<div style="position:absolute;bottom:16px;left:16px;color:#fff;font-size:13px;opacity:.7">' + (i+1) + '/' + shorts.length + '</div>';
+      if (Math.abs(i - idx) > 2 && sl.querySelector('iframe')) {
+        var fr = sl.querySelector('iframe');
+        if (fr) fr.remove();
       }
     });
   }
 
-  function onScroll() {
+  function onSnap() {
     var idx = Math.round(container.scrollTop / container.clientHeight);
     if (idx === currentIdx) return;
     currentIdx = idx;
-    loadSlide(idx);
+    // Загрузить текущий + соседние
+    ensureLoaded(idx, true);
+    ensureLoaded(idx - 1, false);
+    ensureLoaded(idx + 1, false);
     unloadFar(idx);
   }
 
-  // scrollend не везде поддерживается — используем debounced scroll
-  var scrollTimer = null;
+  var timer = null;
   container.addEventListener('scroll', function() {
-    clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(onScroll, 150);
+    clearTimeout(timer);
+    timer = setTimeout(onSnap, 120);
   });
+}
+
+function toggleShortsLike(btn) {
+  var span = btn.querySelector('span');
+  if (span.textContent === '🤍') { span.textContent = '❤️'; }
+  else { span.textContent = '🤍'; }
+}
+
+function shareShortsLink(vid) {
+  var url = 'https://youtube.com/shorts/' + vid;
+  if (navigator.share) {
+    navigator.share({ url: url }).catch(function(){});
+  } else if (navigator.clipboard) {
+    navigator.clipboard.writeText(url);
+    alert('Ссылка скопирована');
+  }
 }
 
 // ── Dating / Общение ─────────────────────────────────────────────────────────
