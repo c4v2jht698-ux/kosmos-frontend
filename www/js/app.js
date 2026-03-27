@@ -4,6 +4,7 @@ const EMOJIS = ['❤️','😂','👍','🔥','😮','👏','🎉','🙏'];
 const GS = ['g1','g2','g3','g4','g5','g6','g7'];
 
 let jwtToken = localStorage.getItem('kosmos_token');
+let refreshToken = localStorage.getItem('kosmos_refresh');
 let currentUser = JSON.parse(localStorage.getItem('kosmos_user') || 'null');
 let socket = null;
 let typingTimeout = null;
@@ -11,6 +12,33 @@ let cur = null;
 
 const channels = [];
 const dms = [];
+
+// Auto-refresh token every 12 min
+setInterval(async function() {
+  if (!refreshToken) return;
+  try {
+    var r = await fetch(API + '/refresh', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: refreshToken })
+    });
+    if (r.ok) {
+      var d = await r.json();
+      jwtToken = d.token;
+      localStorage.setItem('kosmos_token', jwtToken);
+    }
+  } catch(e) {}
+}, 12 * 60 * 1000);
+
+// Inactivity logout — 30 min
+var _lastActivity = Date.now();
+document.addEventListener('click', function() { _lastActivity = Date.now(); });
+document.addEventListener('keydown', function() { _lastActivity = Date.now(); });
+setInterval(function() {
+  if (jwtToken && Date.now() - _lastActivity > 30 * 60 * 1000) {
+    console.log('[security] Inactivity logout');
+    logout();
+  }
+}, 60000);
 
 // ── Auth ────────────────────────────────────────────────────────────────────
 let authMode = 'login';
@@ -164,8 +192,10 @@ async function submitAuth() {
     }
 
     jwtToken = data.token;
+    refreshToken = data.refreshToken;
     currentUser = data.user;
     localStorage.setItem('kosmos_token', jwtToken);
+    if (data.refreshToken) localStorage.setItem('kosmos_refresh', data.refreshToken);
     localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
     showSuccess(`Добро пожаловать, ${data.user.username}!`);
     setTimeout(enterApp, 700);
@@ -185,8 +215,9 @@ function enterApp() {
 
 function logout() {
   localStorage.removeItem('kosmos_token');
+  localStorage.removeItem('kosmos_refresh');
   localStorage.removeItem('kosmos_user');
-  jwtToken = null; currentUser = null;
+  jwtToken = null; refreshToken = null; currentUser = null;
   if (socket) { socket.disconnect(); socket = null; }
   cur = null; channels.length = 0; dms.length = 0; render();
   document.getElementById('auth').classList.remove('hidden');
@@ -287,3 +318,18 @@ if (jwtToken) {
 }
 
 render();
+
+// ── Offline detection ────────────────────────────────────────────────────────
+var offlineBanner = null;
+window.addEventListener('offline', function() {
+  if (offlineBanner) return;
+  offlineBanner = document.createElement('div');
+  offlineBanner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:10000;background:#FF3B30;color:#fff;text-align:center;padding:6px;font-size:13px;font-weight:600';
+  offlineBanner.textContent = 'Нет соединения';
+  document.body.appendChild(offlineBanner);
+});
+window.addEventListener('online', function() {
+  if (offlineBanner) { offlineBanner.remove(); offlineBanner = null; }
+  if (socket && !socket.connected) socket.connect();
+  loadMyChats();
+});
