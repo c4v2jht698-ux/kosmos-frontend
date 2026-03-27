@@ -8,6 +8,11 @@ function initSocket() {
   socket = io(API, {
     auth: { token: jwtToken },
     transports: ['polling', 'websocket'],
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 2000,
+    reconnectionDelayMax: 30000,
+    timeout: 20000,
   });
 
   socket.on('connect', () => {
@@ -24,6 +29,13 @@ function initSocket() {
 
   socket.on('connect_error', (e) => {
     console.warn('[socket] error:', e.message);
+  });
+
+  socket.on('reconnect', (attempt) => {
+    console.log('[socket] reconnected after', attempt, 'attempts');
+    if (cur) socket.emit('join', cur);
+    channels.forEach(c => socket.emit('join', c.id));
+    dms.forEach(d => socket.emit('join', d.id));
   });
 
   // Keepalive — чтобы Render не засыпал

@@ -238,27 +238,49 @@ function openPinned(type) {
       </div>`;
     scrollBot(); showChatView();
   } else if (type === 'video') {
-    feedOffset = 0; feedLoading = false;
+    feedOffset = 0; feedLoading = false; myFeedChannel = null;
     main.innerHTML = `
       <div class="chat-hdr">
         <button class="back-btn" onclick="goBack()">‹</button>
-        <div class="hav g7 sq" style="background:#007AFF"><span style="color:#fff;font-size:16px">📰</span></div>
-        <div class="hinfo"><div class="hname">Лента</div><div class="hsub">Посты и новости</div></div>
+        <div class="hav" style="background:#007AFF;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center"><span style="color:#fff;font-size:16px">📰</span></div>
+        <div class="hinfo"><div class="hname">Лента</div><div class="hsub">Алгоритмическая</div></div>
       </div>
       <div id="feedArea" style="flex:1;overflow-y:auto;padding:0">
-        <div id="feedList" style="padding:8px 0"></div>
-        <div id="feedLoader" style="text-align:center;padding:20px;color:var(--text3)">Загрузка...</div>
+        <div id="feedList"></div>
+        <div id="feedLoader" style="text-align:center;padding:20px;color:#556677">Загрузка...</div>
       </div>
-      <div style="position:absolute;bottom:20px;right:20px;z-index:10">
-        <button onclick="openCreatePost()" style="width:52px;height:52px;border-radius:50%;background:#007AFF;border:none;color:#fff;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(0,122,255,0.4)">+</button>
+      <div id="feedFab" style="display:none;position:absolute;bottom:20px;right:20px;z-index:10">
+        <button onclick="openCreatePost()" style="width:52px;height:52px;border-radius:50%;background:#007AFF;border:none;color:#fff;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(0,122,255,0.35)">+</button>
       </div>`;
     showChatView();
     loadFeed();
-    // Бесконечный скролл
     document.getElementById('feedArea').addEventListener('scroll', function() {
-      var el = this;
-      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200 && !feedLoading) loadFeed();
+      if (this.scrollTop + this.clientHeight >= this.scrollHeight - 200 && !feedLoading) loadFeed();
     });
+    // Auto-refresh every 60s for new agent posts
+    if (window._feedRefresh) clearInterval(window._feedRefresh);
+    window._feedRefresh = setInterval(function() {
+      var list = document.getElementById('feedList');
+      if (!list) { clearInterval(window._feedRefresh); return; }
+      // Reload from top without clearing
+      fetch(API + '/feed?offset=0', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var posts = data.posts || [];
+          if (posts.length && list.children.length) {
+            // Check if first post ID differs
+            var firstId = list.children[0]?.getAttribute('data-pid');
+            if (posts[0].id !== firstId) {
+              var newHtml = '';
+              for (var i = 0; i < posts.length; i++) {
+                if (posts[i].id === firstId) break;
+                newHtml += postCard(posts[i]);
+              }
+              if (newHtml) list.insertAdjacentHTML('afterbegin', newHtml);
+            }
+          }
+        }).catch(function() {});
+    }, 60000);
   } else if (type === 'social') {
     main.innerHTML = `
       <div class="chat-hdr">
@@ -361,112 +383,112 @@ async function sendAI() {
 // ── Feed / Лента ─────────────────────────────────────────────────────────────
 var feedOffset = 0;
 var feedLoading = false;
+var myFeedChannel = null;
 
 async function loadFeed() {
   if (feedLoading) return;
   feedLoading = true;
   var loader = document.getElementById('feedLoader');
   try {
-    var res = await fetch(API + '/posts/feed?offset=' + feedOffset, {
-      headers: { 'Authorization': 'Bearer ' + jwtToken }
-    });
+    var res = await fetch(API + '/feed?offset=' + feedOffset, { headers: { 'Authorization': 'Bearer ' + jwtToken } });
     if (!res.ok) { feedLoading = false; return; }
-    var posts = await res.json();
+    var data = await res.json();
+    var posts = data.posts || [];
+    myFeedChannel = data.myFeedChannel || null;
+    // Show/hide FAB
+    var fab = document.getElementById('feedFab');
+    if (fab) fab.style.display = myFeedChannel ? '' : 'none';
     var list = document.getElementById('feedList');
     if (!posts.length) {
-      if (loader) loader.textContent = feedOffset === 0 ? 'Нет постов. Будьте первым!' : 'Больше нет постов';
+      if (loader) loader.textContent = feedOffset === 0 ? 'Нет постов. Создайте канал и подключите к ленте!' : '';
       feedLoading = false; return;
     }
     posts.forEach(function(p) { list.insertAdjacentHTML('beforeend', postCard(p)); });
     feedOffset += posts.length;
     feedLoading = false;
-    if (loader) loader.textContent = 'Загрузка...';
-  } catch(e) {
-    feedLoading = false;
-    if (loader) loader.textContent = 'Ошибка загрузки';
-  }
+    if (loader) loader.textContent = '';
+  } catch(e) { feedLoading = false; if (document.getElementById('feedLoader')) document.getElementById('feedLoader').textContent = 'Ошибка'; }
 }
 
 function postCard(p) {
-  var initial = (p.author_name || '?')[0].toUpperCase();
-  var g = GS[(p.author_name || '').charCodeAt(0) % GS.length];
-  var time = p.created_at ? new Date(p.created_at * 1000).toLocaleString('ru', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
-  return '<div style="background:var(--card,#fff);border-bottom:0.5px solid var(--sep,#eee);padding:14px 16px">' +
+  var name = p.channel_name || '?';
+  var slug = p.channel_slug || '';
+  var initial = name[0].toUpperCase();
+  var g = GS[name.charCodeAt(0) % GS.length];
+  var time = p.created_at ? new Date(p.created_at * 1000).toLocaleString('ru',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+  var subBtn = p.channel_id ? (p.subscribed
+    ? '<button onclick="toggleSub(\'' + p.channel_id + '\',this)" style="background:none;border:1px solid var(--sep);border-radius:8px;color:#8899aa;font-size:12px;padding:5px 10px;cursor:pointer">Отписаться</button>'
+    : '<button onclick="toggleSub(\'' + p.channel_id + '\',this)" style="background:#007AFF;border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:600;padding:6px 12px;cursor:pointer">Подписаться</button>'
+  ) : '';
+  return '<div data-pid="' + p.id + '" style="background:var(--card);border-bottom:0.5px solid var(--sep);padding:14px 16px">' +
     '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
       '<div class="' + g + '" style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px;flex-shrink:0">' + initial + '</div>' +
-      '<div style="flex:1;min-width:0">' +
-        '<div style="font-weight:600;font-size:15px">' + escHtml(p.author_name) + '</div>' +
-        '<div style="font-size:12px;color:var(--text3,#8e8e93)">' + (p.author_handle ? '@' + escHtml(p.author_handle) : '') + ' · ' + time + '</div>' +
-      '</div>' +
+      '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;color:var(--text)">' + escHtml(name) + '</div><div style="font-size:12px;color:#556677">' + (slug?'@'+escHtml(slug)+' · ':'') + time + '</div></div>' +
+      subBtn +
     '</div>' +
-    '<div style="font-size:16px;line-height:1.45;margin-bottom:10px;white-space:pre-wrap">' + escHtml(p.text) + '</div>' +
-    (p.photo ? '<img src="' + escHtml(p.photo) + '" style="width:100%;border-radius:12px;margin-bottom:10px;max-height:400px;object-fit:cover" onerror="this.style.display=\'none\'">' : '') +
-    '<div style="display:flex;gap:24px;padding-top:6px">' +
-      '<button onclick="togglePostLike(this,\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;font-size:14px;color:' + (p.liked ? '#FF3B30' : 'var(--text3,#8e8e93)') + ';display:flex;align-items:center;gap:4px"><span>' + (p.liked ? '❤️' : '🤍') + '</span><span class="lc">' + (p.likes||0) + '</span></button>' +
-      '<button onclick="openPostComments(\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--text3,#8e8e93);display:flex;align-items:center;gap:4px">💬 <span>' + (p.comments||0) + '</span></button>' +
-      '<button onclick="repost(\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--text3,#8e8e93);display:flex;align-items:center;gap:4px">🔁 <span>' + (p.reposts||0) + '</span></button>' +
-    '</div>' +
-  '</div>';
+    '<div style="font-size:15px;line-height:1.4;margin-bottom:8px;white-space:pre-wrap;color:var(--text)">' + escHtml(p.text) + '</div>' +
+    '<div style="display:flex;gap:16px;padding-top:4px">' +
+      '<button onclick="feedLike(this,\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;font-size:14px;color:' + (p.liked?'#FF3B30':'#8899aa') + ';display:flex;align-items:center;gap:4px"><span>👍</span><span class="lc">' + (p.likes||0) + '</span></button>' +
+      '<button onclick="feedDislike(this,\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;font-size:14px;color:' + (p.disliked?'#007AFF':'#8899aa') + ';display:flex;align-items:center;gap:4px"><span>👎</span><span class="dc">' + (p.dislikes||0) + '</span></button>' +
+      '<button onclick="feedShare(\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;font-size:14px;color:#8899aa;display:flex;align-items:center;gap:4px">📤</button>' +
+    '</div></div>';
 }
 
-async function togglePostLike(btn, postId) {
-  var res = await fetch(API + '/posts/' + postId + '/like', {
-    method: 'POST', headers: { 'Authorization': 'Bearer ' + jwtToken }
-  });
-  var data = await res.json();
-  var span = btn.querySelector('span');
-  var lc = btn.querySelector('.lc');
-  if (data.liked) { span.textContent = '❤️'; btn.style.color = '#FF3B30'; lc.textContent = parseInt(lc.textContent) + 1; }
-  else { span.textContent = '🤍'; btn.style.color = 'var(--text3,#8e8e93)'; lc.textContent = Math.max(0, parseInt(lc.textContent) - 1); }
+async function feedLike(btn, id) {
+  // Optimistic UI
+  var lc = btn.querySelector('.lc'); var cur = parseInt(lc.textContent);
+  var isLiked = btn.style.color !== 'rgb(136, 153, 170)';
+  lc.textContent = isLiked ? Math.max(0,cur-1) : cur+1;
+  btn.style.color = isLiked ? '#8899aa' : '#FF3B30';
+  // Also reset dislike sibling
+  var sib = btn.nextElementSibling; if (sib) { sib.style.color = '#8899aa'; }
+  fetch(API+'/feed/'+id+'/like',{method:'POST',headers:{'Authorization':'Bearer '+jwtToken}});
 }
 
-async function repost(postId) {
-  await fetch(API + '/posts/' + postId + '/repost', {
-    method: 'POST', headers: { 'Authorization': 'Bearer ' + jwtToken }
-  });
+async function feedDislike(btn, id) {
+  var dc = btn.querySelector('.dc'); var cur = parseInt(dc.textContent);
+  var isDis = btn.style.color !== 'rgb(136, 153, 170)';
+  dc.textContent = isDis ? Math.max(0,cur-1) : cur+1;
+  btn.style.color = isDis ? '#8899aa' : '#007AFF';
+  var sib = btn.previousElementSibling; if (sib) { sib.style.color = '#8899aa'; }
+  fetch(API+'/feed/'+id+'/dislike',{method:'POST',headers:{'Authorization':'Bearer '+jwtToken}});
 }
 
-function openPostComments(postId) {
-  // Простая версия — показать в alert
-  fetch(API + '/posts/' + postId + '/comments', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
-    .then(function(r) { return r.json(); })
-    .then(function(comments) {
-      var text = comments.map(function(c) { return '@' + (c.handle||c.username) + ': ' + c.text; }).join('\n') || 'Нет комментариев';
-      var newComment = prompt(text + '\n\nНапишите комментарий:');
-      if (newComment && newComment.trim()) {
-        fetch(API + '/posts/' + postId + '/comment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
-          body: JSON.stringify({ text: newComment.trim() })
-        });
-      }
-    });
+async function feedShare(postId) {
+  var handle = prompt('Введите @username друга:');
+  if (!handle) return;
+  var users = await (await fetch(API+'/users?search='+encodeURIComponent(handle),{headers:{'Authorization':'Bearer '+jwtToken}})).json();
+  if (!users.length) { alert('Пользователь не найден'); return; }
+  await fetch(API+'/feed/'+postId+'/share',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwtToken},body:JSON.stringify({targetUserId:users[0].id})});
+  alert('Отправлено!');
+}
+
+async function toggleSub(channelId, btn) {
+  var r = await fetch(API+'/channels/'+channelId+'/subscribe',{method:'POST',headers:{'Authorization':'Bearer '+jwtToken}});
+  var d = await r.json();
+  if (d.subscribed) { btn.textContent='Отписаться'; btn.style.background='none'; btn.style.border='1px solid var(--sep)'; btn.style.color='#8899aa'; }
+  else { btn.textContent='Подписаться'; btn.style.background='#007AFF'; btn.style.border='none'; btn.style.color='#fff'; }
+  loadMyChats();
 }
 
 function openCreatePost() {
   var main = document.getElementById('feedArea') || document.getElementById('mainArea');
   main.innerHTML =
     '<div style="padding:20px;max-width:500px;margin:0 auto">' +
-      '<div style="font-size:20px;font-weight:600;margin-bottom:16px">Новый пост</div>' +
-      '<textarea id="postText" style="width:100%;min-height:120px;background:var(--bg,#f2f2f7);border:0.5px solid var(--sep,#ddd);border-radius:12px;padding:14px;font-family:inherit;font-size:16px;resize:vertical;outline:none;color:var(--text)" placeholder="Что нового?"></textarea>' +
-      '<input id="postPhoto" style="width:100%;background:var(--bg,#f2f2f7);border:0.5px solid var(--sep,#ddd);border-radius:12px;padding:12px 14px;font-family:inherit;font-size:15px;margin-top:8px;outline:none;color:var(--text)" placeholder="URL фото (необязательно)">' +
-      '<div style="display:flex;gap:8px;margin-top:12px">' +
-        '<button onclick="openPinned(\'video\')" style="flex:1;background:var(--bg,#f2f2f7);border:none;border-radius:12px;padding:12px;font-family:inherit;font-size:15px;cursor:pointer;color:var(--text2)">Отмена</button>' +
-        '<button onclick="submitPost()" style="flex:1;background:#007AFF;border:none;border-radius:12px;padding:12px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;color:#fff">Опубликовать</button>' +
-      '</div>' +
-    '</div>';
+      '<div style="font-size:20px;font-weight:600;margin-bottom:16px;color:var(--text)">Новый пост</div>' +
+      '<textarea id="postText" maxlength="140" oninput="var c=this.value.length;document.getElementById(\'cc\').textContent=c+\'/140\';document.getElementById(\'cc\').style.color=c>130?\'#FF3B30\':\'#556677\'" style="width:100%;min-height:100px;background:var(--bg);border:0.5px solid var(--sep);border-radius:12px;padding:14px;font-family:inherit;font-size:15px;resize:none;outline:none;color:var(--text)" placeholder="Что нового?"></textarea>' +
+      '<div id="cc" style="text-align:right;font-size:12px;color:#556677;margin:4px 4px 8px">0/140</div>' +
+      '<div style="display:flex;gap:8px">' +
+        '<button onclick="openPinned(\'video\')" style="flex:1;background:var(--card);border:none;border-radius:12px;padding:12px;font-family:inherit;font-size:15px;cursor:pointer;color:var(--text2)">Отмена</button>' +
+        '<button onclick="submitFeedPost()" style="flex:1;background:#007AFF;border:none;border-radius:12px;padding:12px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;color:#fff">Опубликовать</button>' +
+      '</div></div>';
 }
 
-async function submitPost() {
+async function submitFeedPost() {
   var text = document.getElementById('postText').value.trim();
-  var photo = document.getElementById('postPhoto').value.trim();
-  if (!text) return;
-  await fetch(API + '/posts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
-    body: JSON.stringify({ text: text, photo: photo || null })
-  });
-  openPinned('video'); // Вернуться в ленту
+  if (!text || !myFeedChannel) return;
+  await fetch(API+'/feed/post',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwtToken},body:JSON.stringify({channelId:myFeedChannel,text:text})});
+  openPinned('video');
 }
 
 // ── Dating / Общение ─────────────────────────────────────────────────────────
@@ -597,6 +619,59 @@ async function saveDatingProfile() {
     }),
   });
   openPinned('social');
+}
+
+async function subscribeChannel(channelId, btn) {
+  await fetch(API + '/channels/' + channelId + '/subscribe', {
+    method: 'POST', headers: { 'Authorization': 'Bearer ' + jwtToken }
+  });
+  if (btn) { btn.textContent = '✓'; btn.style.background = '#34C759'; }
+  loadMyChats();
+}
+
+function openCreateChannel() {
+  var main = document.getElementById('mainArea');
+  main.innerHTML =
+    '<div class="chat-hdr"><button class="back-btn" onclick="goBack()">‹</button><div class="hinfo"><div class="hname">Создать канал</div></div></div>' +
+    '<div style="padding:20px;max-width:400px;margin:0 auto">' +
+      '<div class="auth-label">Название</div>' +
+      '<input class="minp" id="chName" placeholder="Мой канал" style="background:var(--card);color:var(--text);border-color:var(--sep)">' +
+      '<div class="auth-label">@username (латиница, цифры, _)</div>' +
+      '<div style="position:relative"><input class="minp" id="chSlug" placeholder="my_channel" oninput="checkSlug(this.value)" autocapitalize="none" style="background:var(--card);color:var(--text);border-color:var(--sep)"><span id="slugStatus" style="position:absolute;right:12px;top:12px;font-size:14px"></span></div>' +
+      '<div class="auth-label">Описание</div>' +
+      '<textarea class="minp" id="chDesc" rows="2" placeholder="О чём этот канал" style="background:var(--card);color:var(--text);border-color:var(--sep);resize:none"></textarea>' +
+      '<button onclick="submitChannel()" style="width:100%;background:#007AFF;border:none;border-radius:12px;color:#fff;padding:14px;font-family:inherit;font-size:16px;font-weight:600;cursor:pointer;margin-top:8px">Создать</button>' +
+    '</div>';
+  showChatView();
+}
+
+var slugTimer = null;
+function checkSlug(val) {
+  clearTimeout(slugTimer);
+  var st = document.getElementById('slugStatus');
+  val = val.toLowerCase().replace(/[^a-z0-9_]/g, '');
+  document.getElementById('chSlug').value = val;
+  if (val.length < 3) { st.textContent = ''; return; }
+  slugTimer = setTimeout(async function() {
+    var r = await fetch(API + '/channels/check-slug/' + val, { headers: { 'Authorization': 'Bearer ' + jwtToken } });
+    var d = await r.json();
+    st.textContent = d.available ? '✓' : '✕';
+    st.style.color = d.available ? '#34C759' : '#FF3B30';
+  }, 400);
+}
+
+async function submitChannel() {
+  var name = document.getElementById('chName').value.trim();
+  var slug = document.getElementById('chSlug').value.trim();
+  var desc = document.getElementById('chDesc').value.trim();
+  if (!name || !slug) return;
+  var r = await fetch(API + '/channels', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+    body: JSON.stringify({ name: name, description: desc, slug: slug })
+  });
+  if (r.ok) { goBack(); loadMyChats(); }
+  else { var d = await r.json(); alert(d.error || 'Ошибка'); }
 }
 
 function togE() { document.getElementById('ep')?.classList.toggle('open'); }
