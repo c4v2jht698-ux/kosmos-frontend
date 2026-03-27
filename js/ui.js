@@ -238,17 +238,18 @@ function openPinned(type) {
       </div>`;
     scrollBot(); showChatView();
   } else if (type === 'video') {
+    // Реальные YouTube Shorts IDs (youtube.com/shorts/ID)
     const shorts = [
-      'oBpaFPv4vmk','3nQNiWdeH2Q','cd0BjNVoEbw','tQ0yjYpFjIo','bJC00XdO_GI',
-      'j8PxqgliIno','ZEcqHA7dbwM','lHFYmEdNoGk','tVlcKp3bWH8','e5LgQFjVjFc',
-      '2b1IexhKPz4','H8L2PFmkkqE','n1WpP7iowLc','hCuMWrfXG4E','Zz5bR2Hkdiw',
-      'iik25wqIuFo','rt-2cxAiGmQ','3AtDnEC4zak','FkKPsLxgpuY','B7bqAsxee4I',
-      'R2fujvtO6qc','QH2-TGUlwu4','MtN1YnoL46Q','LXb3EKWsInQ','KlyXNRrsk4A',
-      'pBkHHoOIIn8','wCDIYvFmgW8','HQmmM_qwG4k','OQSNhk5ICTI','zJqnLbkBEgw',
-      'gCYcHz2k5x0','N3oCS85HvpY','MhQKe-aERsU','BQ0mxQXmLsk','rfabb_5BVEM',
-      'XFkzRNyygfk','hDCMi0AQbx0','z0GKGpFnGag','Ct6BUPvE2sM','EqWRaAF6_WY',
-      'T68Nwx2VzVE','xwtdhWltSIg','V1bFr2SWP1I','nSDgHBxUbVQ','ktvTqknDobU',
-      'lDK9QqIzhwk','YR5ApYxkU-U','fwNJo8CVFpM','PDJLvF1dUek','W6NZfDfMEbE',
+      'gQlMMD0e5Q0','ZESNz1Gz-s4','cAEYrgaF06A','K4TOrB7at0Y','s1_FZCbmFQM',
+      'HCjNJDNzw8Y','MhQKe-aERsU','oHg5SJYRHA0','GtL1huin9EE','_T8cn2J13C4',
+      '0e3GPea1Tyg','djV11Xbc914','grd-K33tOSM','lp-EO5I60KA','kJQP7kiw5Fk',
+      'CwA1ogrCMC0','PnGJPqr1054','pKO9UjSeLew','jXS5KIhNpGo','a3ICNMQW7Ok',
+      'TNhaISOUy6Q','vTIIMJ9tUc8','Kn9Xle2jGpk','uelHwf8o7_U','rUWxSEwctFU',
+      'p0bGHP-PXD4','E7wJTI-1dvQ','5qap5aO4i9A','zTvJJnoWIPk','Z-48u_uWMHY',
+      'c0-hvjV2A5Y','z8ZqFlw6hYg','RiDiIWNMC_o','J---aiyznGQ','ih9zBLDr_ro',
+      '9XaS93WMRQQ','Lrj2Hq7xqQ8','QTT5iHCHSn0','N9qYF9DZPdw','0VXc2k7mXFw',
+      'WcIcVapfqXw','9YffrCViTVk','uYPbbksJxIg','t3otBjVZzT0','PQMbj0G1ZaQ',
+      'JGwWNGJdvx8','I1188GO4p1E','gtOCjkxwLIQ','BI_sPGpCSqA','fHI8X4OXluQ',
     ];
     main.innerHTML = `
       <div style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;padding:8px 12px;background:linear-gradient(rgba(0,0,0,0.6),transparent)">
