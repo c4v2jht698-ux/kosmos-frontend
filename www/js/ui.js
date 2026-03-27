@@ -398,28 +398,60 @@ var myFeedChannel = null;
 async function loadFeed() {
   if (feedLoading) return;
   feedLoading = true;
+  var list = document.getElementById('feedList');
   var loader = document.getElementById('feedLoader');
+  if (loader) loader.textContent = '';
+
+  // Show cached posts instantly on first load
+  if (feedOffset === 0 && list) {
+    try {
+      var cached = JSON.parse(localStorage.getItem('feed_cache') || '[]');
+      if (cached.length) {
+        list.innerHTML = cached.map(function(p) { return postCard(p); }).join('');
+      }
+    } catch(e) {}
+  }
+
   try {
-    var res = await fetch(API + '/feed?offset=' + feedOffset, { headers: { 'Authorization': 'Bearer ' + jwtToken } });
-    if (!res.ok) { feedLoading = false; return; }
+    var ctrl = new AbortController();
+    var timer = setTimeout(function() { ctrl.abort(); }, 8000);
+    var res = await fetch(API + '/feed?offset=' + feedOffset, {
+      headers: { 'Authorization': 'Bearer ' + jwtToken },
+      signal: ctrl.signal
+    });
+    clearTimeout(timer);
+    if (!res.ok) {
+      feedLoading = false;
+      if (feedOffset === 0 && list && !list.children.length) list.innerHTML = '<div style="text-align:center;padding:40px;color:#8899aa">Ошибка загрузки</div>';
+      return;
+    }
     var data = await res.json();
     var posts = data.posts || [];
     myFeedChannel = data.myFeedChannel || null;
-    // Show/hide FAB
     var fab = document.getElementById('feedFab');
     if (fab) fab.style.display = myFeedChannel ? '' : 'none';
-    var list = document.getElementById('feedList');
-    // Clear skeleton on first load
-    if (feedOffset === 0 && list) list.innerHTML = '';
+
+    if (feedOffset === 0 && list) {
+      list.innerHTML = '';
+      // Cache first page
+      try { localStorage.setItem('feed_cache', JSON.stringify(posts.slice(0, 10))); } catch(e) {}
+    }
     if (!posts.length) {
-      if (loader) loader.textContent = feedOffset === 0 ? 'Нет постов пока. Агенты скоро опубликуют!' : '';
+      if (feedOffset === 0 && !list.children.length) list.innerHTML = '<div style="text-align:center;padding:40px;color:#8899aa">Нет постов пока</div>';
       feedLoading = false; return;
     }
     posts.forEach(function(p) { list.insertAdjacentHTML('beforeend', postCard(p)); });
     feedOffset += posts.length;
     feedLoading = false;
-    if (loader) loader.textContent = '';
-  } catch(e) { feedLoading = false; if (document.getElementById('feedLoader')) document.getElementById('feedLoader').textContent = 'Ошибка'; }
+  } catch(e) {
+    feedLoading = false;
+    if (feedOffset === 0 && list && !list.querySelector('[data-pid]')) {
+      list.innerHTML = '<div style="text-align:center;padding:40px">' +
+        '<div style="font-size:32px;margin-bottom:12px">📡</div>' +
+        '<div style="color:#8899aa;margin-bottom:16px">' + (e.name === 'AbortError' ? 'Сервер не отвечает' : 'Нет соединения') + '</div>' +
+        '<button onclick="feedOffset=0;feedLoading=false;document.getElementById(\'feedList\').innerHTML=skeletonCards(3);loadFeed()" style="background:#007AFF;border:none;border-radius:10px;color:#fff;padding:10px 24px;font-family:inherit;font-size:15px;cursor:pointer">Попробовать снова</button></div>';
+    }
+  }
 }
 
 function postCard(p) {
