@@ -468,7 +468,6 @@ async function submitPost() {
   });
   openPinned('video'); // Вернуться в ленту
 }
-}
 
 // ── Dating / Общение ─────────────────────────────────────────────────────────
 let datingCards = [];
