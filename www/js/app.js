@@ -196,10 +196,12 @@ function logout() {
   document.getElementById('mainArea').innerHTML = `<div class="empty"><div class="empty-card"><div class="empty-icon">🚀</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>`;
 }
 
+var _appEntered = false;
 function closeSplash() {
   var sp = document.getElementById('splash');
   if (sp) { sp.style.transform = 'scale(1.15)'; sp.style.opacity = '0'; setTimeout(function() { sp.remove(); }, 800); }
-  if (jwtToken && currentUser) enterApp();
+  // Если автологин ещё не вошёл — попробовать
+  if (!_appEntered && jwtToken && currentUser) { _appEntered = true; enterApp(); }
 }
 
 // ── Theme ────────────────────────────────────────────────────────────────────
@@ -303,8 +305,7 @@ if (jwtToken) {
       if (user) {
         currentUser = user;
         localStorage.setItem('kosmos_user', JSON.stringify(user));
-        // Splash закроется автоматически через typewriter
-        enterApp();
+        if (!_appEntered) { _appEntered = true; enterApp(); }
       } else {
         localStorage.removeItem('kosmos_token');
         localStorage.removeItem('kosmos_user');
