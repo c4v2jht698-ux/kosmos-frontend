@@ -196,8 +196,12 @@ function logout() {
   document.getElementById('mainArea').innerHTML = `<div class="empty"><div class="empty-card"><div class="empty-icon">🚀</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>`;
 }
 
+var _splashDone = false;
 function closeSplash() {
-  document.getElementById('splash').classList.add('hidden');
+  if (_splashDone) return;
+  _splashDone = true;
+  var sp = document.getElementById('splash');
+  if (sp) { sp.style.transform = 'scale(1.1)'; sp.style.opacity = '0'; setTimeout(function(){ sp.remove(); }, 800); }
   if (jwtToken && currentUser) enterApp();
 }
 
@@ -242,14 +246,27 @@ buildSeedGrid();
 
 document.getElementById('overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
 
-// Stars
-const starsEl = document.getElementById('stars');
-for (let i = 0; i < 130; i++) {
-  const s = document.createElement('div'); s.className = 'star';
-  const sz = Math.random() * 2.5 + .4;
-  s.style.cssText = `width:${sz}px;height:${sz}px;top:${Math.random()*100}%;left:${Math.random()*100}%;animation-duration:${1.5+Math.random()*3}s;animation-delay:${Math.random()*3}s`;
-  starsEl.appendChild(s);
-}
+// Splash: canvas stars + typewriter
+(function(){
+  var c = document.getElementById('starsCanvas');
+  if (!c) return;
+  var ctx = c.getContext('2d');
+  c.width = window.innerWidth; c.height = window.innerHeight;
+  var stars = [], t = 0;
+  for (var i = 0; i < 120; i++) stars.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*1.4+0.3,sp:Math.random()*0.015+0.005,ph:Math.random()*Math.PI*2});
+  function draw(){ctx.clearRect(0,0,c.width,c.height);for(var i=0;i<stars.length;i++){var s=stars[i],a=0.3+0.7*Math.abs(Math.sin(t*s.sp+s.ph));ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,'+a+')';ctx.fill();}t++;requestAnimationFrame(draw);}
+  draw();
+  // Typewriter
+  var text='Powered by Jesus Christ', el=document.getElementById('typewriter');
+  if(!el)return;
+  var ts=document.createElement('span'), cr=document.createElement('span');
+  cr.textContent='|'; cr.style.cssText='animation:kblink .6s infinite;font-weight:300;color:rgba(255,255,255,0.4)';
+  el.appendChild(ts); el.appendChild(cr);
+  var st=document.createElement('style'); st.textContent='@keyframes kblink{0%,100%{opacity:1}50%{opacity:0}}'; document.head.appendChild(st);
+  var idx=0;
+  function tp(){if(idx<text.length){ts.textContent+=text[idx];idx++;setTimeout(tp,65+Math.random()*35);}else{setTimeout(function(){var ln=document.getElementById('splashLine');if(ln)ln.style.width='60px';},300);setTimeout(function(){cr.remove();},1500);setTimeout(closeSplash,2800);}}
+  setTimeout(tp,700);
+})();
 
 // Auto-login
 if (jwtToken) {
@@ -259,8 +276,7 @@ if (jwtToken) {
       if (user) {
         currentUser = user;
         localStorage.setItem('kosmos_user', JSON.stringify(user));
-        document.getElementById('splash').classList.add('hidden');
-        enterApp();
+        // enterApp вызовется из closeSplash после анимации
       } else {
         localStorage.removeItem('kosmos_token');
         localStorage.removeItem('kosmos_user');

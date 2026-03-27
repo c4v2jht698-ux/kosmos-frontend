@@ -196,12 +196,13 @@ function logout() {
   document.getElementById('mainArea').innerHTML = `<div class="empty"><div class="empty-card"><div class="empty-icon">🚀</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>`;
 }
 
-var _appEntered = false;
+var _splashDone = false;
 function closeSplash() {
+  if (_splashDone) return;
+  _splashDone = true;
   var sp = document.getElementById('splash');
-  if (sp) { sp.style.transform = 'scale(1.15)'; sp.style.opacity = '0'; setTimeout(function() { sp.remove(); }, 800); }
-  // Если автологин ещё не вошёл — попробовать
-  if (!_appEntered && jwtToken && currentUser) { _appEntered = true; enterApp(); }
+  if (sp) { sp.style.transform = 'scale(1.1)'; sp.style.opacity = '0'; setTimeout(function(){ sp.remove(); }, 800); }
+  if (jwtToken && currentUser) enterApp();
 }
 
 // ── Theme ────────────────────────────────────────────────────────────────────
@@ -245,59 +246,26 @@ buildSeedGrid();
 
 document.getElementById('overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
 
-// Stars canvas + typewriter splash
-(function() {
-  var canvas = document.getElementById('starsCanvas');
-  if (!canvas) return;
-  var ctx = canvas.getContext('2d');
-  canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-  var stars = [];
-  for (var i = 0; i < 120; i++) {
-    stars.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, r: Math.random()*1.5+0.3, speed: Math.random()*0.015+0.005, phase: Math.random()*Math.PI*2 });
-  }
-  var t = 0;
-  function drawStars() {
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    for (var i=0;i<stars.length;i++) {
-      var s = stars[i];
-      var alpha = 0.3 + 0.7 * Math.abs(Math.sin(t * s.speed + s.phase));
-      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
-      ctx.fillStyle = 'rgba(255,255,255,'+alpha+')'; ctx.fill();
-    }
-    t++; requestAnimationFrame(drawStars);
-  }
-  drawStars();
-
+// Splash: canvas stars + typewriter
+(function(){
+  var c = document.getElementById('starsCanvas');
+  if (!c) return;
+  var ctx = c.getContext('2d');
+  c.width = window.innerWidth; c.height = window.innerHeight;
+  var stars = [], t = 0;
+  for (var i = 0; i < 120; i++) stars.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*1.4+0.3,sp:Math.random()*0.015+0.005,ph:Math.random()*Math.PI*2});
+  function draw(){ctx.clearRect(0,0,c.width,c.height);for(var i=0;i<stars.length;i++){var s=stars[i],a=0.3+0.7*Math.abs(Math.sin(t*s.sp+s.ph));ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,'+a+')';ctx.fill();}t++;requestAnimationFrame(draw);}
+  draw();
   // Typewriter
-  var text = 'Powered by Jesus Christ';
-  var el = document.getElementById('typewriter');
-  var textSpan = document.createElement('span');
-  var cursor = document.createElement('span');
-  cursor.textContent = '|'; cursor.style.cssText = 'animation:blink 0.6s infinite;font-weight:300;color:rgba(255,255,255,0.5)';
-  el.appendChild(textSpan);
-  el.appendChild(cursor);
-  var style = document.createElement('style');
-  style.textContent = '@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}';
-  document.head.appendChild(style);
-
-  var idx = 0;
-  function type() {
-    if (idx < text.length) {
-      textSpan.textContent += text[idx]; idx++;
-      setTimeout(type, 70 + Math.random()*40);
-    } else {
-      // Линия
-      setTimeout(function() {
-        var line = document.getElementById('splashLine');
-        if (line) line.style.width = '60px';
-      }, 300);
-      // Убрать курсор
-      setTimeout(function() { if (cursor.parentNode) cursor.remove(); }, 1500);
-      // Закрыть сплэш
-      setTimeout(closeSplash, 3000);
-    }
-  }
-  setTimeout(type, 800);
+  var text='Powered by Jesus Christ', el=document.getElementById('typewriter');
+  if(!el)return;
+  var ts=document.createElement('span'), cr=document.createElement('span');
+  cr.textContent='|'; cr.style.cssText='animation:kblink .6s infinite;font-weight:300;color:rgba(255,255,255,0.4)';
+  el.appendChild(ts); el.appendChild(cr);
+  var st=document.createElement('style'); st.textContent='@keyframes kblink{0%,100%{opacity:1}50%{opacity:0}}'; document.head.appendChild(st);
+  var idx=0;
+  function tp(){if(idx<text.length){ts.textContent+=text[idx];idx++;setTimeout(tp,65+Math.random()*35);}else{setTimeout(function(){var ln=document.getElementById('splashLine');if(ln)ln.style.width='60px';},300);setTimeout(function(){cr.remove();},1500);setTimeout(closeSplash,2800);}}
+  setTimeout(tp,700);
 })();
 
 // Auto-login
@@ -308,7 +276,7 @@ if (jwtToken) {
       if (user) {
         currentUser = user;
         localStorage.setItem('kosmos_user', JSON.stringify(user));
-        if (!_appEntered) { _appEntered = true; enterApp(); }
+        // enterApp вызовется из closeSplash после анимации
       } else {
         localStorage.removeItem('kosmos_token');
         localStorage.removeItem('kosmos_user');

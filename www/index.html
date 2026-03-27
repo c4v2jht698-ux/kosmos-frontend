@@ -7,20 +7,19 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Космос</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
 
 <!-- SPLASH -->
-<div class="splash" id="splash">
-  <div class="stars" id="stars"></div>
-  <div class="orb" style="width:420px;height:420px;background:#3b82f6;top:-120px;right:-100px"></div>
-  <div class="orb" style="width:320px;height:320px;background:#7c3aed;bottom:-100px;left:-80px;animation-delay:3.5s"></div>
-  <div class="sp-logo">Кос<span>мос</span></div>
-  <div class="sp-tag">Привет, ты в космосе ✦</div>
-  <button class="sp-btn" onclick="closeSplash()">Начать общение →</button>
+<div id="splash" style="position:fixed;inset:0;z-index:9999;background:#060d1f;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:transform .8s ease,opacity .8s ease">
+  <canvas id="starsCanvas" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+  <div style="position:absolute;top:40px;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;letter-spacing:8px;color:rgba(255,255,255,0.2);text-transform:uppercase">KOSMOS</div>
+  <div id="typewriter" style="font-family:'Playfair Display',serif;font-style:italic;font-size:28px;color:rgba(255,255,255,0.85);position:relative;z-index:1;text-align:center;padding:0 24px"></div>
+  <div id="splashLine" style="width:0;height:1px;background:rgba(255,255,255,0.15);margin-top:28px;transition:width 1s ease;z-index:1"></div>
 </div>
 
 <!-- AUTH -->
