@@ -238,39 +238,27 @@ function openPinned(type) {
       </div>`;
     scrollBot(); showChatView();
   } else if (type === 'video') {
-    // YouTube Shorts IDs — проверены через youtube.com/shorts/ID (200 OK)
-    // + embed-совместимые вертикальные видео с хештеговых страниц
-    const shorts = [
-      'gQlMMD0e5Q0','ZESNz1Gz-s4','cAEYrgaF06A','s1_FZCbmFQM','_T8cn2J13C4',
-      'BCz2tp8AI0c','NPqR6MeKI7U','P5JkYHXbk4g','UE6J-XG6I4M','Z2QqtkasThs',
-      'ZvptCPrknP8','3Pv4vxfmSzs','7x5GHSh6yNM','Ta6UEulD-Ys','imgdpOw4zCk',
-      'lrBFiM8n96E','xsWkhnlRy28','0XaT4hNLYiE','0buXgFF_8qM','0kcdd33GEy0',
-      '0thP51KLmc8','1Uw-7ZIim5E','1a-jpVaXn2Q','2yUKqvPlec4','3bhkYoMWTFE',
-      '3o71laGvF-Q','4lDigvlySps','52LEcKlz9uM','5DGuKehfPVo','5gRGKxgD_tY',
-      '5mAQVKEh1dE','5zdxJJena0g','6FljrpJG3pg','7YrsOUpNdbI','96DmtEn4vco',
-      'A5YvIw6xN3M','AXnW8UB0hpo','AcEuGENp2V4','B3uv7I066EI','BloNKaLg5d0',
-      'CQY32DKYaUo','CjAexFkLldg','DRQcg3VwdPY','DbpqZBagVxc','DoaPkRtGzhg',
-      'GYPbqmh--GQ','GZB6T8QOcFs','H17hkUBXIh8','HaqqY74IwmI','Hs9QdWt_qAk',
-    ];
+    feedOffset = 0; feedLoading = false;
     main.innerHTML = `
-      <div style="position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;padding:8px 12px;background:linear-gradient(rgba(0,0,0,0.6),transparent)">
-        <button onclick="goBack()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;padding:4px 8px">‹</button>
-        <span style="color:#fff;font-size:15px;font-weight:600;margin-left:8px">Shorts</span>
+      <div class="chat-hdr">
+        <button class="back-btn" onclick="goBack()">‹</button>
+        <div class="hav g7 sq" style="background:#007AFF"><span style="color:#fff;font-size:16px">📰</span></div>
+        <div class="hinfo"><div class="hname">Лента</div><div class="hsub">Посты и новости</div></div>
       </div>
-      <div id="shortsContainer" style="width:100%;height:100%;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;background:#000">
-        ${shorts.map(function(id, i) {
-          return '<div class="shorts-slide" data-vid="' + id + '" data-idx="' + i + '" style="scroll-snap-align:start;scroll-snap-stop:always;width:100%;height:100%;position:relative;display:flex;align-items:center;justify-content:center;background:#000;flex-shrink:0">' +
-            (i <= 1 ? '<iframe src="https://www.youtube.com/embed/' + id + '?autoplay=' + (i===0?1:0) + '&mute=1&loop=1&controls=0&playsinline=1&rel=0&modestbranding=1" style="position:absolute;inset:0;width:100%;height:100%;border:none" allow="autoplay;encrypted-media" allowfullscreen></iframe>' : '<div style="color:#333;font-size:14px">⏳</div>') +
-            '<div style="position:absolute;right:12px;bottom:80px;display:flex;flex-direction:column;gap:18px;align-items:center">' +
-              '<button onclick="toggleShortsLike(this)" style="background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px"><span style="font-size:28px">🤍</span><span style="color:#fff;font-size:11px">Лайк</span></button>' +
-              '<button onclick="shareShortsLink(\'' + id + '\')" style="background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px"><span style="font-size:24px">↗</span><span style="color:#fff;font-size:11px">Поделиться</span></button>' +
-            '</div>' +
-            '<div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(255,255,255,0.15)"><div class="shorts-progress" style="height:100%;background:#fff;width:' + ((i+1)/shorts.length*100).toFixed(1) + '%;transition:width .3s"></div></div>' +
-          '</div>';
-        }).join('')}
+      <div id="feedArea" style="flex:1;overflow-y:auto;padding:0">
+        <div id="feedList" style="padding:8px 0"></div>
+        <div id="feedLoader" style="text-align:center;padding:20px;color:var(--text3)">Загрузка...</div>
+      </div>
+      <div style="position:absolute;bottom:20px;right:20px;z-index:10">
+        <button onclick="openCreatePost()" style="width:52px;height:52px;border-radius:50%;background:#007AFF;border:none;color:#fff;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(0,122,255,0.4)">+</button>
       </div>`;
     showChatView();
-    initShortsScroll(shorts);
+    loadFeed();
+    // Бесконечный скролл
+    document.getElementById('feedArea').addEventListener('scroll', function() {
+      var el = this;
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200 && !feedLoading) loadFeed();
+    });
   } else if (type === 'social') {
     main.innerHTML = `
       <div class="chat-hdr">
@@ -370,71 +358,116 @@ async function sendAI() {
   }
 }
 
-// ── Shorts scroll & helpers ───────────────────────────────────────────────────
-function initShortsScroll(shorts) {
-  var container = document.getElementById('shortsContainer');
-  if (!container) return;
-  var currentIdx = 0;
-  var slides = container.querySelectorAll('.shorts-slide');
+// ── Feed / Лента ─────────────────────────────────────────────────────────────
+var feedOffset = 0;
+var feedLoading = false;
 
-  function makeIframe(vid, autoplay) {
-    return '<iframe src="https://www.youtube.com/embed/' + vid + '?autoplay=' + (autoplay?1:0) + '&mute=1&loop=1&controls=0&playsinline=1&rel=0&modestbranding=1" style="position:absolute;inset:0;width:100%;height:100%;border:none" allow="autoplay;encrypted-media" allowfullscreen></iframe>';
-  }
-
-  function ensureLoaded(idx, autoplay) {
-    if (idx < 0 || idx >= slides.length) return;
-    var sl = slides[idx];
-    if (!sl.querySelector('iframe')) {
-      // Сохраняем боковые кнопки и прогресс
-      var btns = sl.querySelector('div[style*="right:12px"]');
-      var prog = sl.querySelector('div[style*="bottom:0"]');
-      var btnsHtml = btns ? btns.outerHTML : '';
-      var progHtml = prog ? prog.outerHTML : '';
-      sl.innerHTML = makeIframe(shorts[idx], autoplay) + btnsHtml + progHtml;
-    }
-  }
-
-  function unloadFar(idx) {
-    slides.forEach(function(sl, i) {
-      if (Math.abs(i - idx) > 2 && sl.querySelector('iframe')) {
-        var fr = sl.querySelector('iframe');
-        if (fr) fr.remove();
-      }
+async function loadFeed() {
+  if (feedLoading) return;
+  feedLoading = true;
+  var loader = document.getElementById('feedLoader');
+  try {
+    var res = await fetch(API + '/posts/feed?offset=' + feedOffset, {
+      headers: { 'Authorization': 'Bearer ' + jwtToken }
     });
+    if (!res.ok) { feedLoading = false; return; }
+    var posts = await res.json();
+    var list = document.getElementById('feedList');
+    if (!posts.length) {
+      if (loader) loader.textContent = feedOffset === 0 ? 'Нет постов. Будьте первым!' : 'Больше нет постов';
+      feedLoading = false; return;
+    }
+    posts.forEach(function(p) { list.insertAdjacentHTML('beforeend', postCard(p)); });
+    feedOffset += posts.length;
+    feedLoading = false;
+    if (loader) loader.textContent = 'Загрузка...';
+  } catch(e) {
+    feedLoading = false;
+    if (loader) loader.textContent = 'Ошибка загрузки';
   }
+}
 
-  function onSnap() {
-    var idx = Math.round(container.scrollTop / container.clientHeight);
-    if (idx === currentIdx) return;
-    currentIdx = idx;
-    // Загрузить текущий + соседние
-    ensureLoaded(idx, true);
-    ensureLoaded(idx - 1, false);
-    ensureLoaded(idx + 1, false);
-    unloadFar(idx);
-  }
+function postCard(p) {
+  var initial = (p.author_name || '?')[0].toUpperCase();
+  var g = GS[(p.author_name || '').charCodeAt(0) % GS.length];
+  var time = p.created_at ? new Date(p.created_at * 1000).toLocaleString('ru', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+  return '<div style="background:var(--card,#fff);border-bottom:0.5px solid var(--sep,#eee);padding:14px 16px">' +
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
+      '<div class="' + g + '" style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px;flex-shrink:0">' + initial + '</div>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-weight:600;font-size:15px">' + escHtml(p.author_name) + '</div>' +
+        '<div style="font-size:12px;color:var(--text3,#8e8e93)">' + (p.author_handle ? '@' + escHtml(p.author_handle) : '') + ' · ' + time + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="font-size:16px;line-height:1.45;margin-bottom:10px;white-space:pre-wrap">' + escHtml(p.text) + '</div>' +
+    (p.photo ? '<img src="' + escHtml(p.photo) + '" style="width:100%;border-radius:12px;margin-bottom:10px;max-height:400px;object-fit:cover" onerror="this.style.display=\'none\'">' : '') +
+    '<div style="display:flex;gap:24px;padding-top:6px">' +
+      '<button onclick="togglePostLike(this,\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;font-size:14px;color:' + (p.liked ? '#FF3B30' : 'var(--text3,#8e8e93)') + ';display:flex;align-items:center;gap:4px"><span>' + (p.liked ? '❤️' : '🤍') + '</span><span class="lc">' + (p.likes||0) + '</span></button>' +
+      '<button onclick="openPostComments(\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--text3,#8e8e93);display:flex;align-items:center;gap:4px">💬 <span>' + (p.comments||0) + '</span></button>' +
+      '<button onclick="repost(\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--text3,#8e8e93);display:flex;align-items:center;gap:4px">🔁 <span>' + (p.reposts||0) + '</span></button>' +
+    '</div>' +
+  '</div>';
+}
 
-  var timer = null;
-  container.addEventListener('scroll', function() {
-    clearTimeout(timer);
-    timer = setTimeout(onSnap, 120);
+async function togglePostLike(btn, postId) {
+  var res = await fetch(API + '/posts/' + postId + '/like', {
+    method: 'POST', headers: { 'Authorization': 'Bearer ' + jwtToken }
+  });
+  var data = await res.json();
+  var span = btn.querySelector('span');
+  var lc = btn.querySelector('.lc');
+  if (data.liked) { span.textContent = '❤️'; btn.style.color = '#FF3B30'; lc.textContent = parseInt(lc.textContent) + 1; }
+  else { span.textContent = '🤍'; btn.style.color = 'var(--text3,#8e8e93)'; lc.textContent = Math.max(0, parseInt(lc.textContent) - 1); }
+}
+
+async function repost(postId) {
+  await fetch(API + '/posts/' + postId + '/repost', {
+    method: 'POST', headers: { 'Authorization': 'Bearer ' + jwtToken }
   });
 }
 
-function toggleShortsLike(btn) {
-  var span = btn.querySelector('span');
-  if (span.textContent === '🤍') { span.textContent = '❤️'; }
-  else { span.textContent = '🤍'; }
+function openPostComments(postId) {
+  // Простая версия — показать в alert
+  fetch(API + '/posts/' + postId + '/comments', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+    .then(function(r) { return r.json(); })
+    .then(function(comments) {
+      var text = comments.map(function(c) { return '@' + (c.handle||c.username) + ': ' + c.text; }).join('\n') || 'Нет комментариев';
+      var newComment = prompt(text + '\n\nНапишите комментарий:');
+      if (newComment && newComment.trim()) {
+        fetch(API + '/posts/' + postId + '/comment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+          body: JSON.stringify({ text: newComment.trim() })
+        });
+      }
+    });
 }
 
-function shareShortsLink(vid) {
-  var url = 'https://youtube.com/shorts/' + vid;
-  if (navigator.share) {
-    navigator.share({ url: url }).catch(function(){});
-  } else if (navigator.clipboard) {
-    navigator.clipboard.writeText(url);
-    alert('Ссылка скопирована');
-  }
+function openCreatePost() {
+  var main = document.getElementById('feedArea') || document.getElementById('mainArea');
+  main.innerHTML =
+    '<div style="padding:20px;max-width:500px;margin:0 auto">' +
+      '<div style="font-size:20px;font-weight:600;margin-bottom:16px">Новый пост</div>' +
+      '<textarea id="postText" style="width:100%;min-height:120px;background:var(--bg,#f2f2f7);border:0.5px solid var(--sep,#ddd);border-radius:12px;padding:14px;font-family:inherit;font-size:16px;resize:vertical;outline:none;color:var(--text)" placeholder="Что нового?"></textarea>' +
+      '<input id="postPhoto" style="width:100%;background:var(--bg,#f2f2f7);border:0.5px solid var(--sep,#ddd);border-radius:12px;padding:12px 14px;font-family:inherit;font-size:15px;margin-top:8px;outline:none;color:var(--text)" placeholder="URL фото (необязательно)">' +
+      '<div style="display:flex;gap:8px;margin-top:12px">' +
+        '<button onclick="openPinned(\'video\')" style="flex:1;background:var(--bg,#f2f2f7);border:none;border-radius:12px;padding:12px;font-family:inherit;font-size:15px;cursor:pointer;color:var(--text2)">Отмена</button>' +
+        '<button onclick="submitPost()" style="flex:1;background:#007AFF;border:none;border-radius:12px;padding:12px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;color:#fff">Опубликовать</button>' +
+      '</div>' +
+    '</div>';
+}
+
+async function submitPost() {
+  var text = document.getElementById('postText').value.trim();
+  var photo = document.getElementById('postPhoto').value.trim();
+  if (!text) return;
+  await fetch(API + '/posts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+    body: JSON.stringify({ text: text, photo: photo || null })
+  });
+  openPinned('video'); // Вернуться в ленту
+}
 }
 
 // ── Dating / Общение ─────────────────────────────────────────────────────────
