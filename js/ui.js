@@ -723,7 +723,7 @@ async function submitChannel() {
 function togE() { document.getElementById('ep')?.classList.toggle('open'); }
 function insE(e) { const i = document.getElementById('mi'); if (i) { i.value += e; i.focus(); } document.getElementById('ep')?.classList.remove('open'); }
 function scrollBot() { const a = document.getElementById('msgArea'); if (a) a.scrollTop = a.scrollHeight; }
-function showChatView() { document.body.classList.add('chat-open'); }
+function showChatView() { document.body.classList.add('chat-open'); history.pushState({ chat: true }, ''); }
 function goBack() { document.body.classList.remove('chat-open'); cur = null; render(); }
 function filterChats(q) {
   const ql = q.toLowerCase();
