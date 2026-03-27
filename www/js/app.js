@@ -271,8 +271,11 @@ document.getElementById('overlay').addEventListener('click', function(e) { if (e
   // Typewriter
   var text = 'Powered by Jesus Christ';
   var el = document.getElementById('typewriter');
+  var textSpan = document.createElement('span');
   var cursor = document.createElement('span');
   cursor.textContent = '|'; cursor.style.cssText = 'animation:blink 0.6s infinite;font-weight:300;color:rgba(255,255,255,0.5)';
+  el.appendChild(textSpan);
+  el.appendChild(cursor);
   var style = document.createElement('style');
   style.textContent = '@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}';
   document.head.appendChild(style);
@@ -280,7 +283,7 @@ document.getElementById('overlay').addEventListener('click', function(e) { if (e
   var idx = 0;
   function type() {
     if (idx < text.length) {
-      el.textContent += text[idx]; el.appendChild(cursor); idx++;
+      textSpan.textContent += text[idx]; idx++;
       setTimeout(type, 70 + Math.random()*40);
     } else {
       // Линия
