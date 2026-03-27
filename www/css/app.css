@@ -364,6 +364,12 @@ body.dark #seedPhrase{color:#fde68a}
 .back-btn:hover{color:var(--accent)}
 body.dark .back-btn:hover{color:#d4f542}
 
+@media(min-width:769px){
+  .ci-name{font-weight:500;font-size:14px}
+  .ci-prev{font-size:13px}
+  .hname{font-weight:500;font-size:16px}
+  .bbl{font-size:14px}
+}
 @media(max-width:768px){
   .sidebar{width:100%;border-right:none}
   .main{display:none}
