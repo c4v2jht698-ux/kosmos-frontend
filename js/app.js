@@ -238,13 +238,14 @@ function closeSplash() {
 
 // ── Theme ────────────────────────────────────────────────────────────────────
 function applyTheme(dark) {
-  document.body.classList.toggle('dark', dark);
-  document.getElementById('themeBtn').textContent = dark ? '🌙' : '☀️';
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  var btn = document.getElementById('themeBtn');
+  if (btn) btn.textContent = dark ? '🌙' : '☀️';
 }
 function toggleTheme() {
-  const dark = !document.body.classList.contains('dark');
-  localStorage.setItem('kosmos_theme', dark ? 'dark' : 'light');
-  applyTheme(dark);
+  var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  localStorage.setItem('kosmos_theme', isDark ? 'light' : 'dark');
+  applyTheme(!isDark);
 }
 
 // ── Modal ────────────────────────────────────────────────────────────────────
@@ -272,7 +273,7 @@ function onChatTypeChange() {
 }
 
 // ── Init on load ─────────────────────────────────────────────────────────────
-applyTheme(localStorage.getItem('kosmos_theme') === 'dark');
+applyTheme(localStorage.getItem('kosmos_theme') !== 'light'); // dark by default
 buildSeedGrid();
 
 document.getElementById('overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });

@@ -238,13 +238,14 @@ function closeSplash() {
 
 // ── Theme ────────────────────────────────────────────────────────────────────
 function applyTheme(dark) {
-  document.body.classList.toggle('dark', dark);
-  document.getElementById('themeBtn').textContent = dark ? '🌙' : '☀️';
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  var btn = document.getElementById('themeBtn');
+  if (btn) btn.textContent = dark ? '🌙' : '☀️';
 }
 function toggleTheme() {
-  const dark = !document.body.classList.contains('dark');
-  localStorage.setItem('kosmos_theme', dark ? 'dark' : 'light');
-  applyTheme(dark);
+  var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  localStorage.setItem('kosmos_theme', isDark ? 'light' : 'dark');
+  applyTheme(!isDark);
 }
 
 // ── Modal ────────────────────────────────────────────────────────────────────
@@ -272,7 +273,7 @@ function onChatTypeChange() {
 }
 
 // ── Init on load ─────────────────────────────────────────────────────────────
-applyTheme(localStorage.getItem('kosmos_theme') === 'dark');
+applyTheme(localStorage.getItem('kosmos_theme') !== 'light'); // dark by default
 buildSeedGrid();
 
 document.getElementById('overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
@@ -318,3 +319,18 @@ if (jwtToken) {
 }
 
 render();
+
+// ── Offline detection ────────────────────────────────────────────────────────
+var offlineBanner = null;
+window.addEventListener('offline', function() {
+  if (offlineBanner) return;
+  offlineBanner = document.createElement('div');
+  offlineBanner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:10000;background:#FF3B30;color:#fff;text-align:center;padding:6px;font-size:13px;font-weight:600';
+  offlineBanner.textContent = 'Нет соединения';
+  document.body.appendChild(offlineBanner);
+});
+window.addEventListener('online', function() {
+  if (offlineBanner) { offlineBanner.remove(); offlineBanner = null; }
+  if (socket && !socket.connected) socket.connect();
+  loadMyChats();
+});
