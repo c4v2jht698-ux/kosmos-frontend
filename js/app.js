@@ -257,15 +257,15 @@ document.getElementById('overlay').addEventListener('click', function(e) { if (e
   function draw(){ctx.clearRect(0,0,c.width,c.height);for(var i=0;i<stars.length;i++){var s=stars[i],a=0.3+0.7*Math.abs(Math.sin(t*s.sp+s.ph));ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,'+a+')';ctx.fill();}t++;requestAnimationFrame(draw);}
   draw();
   // Typewriter
-  var text='Powered by Jesus Christ', el=document.getElementById('typewriter');
+  var text='Powered by Jesus Christ.', el=document.getElementById('typewriter');
   if(!el)return;
   var ts=document.createElement('span'), cr=document.createElement('span');
   cr.textContent='|'; cr.style.cssText='animation:kblink .6s infinite;font-weight:300;color:rgba(255,255,255,0.4)';
   el.appendChild(ts); el.appendChild(cr);
   var st=document.createElement('style'); st.textContent='@keyframes kblink{0%,100%{opacity:1}50%{opacity:0}}'; document.head.appendChild(st);
   var idx=0;
-  function tp(){if(idx<text.length){ts.textContent+=text[idx];idx++;setTimeout(tp,65+Math.random()*35);}else{setTimeout(function(){var ln=document.getElementById('splashLine');if(ln)ln.style.width='60px';},300);setTimeout(function(){cr.remove();},1500);setTimeout(closeSplash,2800);}}
-  setTimeout(tp,700);
+  function tp(){if(idx<text.length){ts.textContent+=text[idx];idx++;setTimeout(tp,25);}else{setTimeout(function(){var ln=document.getElementById('splashLine');if(ln)ln.style.width='60px';},300);setTimeout(function(){cr.remove();},1500);setTimeout(closeSplash,2800);}}
+  setTimeout(tp,300);
 })();
 
 // Auto-login
