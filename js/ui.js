@@ -466,7 +466,7 @@ function postCard(p) {
   ) : '';
   return '<div data-pid="' + p.id + '" style="background:var(--card);border-bottom:0.5px solid var(--sep);padding:14px 16px">' +
     '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
-      '<div class="' + g + '" style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px;flex-shrink:0">' + initial + '</div>' +
+      '<img src="default-avatar.jpg" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0">' +
       '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;color:var(--text)">' + escHtml(name) + '</div><div style="font-size:12px;color:#556677">' + (slug?'@'+escHtml(slug)+' · ':'') + time + '</div></div>' +
       subBtn +
     '</div>' +
@@ -570,7 +570,7 @@ function showDatingCard() {
     '<div style="width:100%;max-width:340px;animation:mIn .3s ease">' +
       '<div style="background:#fff;border-radius:24px;overflow:hidden;box-shadow:var(--shadow2);border:1.5px solid rgba(0,0,0,0.05)">' +
         '<div class="' + grad + '" style="height:200px;display:flex;align-items:center;justify-content:center;font-size:72px;color:rgba(255,255,255,0.9)">' +
-          (u.photo ? '<img src="' + escHtml(u.photo) + '" style="width:100%;height:100%;object-fit:cover">' : initial) +
+          '<img src="' + (u.photo ? escHtml(u.photo) : 'default-avatar.jpg') + '" style="width:100%;height:100%;object-fit:cover">' +
         '</div>' +
         '<div style="padding:20px">' +
           '<div style="font-size:22px;font-weight:600;color:var(--text)">' + escHtml(u.username) +
