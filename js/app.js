@@ -337,24 +337,56 @@ window.addEventListener('online', function() {
 
 // ── Swipe back + Android back button ─────────────────────────────────────────
 (function() {
-  var touchStartX = 0, touchStartY = 0, swiping = false;
+  var startX = 0, startY = 0, tracking = false;
+
   document.addEventListener('touchstart', function(e) {
-    var t = e.touches[0];
-    touchStartX = t.clientX; touchStartY = t.clientY;
-    swiping = touchStartX < 30; // Only from left edge
-  }, { passive: true });
-  document.addEventListener('touchmove', function(e) {
-    if (!swiping || !document.body.classList.contains('chat-open')) return;
-    var dx = e.touches[0].clientX - touchStartX;
-    var dy = Math.abs(e.touches[0].clientY - touchStartY);
-    if (dx > 80 && dy < 60) { swiping = false; goBack(); }
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    tracking = startX < 60; // Left 60px edge zone
   }, { passive: true });
 
-  // Android hardware back button (Capacitor)
-  document.addEventListener('backbutton', function(e) {
-    if (document.body.classList.contains('chat-open')) { e.preventDefault(); goBack(); }
+  document.addEventListener('touchmove', function(e) {
+    if (!tracking) return;
+    if (!document.body.classList.contains('chat-open')) return;
+    var dx = e.touches[0].clientX - startX;
+    var dy = Math.abs(e.touches[0].clientY - startY);
+    // Interactive: move main panel with finger
+    if (dx > 10 && dy < 80) {
+      var main = document.querySelector('.main');
+      if (main) main.style.transform = 'translateX(' + Math.min(dx, window.innerWidth) + 'px)';
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', function(e) {
+    if (!tracking) return;
+    tracking = false;
+    var main = document.querySelector('.main');
+    var dx = e.changedTouches[0].clientX - startX;
+    if (dx > 100 && document.body.classList.contains('chat-open')) {
+      // Complete the swipe
+      if (main) main.style.transform = 'translateX(100%)';
+      setTimeout(function() {
+        goBack();
+        if (main) main.style.transform = '';
+      }, 200);
+    } else {
+      // Snap back
+      if (main) { main.style.transition = 'transform .2s ease'; main.style.transform = ''; setTimeout(function() { main.style.transition = ''; }, 200); }
+    }
+  }, { passive: true });
+
+  // Android back button — Capacitor App plugin
+  document.addEventListener('backbutton', function() {
+    if (document.body.classList.contains('chat-open')) goBack();
   });
-  // Also history-based back
+  // Capacitor v4+ backButton
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+    window.Capacitor.Plugins.App.addListener('backButton', function() {
+      if (document.body.classList.contains('chat-open')) goBack();
+      else if (window.Capacitor.Plugins.App.exitApp) window.Capacitor.Plugins.App.exitApp();
+    });
+  }
+  // Browser back
   window.addEventListener('popstate', function() {
     if (document.body.classList.contains('chat-open')) goBack();
   });

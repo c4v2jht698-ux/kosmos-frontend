@@ -238,13 +238,14 @@ function closeSplash() {
 
 // ── Theme ────────────────────────────────────────────────────────────────────
 function applyTheme(dark) {
-  document.body.classList.toggle('dark', dark);
-  document.getElementById('themeBtn').textContent = dark ? '🌙' : '☀️';
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  var btn = document.getElementById('themeBtn');
+  if (btn) btn.textContent = dark ? '🌙' : '☀️';
 }
 function toggleTheme() {
-  const dark = !document.body.classList.contains('dark');
-  localStorage.setItem('kosmos_theme', dark ? 'dark' : 'light');
-  applyTheme(dark);
+  var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  localStorage.setItem('kosmos_theme', isDark ? 'light' : 'dark');
+  applyTheme(!isDark);
 }
 
 // ── Modal ────────────────────────────────────────────────────────────────────
@@ -272,7 +273,7 @@ function onChatTypeChange() {
 }
 
 // ── Init on load ─────────────────────────────────────────────────────────────
-applyTheme(localStorage.getItem('kosmos_theme') === 'dark');
+applyTheme(localStorage.getItem('kosmos_theme') !== 'light'); // dark by default
 buildSeedGrid();
 
 document.getElementById('overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
@@ -333,3 +334,28 @@ window.addEventListener('online', function() {
   if (socket && !socket.connected) socket.connect();
   loadMyChats();
 });
+
+// ── Swipe back + Android back button ─────────────────────────────────────────
+(function() {
+  var touchStartX = 0, touchStartY = 0, swiping = false;
+  document.addEventListener('touchstart', function(e) {
+    var t = e.touches[0];
+    touchStartX = t.clientX; touchStartY = t.clientY;
+    swiping = touchStartX < 30; // Only from left edge
+  }, { passive: true });
+  document.addEventListener('touchmove', function(e) {
+    if (!swiping || !document.body.classList.contains('chat-open')) return;
+    var dx = e.touches[0].clientX - touchStartX;
+    var dy = Math.abs(e.touches[0].clientY - touchStartY);
+    if (dx > 80 && dy < 60) { swiping = false; goBack(); }
+  }, { passive: true });
+
+  // Android hardware back button (Capacitor)
+  document.addEventListener('backbutton', function(e) {
+    if (document.body.classList.contains('chat-open')) { e.preventDefault(); goBack(); }
+  });
+  // Also history-based back
+  window.addEventListener('popstate', function() {
+    if (document.body.classList.contains('chat-open')) goBack();
+  });
+})();
