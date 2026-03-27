@@ -130,7 +130,9 @@ function mHTML(m, isCh) {
 }
 
 function escHtml(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s = String(s || '');
+  if (typeof DOMPurify !== 'undefined') return DOMPurify.sanitize(s, { ALLOWED_TAGS: [] });
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function inpHTML() {

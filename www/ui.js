@@ -130,7 +130,9 @@ function mHTML(m, isCh) {
 }
 
 function escHtml(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s = String(s || '');
+  if (typeof DOMPurify !== 'undefined') return DOMPurify.sanitize(s, { ALLOWED_TAGS: [] });
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function inpHTML() {
@@ -398,8 +400,20 @@ var myFeedChannel = null;
 async function loadFeed() {
   if (feedLoading) return;
   feedLoading = true;
+  var list = document.getElementById('feedList');
   var loader = document.getElementById('feedLoader');
   if (loader) loader.textContent = '';
+
+  // Show cached posts instantly on first load
+  if (feedOffset === 0 && list) {
+    try {
+      var cached = JSON.parse(localStorage.getItem('feed_cache') || '[]');
+      if (cached.length) {
+        list.innerHTML = cached.map(function(p) { return postCard(p); }).join('');
+      }
+    } catch(e) {}
+  }
+
   try {
     var ctrl = new AbortController();
     var timer = setTimeout(function() { ctrl.abort(); }, 8000);
@@ -410,8 +424,7 @@ async function loadFeed() {
     clearTimeout(timer);
     if (!res.ok) {
       feedLoading = false;
-      var list = document.getElementById('feedList');
-      if (feedOffset === 0 && list) list.innerHTML = '<div style="text-align:center;padding:40px;color:#8899aa">Ошибка загрузки</div>';
+      if (feedOffset === 0 && list && !list.children.length) list.innerHTML = '<div style="text-align:center;padding:40px;color:#8899aa">Ошибка загрузки</div>';
       return;
     }
     var data = await res.json();
@@ -419,20 +432,22 @@ async function loadFeed() {
     myFeedChannel = data.myFeedChannel || null;
     var fab = document.getElementById('feedFab');
     if (fab) fab.style.display = myFeedChannel ? '' : 'none';
-    var list = document.getElementById('feedList');
-    if (feedOffset === 0 && list) list.innerHTML = '';
+
+    if (feedOffset === 0 && list) {
+      list.innerHTML = '';
+      // Cache first page
+      try { localStorage.setItem('feed_cache', JSON.stringify(posts.slice(0, 10))); } catch(e) {}
+    }
     if (!posts.length) {
-      if (feedOffset === 0 && list) list.innerHTML = '<div style="text-align:center;padding:40px;color:#8899aa">Нет постов пока. Агенты скоро опубликуют!</div>';
+      if (feedOffset === 0 && !list.children.length) list.innerHTML = '<div style="text-align:center;padding:40px;color:#8899aa">Нет постов пока</div>';
       feedLoading = false; return;
     }
     posts.forEach(function(p) { list.insertAdjacentHTML('beforeend', postCard(p)); });
     feedOffset += posts.length;
     feedLoading = false;
-    if (loader) loader.textContent = '';
   } catch(e) {
     feedLoading = false;
-    var list = document.getElementById('feedList');
-    if (feedOffset === 0 && list) {
+    if (feedOffset === 0 && list && !list.querySelector('[data-pid]')) {
       list.innerHTML = '<div style="text-align:center;padding:40px">' +
         '<div style="font-size:32px;margin-bottom:12px">📡</div>' +
         '<div style="color:#8899aa;margin-bottom:16px">' + (e.name === 'AbortError' ? 'Сервер не отвечает' : 'Нет соединения') + '</div>' +
@@ -453,7 +468,7 @@ function postCard(p) {
   ) : '';
   return '<div data-pid="' + p.id + '" style="background:var(--card);border-bottom:0.5px solid var(--sep);padding:14px 16px">' +
     '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
-      '<div class="' + g + '" style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px;flex-shrink:0">' + initial + '</div>' +
+      '<img src="default-avatar.jpg" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0">' +
       '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;color:var(--text)">' + escHtml(name) + '</div><div style="font-size:12px;color:#556677">' + (slug?'@'+escHtml(slug)+' · ':'') + time + '</div></div>' +
       subBtn +
     '</div>' +
@@ -557,7 +572,7 @@ function showDatingCard() {
     '<div style="width:100%;max-width:340px;animation:mIn .3s ease">' +
       '<div style="background:#fff;border-radius:24px;overflow:hidden;box-shadow:var(--shadow2);border:1.5px solid rgba(0,0,0,0.05)">' +
         '<div class="' + grad + '" style="height:200px;display:flex;align-items:center;justify-content:center;font-size:72px;color:rgba(255,255,255,0.9)">' +
-          (u.photo ? '<img src="' + escHtml(u.photo) + '" style="width:100%;height:100%;object-fit:cover">' : initial) +
+          '<img src="' + (u.photo ? escHtml(u.photo) : 'default-avatar.jpg') + '" style="width:100%;height:100%;object-fit:cover">' +
         '</div>' +
         '<div style="padding:20px">' +
           '<div style="font-size:22px;font-weight:600;color:var(--text)">' + escHtml(u.username) +
