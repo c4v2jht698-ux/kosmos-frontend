@@ -1,5 +1,16 @@
 // ── API: load chats, search, create chat ────────────────────────────────────
 
+function apiFetch(url, opts, timeoutMs) {
+  timeoutMs = timeoutMs || 15000;
+  var controller = new AbortController();
+  var timer = setTimeout(function() { controller.abort(); }, timeoutMs);
+  opts = opts || {};
+  opts.signal = controller.signal;
+  if (!opts.headers) opts.headers = {};
+  if (jwtToken) opts.headers['Authorization'] = 'Bearer ' + jwtToken;
+  return fetch(url, opts).finally(function() { clearTimeout(timer); });
+}
+
 async function loadMyChats(retries) {
   if (!jwtToken) return;
   retries = retries || 0;
