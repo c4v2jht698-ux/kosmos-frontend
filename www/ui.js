@@ -237,20 +237,49 @@ function openPinned(type) {
         <button class="sbtn" onclick="sendAI()">➤</button>
       </div>`;
     scrollBot(); showChatView();
-  } else {
-    const names = { social: ['Общение','♥','g5'], video: ['Видео','🎬','g7'] };
-    const [name, em, g] = names[type] || ['?','?','g1'];
+  } else if (type === 'video') {
+    feedOffset = 0; feedLoading = false;
     main.innerHTML = `
       <div class="chat-hdr">
         <button class="back-btn" onclick="goBack()">‹</button>
-        <div class="hav ${g} sq"><span>${em}</span></div>
-        <div class="hinfo"><div class="hname">${name}</div><div class="hsub">в разработке</div></div>
+        <div class="hav g7 sq" style="background:#007AFF"><span style="color:#fff;font-size:16px">📰</span></div>
+        <div class="hinfo"><div class="hname">Лента</div><div class="hsub">Посты и новости</div></div>
       </div>
-      <div class="msg-area" id="msgArea">
-        <div class="datediv"><span>Сегодня</span></div>
-        <div class="msg them"><div class="bbl">Скоро буду доступен! 🚀<div class="bf"><span class="mt">—</span></div></div></div>
+      <div id="feedArea" style="flex:1;overflow-y:auto;padding:0">
+        <div id="feedList" style="padding:8px 0"></div>
+        <div id="feedLoader" style="text-align:center;padding:20px;color:var(--text3)">Загрузка...</div>
       </div>
-      <div class="ro-bar">Функция в разработке</div>`;
+      <div style="position:absolute;bottom:20px;right:20px;z-index:10">
+        <button onclick="openCreatePost()" style="width:52px;height:52px;border-radius:50%;background:#007AFF;border:none;color:#fff;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(0,122,255,0.4)">+</button>
+      </div>`;
+    showChatView();
+    loadFeed();
+    // Бесконечный скролл
+    document.getElementById('feedArea').addEventListener('scroll', function() {
+      var el = this;
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200 && !feedLoading) loadFeed();
+    });
+  } else if (type === 'social') {
+    main.innerHTML = `
+      <div class="chat-hdr">
+        <button class="back-btn" onclick="goBack()">‹</button>
+        <div class="hav g5 sq"><span>♥</span></div>
+        <div class="hinfo"><div class="hname">Общение</div><div class="hsub">Знакомства</div></div>
+        <div class="hacts"><button class="hb" onclick="openDatingProfile()">⚙</button></div>
+      </div>
+      <div id="datingArea" style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px;overflow:hidden">
+        <div style="color:var(--muted)">Загрузка...</div>
+      </div>`;
+    showChatView();
+    loadDatingCards();
+  } else {
+    main.innerHTML = `
+      <div class="chat-hdr">
+        <button class="back-btn" onclick="goBack()">‹</button>
+        <div class="hav g1 sq"><span>?</span></div>
+        <div class="hinfo"><div class="hname">Раздел</div><div class="hsub">в разработке</div></div>
+      </div>
+      <div class="msg-area"><div class="msg them"><div class="bbl">Скоро! 🚀</div></div></div>`;
     showChatView();
   }
 }
@@ -327,6 +356,247 @@ async function sendAI() {
     area.appendChild(d.firstChild);
     scrollBot();
   }
+}
+
+// ── Feed / Лента ─────────────────────────────────────────────────────────────
+var feedOffset = 0;
+var feedLoading = false;
+
+async function loadFeed() {
+  if (feedLoading) return;
+  feedLoading = true;
+  var loader = document.getElementById('feedLoader');
+  try {
+    var res = await fetch(API + '/posts/feed?offset=' + feedOffset, {
+      headers: { 'Authorization': 'Bearer ' + jwtToken }
+    });
+    if (!res.ok) { feedLoading = false; return; }
+    var posts = await res.json();
+    var list = document.getElementById('feedList');
+    if (!posts.length) {
+      if (loader) loader.textContent = feedOffset === 0 ? 'Нет постов. Будьте первым!' : 'Больше нет постов';
+      feedLoading = false; return;
+    }
+    posts.forEach(function(p) { list.insertAdjacentHTML('beforeend', postCard(p)); });
+    feedOffset += posts.length;
+    feedLoading = false;
+    if (loader) loader.textContent = 'Загрузка...';
+  } catch(e) {
+    feedLoading = false;
+    if (loader) loader.textContent = 'Ошибка загрузки';
+  }
+}
+
+function postCard(p) {
+  var initial = (p.author_name || '?')[0].toUpperCase();
+  var g = GS[(p.author_name || '').charCodeAt(0) % GS.length];
+  var time = p.created_at ? new Date(p.created_at * 1000).toLocaleString('ru', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+  return '<div style="background:var(--card,#fff);border-bottom:0.5px solid var(--sep,#eee);padding:14px 16px">' +
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
+      '<div class="' + g + '" style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px;flex-shrink:0">' + initial + '</div>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-weight:600;font-size:15px">' + escHtml(p.author_name) + '</div>' +
+        '<div style="font-size:12px;color:var(--text3,#8e8e93)">' + (p.author_handle ? '@' + escHtml(p.author_handle) : '') + ' · ' + time + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="font-size:16px;line-height:1.45;margin-bottom:10px;white-space:pre-wrap">' + escHtml(p.text) + '</div>' +
+    (p.photo ? '<img src="' + escHtml(p.photo) + '" style="width:100%;border-radius:12px;margin-bottom:10px;max-height:400px;object-fit:cover" onerror="this.style.display=\'none\'">' : '') +
+    '<div style="display:flex;gap:24px;padding-top:6px">' +
+      '<button onclick="togglePostLike(this,\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;font-size:14px;color:' + (p.liked ? '#FF3B30' : 'var(--text3,#8e8e93)') + ';display:flex;align-items:center;gap:4px"><span>' + (p.liked ? '❤️' : '🤍') + '</span><span class="lc">' + (p.likes||0) + '</span></button>' +
+      '<button onclick="openPostComments(\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--text3,#8e8e93);display:flex;align-items:center;gap:4px">💬 <span>' + (p.comments||0) + '</span></button>' +
+      '<button onclick="repost(\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--text3,#8e8e93);display:flex;align-items:center;gap:4px">🔁 <span>' + (p.reposts||0) + '</span></button>' +
+    '</div>' +
+  '</div>';
+}
+
+async function togglePostLike(btn, postId) {
+  var res = await fetch(API + '/posts/' + postId + '/like', {
+    method: 'POST', headers: { 'Authorization': 'Bearer ' + jwtToken }
+  });
+  var data = await res.json();
+  var span = btn.querySelector('span');
+  var lc = btn.querySelector('.lc');
+  if (data.liked) { span.textContent = '❤️'; btn.style.color = '#FF3B30'; lc.textContent = parseInt(lc.textContent) + 1; }
+  else { span.textContent = '🤍'; btn.style.color = 'var(--text3,#8e8e93)'; lc.textContent = Math.max(0, parseInt(lc.textContent) - 1); }
+}
+
+async function repost(postId) {
+  await fetch(API + '/posts/' + postId + '/repost', {
+    method: 'POST', headers: { 'Authorization': 'Bearer ' + jwtToken }
+  });
+}
+
+function openPostComments(postId) {
+  // Простая версия — показать в alert
+  fetch(API + '/posts/' + postId + '/comments', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+    .then(function(r) { return r.json(); })
+    .then(function(comments) {
+      var text = comments.map(function(c) { return '@' + (c.handle||c.username) + ': ' + c.text; }).join('\n') || 'Нет комментариев';
+      var newComment = prompt(text + '\n\nНапишите комментарий:');
+      if (newComment && newComment.trim()) {
+        fetch(API + '/posts/' + postId + '/comment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+          body: JSON.stringify({ text: newComment.trim() })
+        });
+      }
+    });
+}
+
+function openCreatePost() {
+  var main = document.getElementById('feedArea') || document.getElementById('mainArea');
+  main.innerHTML =
+    '<div style="padding:20px;max-width:500px;margin:0 auto">' +
+      '<div style="font-size:20px;font-weight:600;margin-bottom:16px">Новый пост</div>' +
+      '<textarea id="postText" style="width:100%;min-height:120px;background:var(--bg,#f2f2f7);border:0.5px solid var(--sep,#ddd);border-radius:12px;padding:14px;font-family:inherit;font-size:16px;resize:vertical;outline:none;color:var(--text)" placeholder="Что нового?"></textarea>' +
+      '<input id="postPhoto" style="width:100%;background:var(--bg,#f2f2f7);border:0.5px solid var(--sep,#ddd);border-radius:12px;padding:12px 14px;font-family:inherit;font-size:15px;margin-top:8px;outline:none;color:var(--text)" placeholder="URL фото (необязательно)">' +
+      '<div style="display:flex;gap:8px;margin-top:12px">' +
+        '<button onclick="openPinned(\'video\')" style="flex:1;background:var(--bg,#f2f2f7);border:none;border-radius:12px;padding:12px;font-family:inherit;font-size:15px;cursor:pointer;color:var(--text2)">Отмена</button>' +
+        '<button onclick="submitPost()" style="flex:1;background:#007AFF;border:none;border-radius:12px;padding:12px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;color:#fff">Опубликовать</button>' +
+      '</div>' +
+    '</div>';
+}
+
+async function submitPost() {
+  var text = document.getElementById('postText').value.trim();
+  var photo = document.getElementById('postPhoto').value.trim();
+  if (!text) return;
+  await fetch(API + '/posts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+    body: JSON.stringify({ text: text, photo: photo || null })
+  });
+  openPinned('video'); // Вернуться в ленту
+}
+
+// ── Dating / Общение ─────────────────────────────────────────────────────────
+let datingCards = [];
+let datingIdx = 0;
+
+async function loadDatingCards() {
+  var area = document.getElementById('datingArea');
+  if (!area) return;
+  try {
+    var res = await fetch(API + '/dating/profiles', { headers: { 'Authorization': 'Bearer ' + jwtToken } });
+    if (!res.ok) { area.innerHTML = '<div style="color:var(--muted)">Не удалось загрузить</div>'; return; }
+    datingCards = await res.json();
+    datingIdx = 0;
+    if (!datingCards.length) {
+      area.innerHTML = '<div class="empty-card" style="text-align:center"><div style="font-size:48px;margin-bottom:12px">🔍</div><h2>Пока нет анкет</h2><p>Заполните свой профиль (⚙) и ждите новых пользователей</p></div>';
+      return;
+    }
+    showDatingCard();
+  } catch(e) {
+    area.innerHTML = '<div style="color:var(--muted)">Ошибка загрузки</div>';
+  }
+}
+
+function showDatingCard() {
+  var area = document.getElementById('datingArea');
+  if (!area || datingIdx >= datingCards.length) {
+    if (area) area.innerHTML = '<div class="empty-card" style="text-align:center"><div style="font-size:48px;margin-bottom:12px">✨</div><h2>Анкеты закончились</h2><p>Загляните позже</p></div>';
+    return;
+  }
+  var u = datingCards[datingIdx];
+  var initial = (u.username || '?')[0].toUpperCase();
+  var grad = GS[(u.username || '').charCodeAt(0) % GS.length];
+  area.innerHTML =
+    '<div style="width:100%;max-width:340px;animation:mIn .3s ease">' +
+      '<div style="background:#fff;border-radius:24px;overflow:hidden;box-shadow:var(--shadow2);border:1.5px solid rgba(0,0,0,0.05)">' +
+        '<div class="' + grad + '" style="height:200px;display:flex;align-items:center;justify-content:center;font-size:72px;color:rgba(255,255,255,0.9)">' +
+          (u.photo ? '<img src="' + escHtml(u.photo) + '" style="width:100%;height:100%;object-fit:cover">' : initial) +
+        '</div>' +
+        '<div style="padding:20px">' +
+          '<div style="font-size:22px;font-weight:600;color:var(--text)">' + escHtml(u.username) +
+            (u.age ? ', ' + u.age : '') +
+          '</div>' +
+          (u.handle ? '<div style="font-size:13px;color:var(--muted);margin-top:2px">@' + escHtml(u.handle) + '</div>' : '') +
+          (u.city ? '<div style="font-size:14px;color:var(--text2);margin-top:8px">📍 ' + escHtml(u.city) + '</div>' : '') +
+          (u.bio ? '<div style="font-size:14px;color:var(--text);margin-top:8px;line-height:1.5">' + escHtml(u.bio) + '</div>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:16px;justify-content:center;margin-top:20px">' +
+        '<button onclick="datingAction(\'' + u.id + '\',\'skip\')" style="width:64px;height:64px;border-radius:50%;border:2px solid #e5e7eb;background:#fff;font-size:28px;cursor:pointer;box-shadow:var(--shadow);transition:all .15s">✕</button>' +
+        '<button onclick="datingAction(\'' + u.id + '\',\'like\')" style="width:64px;height:64px;border-radius:50%;border:none;background:linear-gradient(135deg,#ec4899,#f43f5e);color:#fff;font-size:28px;cursor:pointer;box-shadow:0 6px 20px rgba(244,63,94,0.35);transition:all .15s">❤️</button>' +
+      '</div>' +
+    '</div>';
+}
+
+async function datingAction(targetId, action) {
+  try {
+    var res = await fetch(API + '/dating/like', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+      body: JSON.stringify({ targetId: targetId, action: action }),
+    });
+    var data = await res.json();
+    if (data.match) {
+      // Мэтч!
+      var area = document.getElementById('datingArea');
+      if (area) {
+        area.innerHTML =
+          '<div style="text-align:center;animation:mIn .4s ease">' +
+            '<div style="font-size:72px;margin-bottom:16px">🎉</div>' +
+            '<div style="font-size:26px;font-weight:700;color:var(--text);margin-bottom:8px">Это мэтч!</div>' +
+            '<div style="font-size:14px;color:var(--muted);margin-bottom:24px">Вы понравились друг другу</div>' +
+            '<button onclick="openMatchChat(\'' + targetId + '\')" style="background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:14px;color:#fff;padding:14px 32px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(26,86,219,0.3)">Написать →</button>' +
+            '<br><button onclick="datingIdx++;showDatingCard()" style="background:none;border:none;color:var(--muted);margin-top:12px;cursor:pointer;font-size:13px">Продолжить просмотр</button>' +
+          '</div>';
+      }
+    } else {
+      datingIdx++;
+      showDatingCard();
+    }
+  } catch(e) {
+    datingIdx++;
+    showDatingCard();
+  }
+}
+
+function openMatchChat(targetId) {
+  var ids = [currentUser.id, targetId].sort();
+  var chatId = 'dm-' + ids.join('-');
+  goBack();
+  // Если чата нет в списке — loadMyChats добавит
+  loadMyChats().then(function() { openChat(chatId); });
+}
+
+function openDatingProfile() {
+  var main = document.getElementById('datingArea') || document.getElementById('mainArea');
+  fetch(API + '/dating/profile', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+    .then(function(r) { return r.json(); })
+    .then(function(p) {
+      main.innerHTML =
+        '<div style="padding:24px;max-width:400px;margin:0 auto">' +
+          '<div style="font-size:20px;font-weight:600;margin-bottom:16px;color:var(--text)">Мой профиль</div>' +
+          '<div class="auth-label">Возраст</div>' +
+          '<input class="minp" id="dpAge" type="number" placeholder="25" value="' + (p.age || '') + '">' +
+          '<div class="auth-label">Город</div>' +
+          '<input class="minp" id="dpCity" placeholder="Москва" value="' + escHtml(p.city || '') + '">' +
+          '<div class="auth-label">Фото (URL)</div>' +
+          '<input class="minp" id="dpPhoto" placeholder="https://..." value="' + escHtml(p.photo || '') + '">' +
+          '<div class="auth-label">О себе</div>' +
+          '<textarea class="minp" id="dpBio" rows="3" placeholder="Расскажи о себе...">' + escHtml(p.bio || '') + '</textarea>' +
+          '<div style="display:flex;gap:10px;margin-top:8px">' +
+            '<button class="bcnl" style="flex:1" onclick="openPinned(\'social\')">Назад</button>' +
+            '<button class="bcrte" style="flex:1" onclick="saveDatingProfile()">Сохранить</button>' +
+          '</div>' +
+        '</div>';
+    });
+}
+
+async function saveDatingProfile() {
+  await fetch(API + '/dating/profile', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+    body: JSON.stringify({
+      age: parseInt(document.getElementById('dpAge').value) || null,
+      city: document.getElementById('dpCity').value.trim() || null,
+      photo: document.getElementById('dpPhoto').value.trim() || null,
+      bio: document.getElementById('dpBio').value.trim() || null,
+    }),
+  });
+  openPinned('social');
 }
 
 function togE() { document.getElementById('ep')?.classList.toggle('open'); }
