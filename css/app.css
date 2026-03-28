@@ -68,7 +68,7 @@ body{
 .auth{position:fixed;inset:0;z-index:900;display:flex;align-items:center;justify-content:center;background:var(--bg);overflow-y:auto;transition:opacity .5s ease;
   background-image:radial-gradient(ellipse at 50% 20%,rgba(124,58,237,0.15),transparent 60%)}
 .auth.hidden{opacity:0;pointer-events:none;visibility:hidden}
-.auth-card{background:transparent;padding:32px 20px;width:440px;max-width:calc(100vw - 24px);animation:mopen .35s ease}
+.auth-card{background:transparent;padding:32px 20px;width:420px;max-width:calc(100vw - 24px);animation:mopen .35s ease}
 .auth-constellation{display:flex;align-items:center;gap:10px;margin-bottom:24px}
 .auth-constellation svg{flex-shrink:0}
 .auth-constellation .auth-logo{font-family:inherit;font-size:20px;font-weight:600;color:#fff;margin:0}
@@ -429,6 +429,16 @@ body{
   .bottom-nav{display:none}
 }
 @media(max-width:480px){
-  .seed-grid{grid-template-columns:repeat(2,1fr)}
+  .auth-card{padding:20px 16px}
+  .seed-grid{grid-template-columns:repeat(2,1fr);gap:6px}
+  .seed-cell{padding:10px 10px 10px 30px}
+  .seed-cell input{font-size:13px}
+  .auth-btn,.auth-btn-ghost{width:100%;font-size:16px}
   .ob-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(min-width:481px) and (max-width:768px){
+  .auth-card{width:400px;padding:28px 24px}
+  .seed-grid{gap:10px}
+  .seed-cell{padding:14px 14px 14px 36px}
+  .seed-cell input{font-size:15px}
 }
