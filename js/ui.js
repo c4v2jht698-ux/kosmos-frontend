@@ -549,7 +549,7 @@ function buildFeedView(main) {
       '<button class="feed-filter" data-f="interests" onclick="setFeedFilter(\'interests\',this)">По интересам</button>' +
       '<button class="feed-filter" data-f="new" onclick="setFeedFilter(\'new\',this)">Новое</button>' +
     '</div>' +
-    '<div id="feedArea" style="flex:1;overflow-y:auto;padding:0;padding-bottom:72px">' +
+    '<div id="feedArea" style="flex:1;overflow-y:auto;padding:0">' +
       '<div class="ptr-indicator" id="ptrIndicator"><span class="ptr-spin">\u2B50</span> Обновление...</div>' +
       '<div class="stories-row" id="storiesRow"></div>' +
       '<div id="challengeWrap" style="padding:12px 0 0"></div>' +
@@ -626,7 +626,7 @@ function buildDatingView(main) {
       '<div class="hinfo"><div class="hname">Встречи</div><div class="hsub">Знакомства</div></div>' +
       '<div class="hacts"><button class="hb" onclick="openDatingProfile()">\u2699</button></div>' +
     '</div>' +
-    '<div id="datingArea" style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px;overflow:hidden;padding-bottom:72px">' +
+    '<div id="datingArea" style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px;overflow:hidden">' +
       '<div style="color:var(--text3)">Загрузка...</div>' +
     '</div>';
   loadDatingCards();
