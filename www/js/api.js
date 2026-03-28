@@ -27,7 +27,9 @@ async function loadMyChats(retries) {
     channels.length = 0;
     dms.length = 0;
 
+    var AI_SLUGS = ['crypto_pulse','cinema_club','music_wave','fitness_cosmos','tech_cosmos','gaming_zone','auto_drive','food_lab','travel_vibes','fashion_now','science_daily','health_tips','business_hub','humor_daily','nature_world','art_space','book_shelf','mindset_pro','ai_future','history_facts'];
     (data.channels || []).forEach(ch => {
+      if (AI_SLUGS.indexOf(ch.slug) !== -1) return; // hide AI agent channels
       channels.push({
         id: ch.id, type: 'channel', name: ch.name, slug: ch.slug,
         g: GS[ch.name.charCodeAt(0) % GS.length],

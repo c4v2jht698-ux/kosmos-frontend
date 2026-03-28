@@ -1,17 +1,17 @@
 // ── Config & State ──────────────────────────────────────────────────────────
-const API = 'https://kosmos-backend.onrender.com';
-const EMOJIS = ['❤️','😂','👍','🔥','😮','👏','🎉','🙏'];
-const GS = ['g1','g2','g3','g4','g5','g6','g7'];
+var API = 'https://kosmos-backend.onrender.com';
+var EMOJIS = ['\u2764\uFE0F','\uD83D\uDE02','\uD83D\uDC4D','\uD83D\uDD25','\uD83D\uDE2E','\uD83D\uDC4F','\uD83C\uDF89','\uD83D\uDE4F'];
+var GS = ['g1','g2','g3','g4','g5','g6','g7'];
 
-let jwtToken = localStorage.getItem('kosmos_token');
-let refreshToken = localStorage.getItem('kosmos_refresh');
-let currentUser = JSON.parse(localStorage.getItem('kosmos_user') || 'null');
-let socket = null;
-let typingTimeout = null;
-let cur = null;
+var jwtToken = localStorage.getItem('kosmos_token');
+var refreshToken = localStorage.getItem('kosmos_refresh');
+var currentUser = JSON.parse(localStorage.getItem('kosmos_user') || 'null');
+var socket = null;
+var typingTimeout = null;
+var cur = null;
 
-const channels = [];
-const dms = [];
+var channels = [];
+var dms = [];
 
 // Auto-refresh token every 12 min
 setInterval(async function() {
@@ -41,71 +41,107 @@ setInterval(function() {
 }, 60000);
 
 // ── Auth ────────────────────────────────────────────────────────────────────
-let authMode = 'login';
-let pendingToken = null;
-let pendingUser = null;
+var authMode = 'login';
+var pendingToken = null;
+var pendingUser = null;
+var pendingRefresh = null;
 
 function switchTab(mode) {
   authMode = mode;
-  document.querySelectorAll('.auth-tab').forEach((t, i) => {
+  document.querySelectorAll('.auth-tab').forEach(function(t, i) {
     t.classList.toggle('active', (mode === 'login' && i === 0) || (mode === 'register' && i === 1));
   });
   document.getElementById('regFields').style.display = mode === 'register' ? 'block' : 'none';
   document.getElementById('loginFields').style.display = mode === 'login' ? 'block' : 'none';
   document.getElementById('seedResult').style.display = 'none';
   document.getElementById('authBtn').style.display = '';
-  document.getElementById('authBtn').textContent = mode === 'register' ? 'Создать аккаунт →' : 'Войти в Космос →';
+  document.getElementById('authBtn').textContent = mode === 'register' ? 'Создать аккаунт' : 'Войти в Космос';
   document.getElementById('authToggleBtn').textContent = mode === 'register' ? 'Уже есть аккаунт' : 'Создать новый аккаунт';
-  document.getElementById('authToggleBtn').onclick = () => switchTab(mode === 'register' ? 'login' : 'register');
+  document.getElementById('authToggleBtn').onclick = function() { switchTab(mode === 'register' ? 'login' : 'register'); };
   document.getElementById('authToggleBtn').style.display = '';
   clearAuthMessages();
 }
 
 function buildSeedGrid() {
-  const grid = document.getElementById('seedGrid');
+  var grid = document.getElementById('seedGrid');
   grid.innerHTML = '';
-  for (let i = 0; i < 12; i++) {
-    const cell = document.createElement('div');
+  for (var i = 0; i < 12; i++) {
+    var cell = document.createElement('div');
     cell.className = 'seed-cell';
-    cell.innerHTML = `<span class="seed-num">${String(i+1).padStart(2,'0')}</span><input type="text" data-idx="${i}" placeholder="..." autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">`;
+    cell.innerHTML = '<span class="seed-num">' + String(i+1).padStart(2,'0') + '</span><input type="text" data-idx="' + i + '" placeholder="..." autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">';
     grid.appendChild(cell);
   }
-  // Paste: вставка 12 слов распределяет по ячейкам
-  grid.addEventListener('paste', (e) => {
-    const text = (e.clipboardData || window.clipboardData).getData('text').trim();
-    const words = text.split(/\s+/);
+  grid.addEventListener('paste', function(e) {
+    var text = (e.clipboardData || window.clipboardData).getData('text').trim();
+    var words = text.split(/\s+/);
     if (words.length >= 2) {
       e.preventDefault();
       e.stopPropagation();
-      const inputs = grid.querySelectorAll('input');
-      words.slice(0, 12).forEach((w, i) => { if (inputs[i]) inputs[i].value = w; });
+      var inputs = grid.querySelectorAll('input');
+      words.slice(0, 12).forEach(function(w, i) { if (inputs[i]) inputs[i].value = w; });
     }
   });
-  // Fallback: если paste попал в одну ячейку — перераспределить при отпускании
-  grid.addEventListener('input', (e) => {
+  function seedAdvance(input) {
+    var val = input.value;
+    if (val.indexOf(' ') === -1) return false;
+    var parts = val.split(/\s+/);
+    input.value = parts[0];
+    var inputs = grid.querySelectorAll('input');
+    var idx = parseInt(input.dataset.idx) || 0;
+    for (var j = 1; j < parts.length; j++) {
+      if (inputs[idx + j] && parts[j]) inputs[idx + j].value = parts[j];
+    }
+    var next = inputs[idx + 1];
+    if (next) next.focus();
+    return true;
+  }
+  // input event — catches paste and typing on most browsers
+  grid.addEventListener('input', function(e) {
     if (e.target.tagName !== 'INPUT') return;
-    const val = e.target.value.trim();
-    const words = val.split(/\s+/);
-    if (words.length >= 2) {
-      const inputs = grid.querySelectorAll('input');
-      const startIdx = parseInt(e.target.dataset.idx) || 0;
-      words.forEach((w, i) => { if (inputs[startIdx + i]) inputs[startIdx + i].value = w; });
-      e.target.value = words[0];
+    seedAdvance(e.target);
+  });
+  // keyup on space — fallback for WebView where input event may miss the space
+  grid.addEventListener('keyup', function(e) {
+    if (e.target.tagName !== 'INPUT') return;
+    if (e.key === ' ' || e.keyCode === 32) {
+      e.target.value = e.target.value.replace(/\s/g, '');
+      var inputs = grid.querySelectorAll('input');
+      var idx = parseInt(e.target.dataset.idx) || 0;
+      var next = inputs[idx + 1];
+      if (next) next.focus();
+    }
+  });
+  // keydown on Enter — advance to next field
+  grid.addEventListener('keydown', function(e) {
+    if (e.target.tagName !== 'INPUT') return;
+    if (e.key === 'Enter' || e.keyCode === 13) {
+      e.preventDefault();
+      var inputs = grid.querySelectorAll('input');
+      var idx = parseInt(e.target.dataset.idx) || 0;
+      var next = inputs[idx + 1];
+      if (next) next.focus();
+    }
+    if (e.key === ' ' || e.keyCode === 32) {
+      e.preventDefault();
+      var inputs = grid.querySelectorAll('input');
+      var idx = parseInt(e.target.dataset.idx) || 0;
+      var next = inputs[idx + 1];
+      if (next) next.focus();
     }
   });
 }
 
 function getSeedFromGrid() {
-  const inputs = document.querySelectorAll('#seedGrid input');
-  return Array.from(inputs).map(i => i.value.trim().toLowerCase()).join(' ');
+  var inputs = document.querySelectorAll('#seedGrid input');
+  return Array.from(inputs).map(function(i) { return i.value.trim().toLowerCase(); }).join(' ');
 }
 
 function showSeedInGrid(phrase) {
-  const grid = document.getElementById('seedShowGrid');
-  const words = phrase.split(/\s+/);
-  grid.innerHTML = words.map((w, i) =>
-    `<div class="seed-cell" style="cursor:default"><span class="seed-num">${String(i+1).padStart(2,'0')}</span><span style="font-family:'Space Mono',monospace;font-size:13px;color:#e0e6f0;user-select:all">${w}</span></div>`
-  ).join('');
+  var grid = document.getElementById('seedShowGrid');
+  var words = phrase.split(/\s+/);
+  grid.innerHTML = words.map(function(w, i) {
+    return '<div class="seed-cell" style="cursor:default"><span class="seed-num">' + String(i+1).padStart(2,'0') + '</span><span style="font-family:\'Space Mono\',monospace;font-size:13px;color:var(--text);user-select:all">' + w + '</span></div>';
+  }).join('');
 }
 
 function clearAuthMessages() {
@@ -113,81 +149,89 @@ function clearAuthMessages() {
   document.getElementById('authSuccess').classList.remove('show');
 }
 function showError(msg) {
-  const el = document.getElementById('authError');
+  var el = document.getElementById('authError');
   el.textContent = msg; el.classList.add('show');
   document.getElementById('authSuccess').classList.remove('show');
 }
 function showSuccess(msg) {
-  const el = document.getElementById('authSuccess');
+  var el = document.getElementById('authSuccess');
   el.textContent = msg; el.classList.add('show');
   document.getElementById('authError').classList.remove('show');
 }
 
 function copySeed() {
-  const text = document.getElementById('seedPhrase').textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    const el = document.getElementById('seedCopied');
-    el.style.display = 'block'; el.textContent = 'Скопировано!'; setTimeout(() => el.style.display = 'none', 2000);
+  var text = document.getElementById('seedPhrase').textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    var el = document.getElementById('seedCopied');
+    el.style.display = 'block'; el.textContent = 'Скопировано!';
+    setTimeout(function() { el.style.display = 'none'; }, 2000);
   });
 }
 
 function enterAfterReg() {
   if (pendingToken && pendingUser) {
     jwtToken = pendingToken;
+    refreshToken = pendingRefresh;
     currentUser = pendingUser;
     localStorage.setItem('kosmos_token', jwtToken);
+    if (pendingRefresh) localStorage.setItem('kosmos_refresh', pendingRefresh);
     localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
-    enterApp();
+    // Show onboarding for new users
+    document.getElementById('auth').classList.add('hidden');
+    showOnboarding();
+    initSocket();
+    loadMyChats();
   }
 }
 
 async function submitAuth() {
   clearAuthMessages();
-  const btn = document.getElementById('authBtn');
+  var btn = document.getElementById('authBtn');
   btn.disabled = true; btn.textContent = '...';
 
   try {
-    let url, body;
+    var url, body;
     if (authMode === 'register') {
-      const name = document.getElementById('authName').value.trim();
-      const handle = document.getElementById('authHandle').value.trim().toLowerCase();
-      if (!name) { showError('Введи своё имя'); btn.disabled = false; btn.textContent = 'Создать аккаунт →'; return; }
-      if (!handle) { showError('Введи @username'); btn.disabled = false; btn.textContent = 'Создать аккаунт →'; return; }
-      if (!/^[a-z0-9_]{3,20}$/.test(handle)) { showError('@username: только a-z, 0-9 и _ (3–20 символов)'); btn.disabled = false; btn.textContent = 'Создать аккаунт →'; return; }
-      url = `${API}/register`;
-      body = { username: name, handle };
+      var name = document.getElementById('authName').value.trim();
+      var handle = document.getElementById('authHandle').value.trim().toLowerCase();
+      if (!name) { showError('Введи своё имя'); btn.disabled = false; btn.textContent = 'Создать аккаунт'; return; }
+      if (!handle) { showError('Введи @username'); btn.disabled = false; btn.textContent = 'Создать аккаунт'; return; }
+      if (!/^[a-z0-9_]{3,20}$/.test(handle)) { showError('@username: только a-z, 0-9 и _ (3\u201320 символов)'); btn.disabled = false; btn.textContent = 'Создать аккаунт'; return; }
+      url = API + '/register';
+      body = { username: name, handle: handle, ref: _refCode || undefined };
     } else {
-      const seed = getSeedFromGrid();
-      if (!seed.replace(/\s/g,'')) { showError('Введите все 12 слов'); btn.disabled = false; btn.textContent = 'Войти в Космос →'; return; }
-      if (seed.split(/\s+/).filter(Boolean).length < 12) { showError('Нужно 12 слов'); btn.disabled = false; btn.textContent = 'Войти в Космос →'; return; }
-      url = `${API}/login`;
-      body = { seed };
+      var seed = getSeedFromGrid();
+      if (!seed.replace(/\s/g,'')) { showError('Введите все 12 слов'); btn.disabled = false; btn.textContent = 'Войти в Космос'; return; }
+      if (seed.split(/\s+/).filter(Boolean).length < 12) { showError('Нужно 12 слов'); btn.disabled = false; btn.textContent = 'Войти в Космос'; return; }
+      url = API + '/login';
+      body = { seed: seed };
     }
 
-    const res = await fetch(url, {
+    var res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    const data = await res.json();
+    var data = await res.json();
 
     if (!res.ok) {
       showError(data.error || 'Ошибка сервера');
       btn.disabled = false;
-      btn.textContent = authMode === 'register' ? 'Создать аккаунт →' : 'Войти в Космос →';
+      btn.textContent = authMode === 'register' ? 'Создать аккаунт' : 'Войти в Космос';
       return;
     }
 
     if (authMode === 'register' && data.seed) {
       pendingToken = data.token;
       pendingUser = data.user;
+      pendingRefresh = data.refreshToken;
       document.getElementById('seedPhrase').textContent = data.seed;
       showSeedInGrid(data.seed);
       document.getElementById('seedResult').style.display = 'block';
       document.getElementById('authBtn').style.display = 'none';
       document.getElementById('authToggleBtn').style.display = 'none';
       document.getElementById('regFields').style.display = 'none';
-      btn.disabled = false; btn.textContent = 'Создать аккаунт →';
+      btn.disabled = false; btn.textContent = 'Создать аккаунт';
       return;
     }
 
@@ -197,18 +241,29 @@ async function submitAuth() {
     localStorage.setItem('kosmos_token', jwtToken);
     if (data.refreshToken) localStorage.setItem('kosmos_refresh', data.refreshToken);
     localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
-    showSuccess(`Добро пожаловать, ${data.user.username}!`);
+    showSuccess('Добро пожаловать, ' + data.user.username + '!');
     setTimeout(enterApp, 700);
   } catch (e) {
     showError('Нет связи с сервером');
     btn.disabled = false;
-    btn.textContent = authMode === 'register' ? 'Создать аккаунт →' : 'Войти в Космос →';
+    btn.textContent = authMode === 'register' ? 'Создать аккаунт' : 'Войти в Космос';
   }
 }
 
 // ── App lifecycle ───────────────────────────────────────────────────────────
 function enterApp() {
   document.getElementById('auth').classList.add('hidden');
+  // Check if needs onboarding
+  if (!localStorage.getItem('kosmos_onboarded') && currentUser) {
+    // Check if user has interests
+    fetch(API + '/me', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+      .then(function(r) { return r.json(); })
+      .then(function(u) {
+        if (!u.interests || !u.interests.length) {
+          showOnboarding();
+        }
+      }).catch(function() {});
+  }
   initSocket();
   loadMyChats();
 }
@@ -217,6 +272,7 @@ function logout() {
   localStorage.removeItem('kosmos_token');
   localStorage.removeItem('kosmos_refresh');
   localStorage.removeItem('kosmos_user');
+  localStorage.removeItem('kosmos_onboarded');
   jwtToken = null; refreshToken = null; currentUser = null;
   if (socket) { socket.disconnect(); socket = null; }
   cur = null; channels.length = 0; dms.length = 0; render();
@@ -224,12 +280,19 @@ function logout() {
   document.getElementById('seedResult').style.display = 'none';
   document.getElementById('authBtn').style.display = '';
   switchTab('login');
-  document.getElementById('mainArea').innerHTML = `<div class="empty"><div class="empty-card"><div class="empty-icon">🚀</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>`;
+  document.getElementById('mainArea').innerHTML = '<div class="empty"><div class="empty-card"><div class="empty-icon">\uD83D\uDE80</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>';
 }
 
 var _splashDone = false;
+var _splashStart = Date.now();
 function closeSplash() {
   if (_splashDone) return;
+  // Ensure minimum 1.5s display
+  var elapsed = Date.now() - _splashStart;
+  if (elapsed < 1500) {
+    setTimeout(closeSplash, 1500 - elapsed);
+    return;
+  }
   _splashDone = true;
   var sp = document.getElementById('splash');
   if (sp) { sp.style.transform = 'scale(1.1)'; sp.style.opacity = '0'; setTimeout(function(){ sp.remove(); }, 800); }
@@ -237,24 +300,25 @@ function closeSplash() {
 }
 
 // ── Theme ────────────────────────────────────────────────────────────────────
-function applyTheme(dark) {
-  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-  var btn = document.getElementById('themeBtn');
-  if (btn) btn.textContent = dark ? '🌙' : '☀️';
+function applyTheme(theme) {
+  if (theme !== 'blue' && theme !== 'pink') theme = 'blue';
+  document.documentElement.setAttribute('data-theme', theme);
 }
 function toggleTheme() {
-  var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-  localStorage.setItem('kosmos_theme', isDark ? 'light' : 'dark');
-  applyTheme(!isDark);
+  var cur = document.documentElement.getAttribute('data-theme') || 'blue';
+  var next = cur === 'blue' ? 'pink' : 'blue';
+  localStorage.setItem('kosmos_theme', next);
+  applyTheme(next);
 }
 
 // ── Modal ────────────────────────────────────────────────────────────────────
 function openModal() {
   document.getElementById('overlay').classList.add('open');
   onChatTypeChange();
-  setTimeout(() => {
-    const isCh = document.querySelector('input[name="ct"]:checked').value === 'channel';
-    (isCh ? document.getElementById('ncName') : document.getElementById('userSearch'))?.focus();
+  setTimeout(function() {
+    var isCh = document.querySelector('input[name="ct"]:checked').value === 'channel';
+    var el = isCh ? document.getElementById('ncName') : document.getElementById('userSearch');
+    if (el) el.focus();
   }, 120);
 }
 
@@ -266,14 +330,37 @@ function closeModal() {
 }
 
 function onChatTypeChange() {
-  const isCh = document.querySelector('input[name="ct"]:checked').value === 'channel';
+  var isCh = document.querySelector('input[name="ct"]:checked').value === 'channel';
   document.getElementById('userSearchWrap').style.display = isCh ? 'none' : 'block';
   document.getElementById('channelNameWrap').style.display = isCh ? 'block' : 'none';
   document.getElementById('chatCancelWrap').style.display = isCh ? 'none' : 'block';
 }
 
+// ── WebView / Capacitor detection ────────────────────────────────────────────
+var isWebView = /wv|WebView/i.test(navigator.userAgent) || !!window.Capacitor;
+if (isWebView) {
+  // Telegram widget iframe doesn't work in WebView — hide it, show custom button
+  var tgWidget = document.getElementById('telegramLoginWrap');
+  if (tgWidget) tgWidget.style.display = 'none';
+  var tgApkBtn = document.getElementById('telegramApkBtn');
+  if (tgApkBtn) tgApkBtn.style.display = 'block';
+}
+
+function openTelegramAuth() {
+  // Open web version in system browser where Telegram widget works
+  var url = 'https://c4v2jht698-ux.github.io/kosmos-frontend/#telegram-login';
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+    window.Capacitor.Plugins.Browser.open({ url: url });
+  } else {
+    window.open(url, '_system');
+  }
+}
+
+// ── Referral code from URL ────────────────────────────────────────────────────
+var _refCode = new URLSearchParams(window.location.search).get('ref') || '';
+
 // ── Init on load ─────────────────────────────────────────────────────────────
-applyTheme(localStorage.getItem('kosmos_theme') !== 'light'); // dark by default
+applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
 buildSeedGrid();
 
 document.getElementById('overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
@@ -288,7 +375,6 @@ document.getElementById('overlay').addEventListener('click', function(e) { if (e
   for (var i = 0; i < 120; i++) stars.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*1.4+0.3,sp:Math.random()*0.015+0.005,ph:Math.random()*Math.PI*2});
   function draw(){ctx.clearRect(0,0,c.width,c.height);for(var i=0;i<stars.length;i++){var s=stars[i],a=0.3+0.7*Math.abs(Math.sin(t*s.sp+s.ph));ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,'+a+')';ctx.fill();}t++;requestAnimationFrame(draw);}
   draw();
-  // Typewriter
   var text='Powered by Jesus Christ.', el=document.getElementById('typewriter');
   if(!el)return;
   var ts=document.createElement('span'), cr=document.createElement('span');
@@ -302,20 +388,19 @@ document.getElementById('overlay').addEventListener('click', function(e) { if (e
 
 // Auto-login
 if (jwtToken) {
-  fetch(`${API}/me`, { headers: { 'Authorization': `Bearer ${jwtToken}` } })
-    .then(r => r.ok ? r.json() : null)
-    .then(user => {
+  fetch(API + '/me', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(user) {
       if (user) {
         currentUser = user;
         localStorage.setItem('kosmos_user', JSON.stringify(user));
-        // enterApp вызовется из closeSplash после анимации
       } else {
         localStorage.removeItem('kosmos_token');
         localStorage.removeItem('kosmos_user');
         jwtToken = null;
       }
     })
-    .catch(() => {});
+    .catch(function() {});
 }
 
 // ── Telegram Auth ────────────────────────────────────────────────────────────
@@ -341,7 +426,6 @@ function onTelegramAuth(user) {
     })
     .catch(function() { alert('Нет связи с сервером'); });
 }
-// Make it global for Telegram widget callback
 window.onTelegramAuth = onTelegramAuth;
 
 render();
@@ -370,18 +454,29 @@ window.addEventListener('online', function() {
     });
   }
 
-  // Android back button — Capacitor App plugin
-  document.addEventListener('backbutton', function() {
-    if (document.body.classList.contains('chat-open')) goBack();
-  });
+  function handleBack() {
+    // If in a chat/sub-screen, go back
+    if (document.body.classList.contains('chat-open')) { goBack(); return; }
+    // If onboarding is visible, ignore
+    var ob = document.getElementById('onboarding');
+    if (ob && !ob.classList.contains('hidden')) return;
+    // Otherwise show exit dialog (APK only)
+    if (isWebView && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+      if (confirm('Выйти из приложения?')) {
+        window.Capacitor.Plugins.App.exitApp();
+      }
+    }
+  }
+
+  document.addEventListener('backbutton', handleBack);
   try {
     if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
-      window.Capacitor.Plugins.App.addListener('backButton', function() {
-        if (document.body.classList.contains('chat-open')) goBack();
+      window.Capacitor.Plugins.App.addListener('backButton', function(e) {
+        // e.canGoBack is true if webview has history
+        handleBack();
       });
     }
   } catch(e) {}
-  // Browser back
   window.addEventListener('popstate', function() {
     if (document.body.classList.contains('chat-open')) goBack();
   });
