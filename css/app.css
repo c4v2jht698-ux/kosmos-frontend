@@ -41,6 +41,7 @@ html{position:fixed;width:100%;height:100dvh;overflow:hidden;overscroll-behavior
 [data-theme="pink"] .ci.active .ci-name{color:#831843}
 [data-theme="pink"] .auth-btn,[data-theme="pink"] .bcrte,[data-theme="pink"] .new-btn{background:linear-gradient(135deg,#f472b6,#ec4899);color:#fff}
 [data-theme="pink"] .badge,[data-theme="pink"] .interest-tag{background:rgba(244,167,195,0.15);color:#D81B60;border-color:rgba(244,167,195,0.3)}
+[data-theme="pink"] .ci{border-bottom:0.5px solid rgba(244,167,195,0.3)}
 
 body{
   font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Roboto,sans-serif;
