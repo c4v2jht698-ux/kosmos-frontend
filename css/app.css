@@ -295,6 +295,65 @@ body{
 .comment-sheet-inner{width:100%;max-width:500px;max-height:70vh;background:var(--card);border-radius:16px 16px 0 0;display:flex;flex-direction:column;animation:sheetUp .25s ease}
 @keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
 
+/* ── STORIES ROW ── */
+.stories-row{display:flex;gap:12px;padding:12px 16px;overflow-x:auto;background:var(--card);border-bottom:0.5px solid var(--sep)}
+.stories-row::-webkit-scrollbar{height:0}
+.story-item{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;flex-shrink:0}
+.story-ring{width:56px;height:56px;border-radius:50%;padding:2px;background:linear-gradient(135deg,var(--accent),#F43F5E)}
+.story-ring.seen{background:var(--sep)}
+.story-ring-inner{width:100%;height:100%;border-radius:50%;border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:22px;overflow:hidden}
+.story-name{font-size:10px;color:var(--text3);max-width:56px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.story-add{width:56px;height:56px;border-radius:50%;border:2px dashed var(--sep);display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--accent);cursor:pointer}
+
+/* ── STORY VIEWER ── */
+.story-viewer{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.9);animation:fadeIn .2s}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.story-content{width:100%;max-width:400px;height:80vh;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;position:relative}
+.story-text{font-size:22px;font-weight:700;color:#fff;text-align:center;line-height:1.4;text-shadow:0 2px 8px rgba(0,0,0,0.3)}
+.story-close{position:absolute;top:16px;right:16px;background:rgba(0,0,0,0.4);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer}
+.story-meta{position:absolute;top:16px;left:16px;display:flex;align-items:center;gap:8px}
+.story-progress{position:absolute;top:0;left:0;right:0;height:3px;background:rgba(255,255,255,0.2);border-radius:2px}
+.story-progress-fill{height:100%;background:#fff;border-radius:2px;animation:storyProg 5s linear forwards}
+@keyframes storyProg{from{width:0}to{width:100%}}
+
+/* ── BADGE ── */
+.badge-grid{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.badge-item{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px;border-radius:12px;background:var(--card);border:1px solid var(--sep);min-width:72px}
+.badge-item.earned{border-color:var(--accent);background:rgba(124,58,237,0.08)}
+.badge-emoji{font-size:24px}
+.badge-label{font-size:10px;color:var(--text3);text-align:center}
+
+/* ── CONFETTI ── */
+.confetti-overlay{position:fixed;inset:0;z-index:9999;pointer-events:none}
+.confetti-piece{position:absolute;width:8px;height:8px;border-radius:2px;animation:confettiFall 2s ease-out forwards}
+@keyframes confettiFall{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
+
+/* ── DAILY CHALLENGE ── */
+.challenge-card{margin:0 16px 0;padding:14px;background:linear-gradient(135deg,rgba(124,58,237,0.12),rgba(99,102,241,0.08));border:1px solid rgba(124,58,237,0.2);border-radius:14px}
+.challenge-title{font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px}
+.challenge-desc{font-size:14px;color:var(--text);margin-bottom:8px}
+.challenge-bar{height:6px;background:var(--sep);border-radius:3px;overflow:hidden}
+.challenge-bar-fill{height:100%;background:var(--accent);border-radius:3px;transition:width .3s}
+.challenge-status{font-size:11px;color:var(--text3);margin-top:4px}
+
+/* ── REPLY QUOTE ── */
+.reply-quote{background:var(--bg);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:6px 10px;margin-bottom:4px;font-size:13px;color:var(--text3);display:flex;align-items:center;justify-content:space-between}
+.reply-quote-close{background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 4px}
+
+/* ── ONBOARDING TOUR ── */
+.tour-overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center}
+.tour-card{background:var(--card);border-radius:16px;padding:24px;max-width:300px;text-align:center;animation:mopen .25s ease}
+.tour-step{font-size:12px;color:var(--accent);font-weight:600;margin-bottom:8px}
+.tour-text{font-size:16px;color:var(--text);line-height:1.5;margin-bottom:16px}
+.tour-btns{display:flex;gap:8px}
+.tour-skip{flex:1;background:none;border:1px solid var(--sep);border-radius:10px;color:var(--text3);padding:10px;font-family:inherit;cursor:pointer}
+.tour-next{flex:1;background:var(--accent);border:none;border-radius:10px;color:#fff;padding:10px;font-family:inherit;font-weight:600;cursor:pointer}
+
+/* ── EMOJI GRID ── */
+.emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;max-height:200px;overflow-y:auto;padding:8px}
+.emoji-grid span{font-size:22px;text-align:center;cursor:pointer;padding:4px;border-radius:6px;transition:background .1s}
+.emoji-grid span:hover{background:var(--hover)}
+
 /* ── SCROLL TO TOP ── */
 .scroll-top-btn{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);background:var(--accent);border:none;border-radius:20px;color:#fff;padding:6px 16px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;box-shadow:var(--shadow);z-index:10;opacity:0;transition:opacity .2s;pointer-events:none}
 .scroll-top-btn.visible{opacity:1;pointer-events:auto}

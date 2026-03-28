@@ -76,6 +76,8 @@ async function saveInterests() {
   } catch(e) {}
   document.getElementById('onboarding').classList.add('hidden');
   localStorage.setItem('kosmos_onboarded', '1');
+  // Start onboarding tour for new users
+  setTimeout(startTour, 500);
 }
 
 // ── Core ────────────────────────────────────────────────────────────────────
@@ -367,9 +369,12 @@ async function openProfileScreen() {
             '<div class="pstat"><div class="pstat-num">' + dms.length + '</div><div class="pstat-label">Чатов</div></div>' +
           '</div>' +
         '</div>' +
+        (u.status ? '<div style="font-size:14px;color:var(--text2);margin-top:6px">' + (u.mood||'') + ' ' + escHtml(u.status) + '</div>' : '') +
+        '<div class="profile-section" id="badgeSection"><div class="profile-section-title">Достижения</div><div style="text-align:center;color:var(--text3);padding:8px">Загрузка...</div></div>' +
         '<div class="profile-section">' +
           '<div class="profile-section-title">Настройки</div>' +
           '<div class="profile-row" onclick="openEditProfile()"><div class="profile-row-label">Редактировать профиль</div><div class="profile-row-val">\u203A</div></div>' +
+          '<div class="profile-row" onclick="openStatusEditor()"><div class="profile-row-label">Статус и настроение</div><div class="profile-row-val">' + (u.mood||'') + ' \u203A</div></div>' +
           '<div class="profile-row" onclick="showOnboarding()"><div class="profile-row-label">Изменить интересы</div><div class="profile-row-val">' + interests.length + ' выбрано \u203A</div></div>' +
           '<div class="profile-row" onclick="toggleTheme()"><div class="profile-row-label">Тема оформления</div><div class="profile-row-val">' + (document.documentElement.getAttribute('data-theme')==='light'?'Светлая':'Тёмная') + ' \u203A</div></div>' +
           '<div class="profile-row" onclick="showReferral()"><div class="profile-row-label">Пригласить друга</div><div class="profile-row-val">\uD83D\uDD17 \u203A</div></div>' +
@@ -378,6 +383,11 @@ async function openProfileScreen() {
           '<div class="profile-row" onclick="logout()" style="justify-content:center"><div class="profile-row-label" style="color:#FF3B30">Выйти</div></div>' +
         '</div>' +
       '</div>';
+    // Load badges async
+    loadBadges().then(function(bd) {
+      var sec = document.getElementById('badgeSection');
+      if (sec) sec.innerHTML = '<div class="profile-section-title">Достижения</div>' + renderBadgeGrid(bd.earned, bd.all);
+    });
   } catch(e) {
     main.innerHTML = '<div class="profile-wrap" style="text-align:center;padding:40px"><div style="color:var(--text3)">Ошибка загрузки профиля</div></div>';
   }
@@ -472,6 +482,8 @@ function openPinned(type) {
       '</div>' +
       '<div id="feedArea" style="flex:1;overflow-y:auto;padding:0">' +
         '<div class="ptr-indicator" id="ptrIndicator"><span class="ptr-spin">\u2B50</span> Обновление...</div>' +
+        '<div class="stories-row" id="storiesRow"></div>' +
+        '<div id="challengeWrap" style="padding:12px 0 0"></div>' +
         '<div id="feedList">' + skeletonCards(3) + '</div>' +
         '<div id="feedLoader" style="text-align:center;padding:16px;color:var(--text3)"></div>' +
       '</div>' +
@@ -480,6 +492,14 @@ function openPinned(type) {
       '</div>';
     showChatView();
     loadFeed();
+    // Load stories
+    var sr = document.getElementById('storiesRow');
+    if (sr) loadStories(sr);
+    // Load daily challenge
+    loadDailyChallenge().then(function(ch) {
+      var wrap = document.getElementById('challengeWrap');
+      if (wrap && ch) wrap.innerHTML = challengeCardHtml(ch);
+    });
     var feedArea = document.getElementById('feedArea');
     feedArea.addEventListener('scroll', function() {
       if (this.scrollTop + this.clientHeight >= this.scrollHeight - 200 && !feedLoading) loadFeed();
@@ -1260,6 +1280,7 @@ function showContextMenu(bbl, x, y) {
   menu.style.left = Math.min(x, window.innerWidth - 180) + 'px';
   menu.style.top = Math.min(y, window.innerHeight - 120) + 'px';
   menu.innerHTML =
+    '<div class="ctx-item" onclick="setReply(this)">\u21A9 Ответить</div>' +
     '<div class="ctx-item" onclick="copyMsgText(this)">\uD83D\uDCCB Копировать</div>' +
     '<div class="ctx-item danger" onclick="this.parentElement.remove()">\u2716 Закрыть</div>';
   menu.dataset.text = text;
@@ -1277,3 +1298,299 @@ function copyMsgText(el) {
   }).catch(function() {});
   if (menu) menu.remove();
 }
+
+// ── Reply to Message ────────────────────────────────────────────────────────
+var _replyTo = null;
+function setReply(el) {
+  var menu = el.closest('.ctx-menu');
+  var text = menu ? menu.dataset.text : '';
+  if (menu) menu.remove();
+  _replyTo = { text: text.substring(0, 80) };
+  // Show reply quote above input
+  var zone = document.querySelector('.inp-zone');
+  if (!zone) return;
+  var existing = zone.querySelector('.reply-quote');
+  if (existing) existing.remove();
+  var q = document.createElement('div');
+  q.className = 'reply-quote';
+  q.innerHTML = '<span>\u21A9 ' + escHtml(_replyTo.text) + '</span><button class="reply-quote-close" onclick="cancelReply()">\u2716</button>';
+  zone.insertBefore(q, zone.firstChild);
+  var inp = document.getElementById('mi');
+  if (inp) inp.focus();
+}
+
+function cancelReply() {
+  _replyTo = null;
+  var q = document.querySelector('.reply-quote');
+  if (q) q.remove();
+}
+
+// Override send to include reply
+var _origSend = send;
+send = function() {
+  var inp = document.getElementById('mi');
+  if (!inp) return;
+  var text = inp.value.trim();
+  if (!text) return;
+  inp.value = ''; inp.style.height = 'auto';
+  if (socket && socket.connected && cur) {
+    socket.emit('chat_msg', { chatId: cur, text: text, replyTo: _replyTo ? _replyTo.text : undefined });
+  }
+  cancelReply();
+  // Update char counter
+  var cc = document.getElementById('charCount');
+  if (cc) { cc.textContent = ''; cc.className = 'char-counter'; }
+};
+
+// ── Stories ──────────────────────────────────────────────────────────────────
+var STORY_GRADIENTS = ['#7C3AED','#F43F5E','#3B82F6','#10B981','#F59E0B','#EC4899'];
+
+async function loadStories(container) {
+  try {
+    var r = await fetch(API + '/stories', { headers: { 'Authorization': 'Bearer ' + jwtToken } });
+    var groups = await r.json();
+    var html = '<div class="story-item" onclick="createStory()"><div class="story-add">+</div><div class="story-name">Создать</div></div>';
+    groups.forEach(function(g) {
+      html += '<div class="story-item" onclick="viewStory(\'' + g.user_id + '\')">' +
+        '<div class="story-ring"><div class="story-ring-inner ' + GS[(g.username||'?').charCodeAt(0)%GS.length] + '">\uD83D\uDC36</div></div>' +
+        '<div class="story-name">' + escHtml(g.username || '') + '</div></div>';
+    });
+    if (container) container.innerHTML = html;
+  } catch(e) {}
+}
+
+function createStory() {
+  showChatView();
+  var main = document.getElementById('mainArea');
+  main.innerHTML =
+    '<div class="chat-hdr"><button class="back-btn" onclick="goBack()">\u2039</button><div class="hinfo"><div class="hname">Новая история</div></div></div>' +
+    '<div style="flex:1;display:flex;flex-direction:column;padding:20px;gap:12px">' +
+      '<textarea class="minp" id="storyText" maxlength="200" rows="4" placeholder="Что у тебя нового?" style="font-size:18px;resize:none"></textarea>' +
+      '<div class="auth-label">Цвет фона</div>' +
+      '<div style="display:flex;gap:8px" id="storyColors">' +
+        STORY_GRADIENTS.map(function(c) {
+          return '<div onclick="pickStoryColor(this,\'' + c + '\')" style="width:40px;height:40px;border-radius:12px;background:' + c + ';cursor:pointer;border:2px solid transparent"></div>';
+        }).join('') +
+      '</div>' +
+      '<button class="bcrte" style="margin-top:auto" onclick="submitStory()">Опубликовать</button>' +
+    '</div>';
+}
+
+var _storyColor = '#7C3AED';
+function pickStoryColor(el, color) {
+  _storyColor = color;
+  document.querySelectorAll('#storyColors div').forEach(function(d) { d.style.borderColor = 'transparent'; });
+  el.style.borderColor = '#fff';
+}
+
+async function submitStory() {
+  var text = document.getElementById('storyText').value.trim();
+  if (!text) return;
+  await fetch(API + '/stories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+    body: JSON.stringify({ content: text, bgColor: _storyColor })
+  });
+  goBack(); openPinned('video');
+}
+
+async function viewStory(userId) {
+  try {
+    var r = await fetch(API + '/stories', { headers: { 'Authorization': 'Bearer ' + jwtToken } });
+    var groups = await r.json();
+    var group = groups.find(function(g) { return g.user_id === userId; });
+    if (!group || !group.stories.length) return;
+    var s = group.stories[0];
+    // Mark as viewed
+    fetch(API + '/stories/' + s.id + '/view', { method: 'POST', headers: { 'Authorization': 'Bearer ' + jwtToken } });
+    var viewer = document.createElement('div');
+    viewer.className = 'story-viewer';
+    viewer.onclick = function(e) { if (e.target === viewer) viewer.remove(); };
+    viewer.innerHTML =
+      '<div class="story-content" style="background:' + (s.bg_color || '#7C3AED') + '">' +
+        '<div class="story-progress"><div class="story-progress-fill"></div></div>' +
+        '<div class="story-meta"><span style="color:#fff;font-size:14px;font-weight:600">' + escHtml(group.username) + '</span></div>' +
+        '<button class="story-close" onclick="this.closest(\'.story-viewer\').remove()">\u2716</button>' +
+        '<div class="story-text">' + escHtml(s.content) + '</div>' +
+        '<div style="position:absolute;bottom:16px;color:rgba(255,255,255,0.5);font-size:12px">' + (s.views || 0) + ' просмотров</div>' +
+      '</div>';
+    document.body.appendChild(viewer);
+    setTimeout(function() { viewer.remove(); }, 5000);
+  } catch(e) {}
+}
+
+// ── Badges ──────────────────────────────────────────────────────────────────
+async function loadBadges() {
+  try {
+    var r = await fetch(API + '/me/badges', { headers: { 'Authorization': 'Bearer ' + jwtToken } });
+    var d = await r.json();
+    var earned = new Set((d.badges || []).map(function(b) { return b.badge_id; }));
+    // Show confetti for new badges
+    if (d.newBadges && d.newBadges.length) {
+      d.newBadges.forEach(function(id) {
+        var badge = (d.all || []).find(function(b) { return b.id === id; });
+        if (badge) showBadgeNotification(badge);
+      });
+    }
+    return { earned: earned, all: d.all || [] };
+  } catch(e) { return { earned: new Set(), all: [] }; }
+}
+
+function showBadgeNotification(badge) {
+  showConfetti();
+  showToast(badge.emoji + ' ' + badge.name, badge.desc);
+}
+
+function showConfetti() {
+  var overlay = document.createElement('div');
+  overlay.className = 'confetti-overlay';
+  var colors = ['#7C3AED','#F43F5E','#3B82F6','#10B981','#F59E0B','#EC4899'];
+  for (var i = 0; i < 30; i++) {
+    var p = document.createElement('div');
+    p.className = 'confetti-piece';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.background = colors[Math.floor(Math.random() * colors.length)];
+    p.style.animationDelay = Math.random() * 0.5 + 's';
+    p.style.animationDuration = (1.5 + Math.random()) + 's';
+    overlay.appendChild(p);
+  }
+  document.body.appendChild(overlay);
+  setTimeout(function() { overlay.remove(); }, 2500);
+}
+
+function renderBadgeGrid(earned, all) {
+  return '<div class="badge-grid">' + all.map(function(b) {
+    var has = earned.has(b.id);
+    return '<div class="badge-item' + (has ? ' earned' : '') + '">' +
+      '<div class="badge-emoji" style="' + (has ? '' : 'opacity:0.3') + '">' + b.emoji + '</div>' +
+      '<div class="badge-label">' + b.name + '</div></div>';
+  }).join('') + '</div>';
+}
+
+// ── Status Editor ───────────────────────────────────────────────────────────
+var STATUS_PRESETS = [
+  '\uD83D\uDE80 Исследую Космос','\uD83D\uDCAD Думаю о важном','\uD83C\uDFB5 Слушаю музыку',
+  '\uD83D\uDE34 Не беспокоить','\uD83D\uDD25 В работе','\uD83C\uDFAE Играю'
+];
+var MOOD_EMOJIS = ['\uD83D\uDE0A','\uD83D\uDE0E','\uD83E\uDD14','\uD83D\uDE34','\uD83D\uDD25','\uD83D\uDC9C'];
+
+function openStatusEditor() {
+  showChatView();
+  var main = document.getElementById('mainArea');
+  main.innerHTML =
+    '<div class="chat-hdr"><button class="back-btn" onclick="openProfileScreen()">\u2039</button><div class="hinfo"><div class="hname">Статус</div></div></div>' +
+    '<div style="padding:20px;max-width:400px;margin:0 auto">' +
+      '<div class="auth-label">Настроение</div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:16px">' +
+        MOOD_EMOJIS.map(function(e) {
+          return '<button onclick="pickMood(this,\'' + e + '\')" class="mood-btn" style="font-size:28px;background:none;border:2px solid var(--sep);border-radius:12px;padding:8px;cursor:pointer;transition:all .15s">' + e + '</button>';
+        }).join('') +
+      '</div>' +
+      '<div class="auth-label">Статус</div>' +
+      '<input class="minp" id="statusInput" maxlength="60" placeholder="Что делаешь?" value="' + escHtml((currentUser && currentUser.status) || '') + '">' +
+      '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">' +
+        STATUS_PRESETS.map(function(s) {
+          return '<button onclick="document.getElementById(\'statusInput\').value=\'' + s + '\'" style="padding:6px 12px;border-radius:20px;border:1px solid var(--sep);background:none;color:var(--text2);font-size:12px;cursor:pointer">' + s + '</button>';
+        }).join('') +
+      '</div>' +
+      '<button class="bcrte" style="width:100%" onclick="saveStatus()">Сохранить</button>' +
+    '</div>';
+}
+
+var _selectedMood = '';
+function pickMood(btn, emoji) {
+  _selectedMood = emoji;
+  document.querySelectorAll('.mood-btn').forEach(function(b) { b.style.borderColor = 'var(--sep)'; });
+  btn.style.borderColor = 'var(--accent)';
+}
+
+async function saveStatus() {
+  var status = document.getElementById('statusInput').value.trim();
+  await fetch(API + '/me/status', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+    body: JSON.stringify({ status: status, mood: _selectedMood })
+  });
+  if (currentUser) { currentUser.status = status; currentUser.mood = _selectedMood; }
+  openProfileScreen();
+}
+
+// ── Daily Challenge ─────────────────────────────────────────────────────────
+async function loadDailyChallenge() {
+  try {
+    var r = await fetch(API + '/daily-challenge', { headers: { 'Authorization': 'Bearer ' + jwtToken } });
+    return await r.json();
+  } catch(e) { return null; }
+}
+
+function challengeCardHtml(ch) {
+  if (!ch) return '';
+  var pct = Math.min(100, Math.round((ch.progress / ch.target) * 100));
+  return '<div class="challenge-card">' +
+    '<div class="challenge-title">\uD83C\uDFAF Ежедневный челлендж</div>' +
+    '<div class="challenge-desc">' + escHtml(ch.description || '') + '</div>' +
+    '<div class="challenge-bar"><div class="challenge-bar-fill" style="width:' + pct + '%"></div></div>' +
+    '<div class="challenge-status">' + (ch.completed ? '\u2705 Выполнено!' : ch.progress + '/' + ch.target) + '</div>' +
+  '</div>';
+}
+
+// ── Expanded Emoji Grid ─────────────────────────────────────────────────────
+var EMOJI_FULL = ['\uD83D\uDE00','\uD83D\uDE02','\uD83D\uDE0D','\uD83E\uDD70','\uD83D\uDE0E','\uD83E\uDD29','\uD83D\uDE09','\uD83D\uDE0A',
+  '\uD83D\uDE22','\uD83D\uDE2D','\uD83D\uDE31','\uD83D\uDE33','\uD83E\uDD14','\uD83D\uDE34','\uD83D\uDE44','\uD83D\uDE21',
+  '\uD83D\uDC4D','\uD83D\uDC4E','\uD83D\uDC4F','\uD83D\uDE4F','\u2764\uFE0F','\uD83D\uDD25','\u2B50','\uD83C\uDF89',
+  '\uD83D\uDE80','\uD83C\uDF1F','\uD83C\uDF08','\uD83D\uDCAF','\uD83D\uDC36','\uD83C\uDF55','\u2615','\uD83C\uDFB5',
+  '\uD83D\uDCAA','\uD83C\uDFC6','\uD83C\uDFAE','\uD83D\uDCF7','\uD83D\uDE4C','\uD83E\uDD1D','\uD83D\uDC99','\uD83D\uDC9C'];
+
+// Override togE to show full grid
+togE = function() {
+  var ep = document.getElementById('ep');
+  if (!ep) return;
+  if (ep.classList.contains('open')) { ep.classList.remove('open'); return; }
+  ep.innerHTML = '<div class="emoji-grid">' + EMOJI_FULL.map(function(e) {
+    return '<span onclick="insE(\'' + e + '\')">' + e + '</span>';
+  }).join('') + '</div>';
+  ep.classList.add('open');
+};
+
+// ── Onboarding Tour ─────────────────────────────────────────────────────────
+var TOUR_STEPS = [
+  {emoji:'\uD83D\uDCF0',text:'Это твоя лента — посты по интересам от AI-ботов и друзей'},
+  {emoji:'\uD83D\uDCE2',text:'Здесь каналы — подпишись на любимые темы'},
+  {emoji:'\u2764\uFE0F',text:'Встречи — знакомься со свайпом, находи друзей'},
+  {emoji:'\uD83D\uDC64',text:'Твой профиль — настрой аватар, статус и интересы'},
+];
+var _tourStep = 0;
+
+function startTour() {
+  if (localStorage.getItem('kosmos_tour_done')) return;
+  _tourStep = 0;
+  showTourStep();
+}
+
+function showTourStep() {
+  if (_tourStep >= TOUR_STEPS.length) {
+    localStorage.setItem('kosmos_tour_done', '1');
+    var overlay = document.querySelector('.tour-overlay');
+    if (overlay) overlay.remove();
+    return;
+  }
+  var s = TOUR_STEPS[_tourStep];
+  var existing = document.querySelector('.tour-overlay');
+  if (existing) existing.remove();
+  var overlay = document.createElement('div');
+  overlay.className = 'tour-overlay';
+  overlay.innerHTML =
+    '<div class="tour-card">' +
+      '<div class="tour-step">Шаг ' + (_tourStep + 1) + ' из ' + TOUR_STEPS.length + '</div>' +
+      '<div style="font-size:48px;margin-bottom:12px">' + s.emoji + '</div>' +
+      '<div class="tour-text">' + s.text + '</div>' +
+      '<div class="tour-btns">' +
+        '<button class="tour-skip" onclick="endTour()">Пропустить</button>' +
+        '<button class="tour-next" onclick="nextTourStep()">' + (_tourStep === TOUR_STEPS.length - 1 ? 'Готово!' : 'Далее') + '</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+}
+
+function nextTourStep() { _tourStep++; showTourStep(); }
+function endTour() { localStorage.setItem('kosmos_tour_done', '1'); var o = document.querySelector('.tour-overlay'); if (o) o.remove(); }
