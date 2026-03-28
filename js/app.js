@@ -319,7 +319,23 @@ function onChatTypeChange() {
 
 // ── WebView / Capacitor detection ────────────────────────────────────────────
 var isWebView = /wv|WebView/i.test(navigator.userAgent) || !!window.Capacitor;
-// In APK: keep seed-phrase login + Telegram visible (no hiding)
+if (isWebView) {
+  // Telegram widget iframe doesn't work in WebView — hide it, show custom button
+  var tgWidget = document.getElementById('telegramLoginWrap');
+  if (tgWidget) tgWidget.style.display = 'none';
+  var tgApkBtn = document.getElementById('telegramApkBtn');
+  if (tgApkBtn) tgApkBtn.style.display = 'block';
+}
+
+function openTelegramAuth() {
+  // Open web version in system browser where Telegram widget works
+  var url = 'https://c4v2jht698-ux.github.io/kosmos-frontend/#telegram-login';
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+    window.Capacitor.Plugins.Browser.open({ url: url });
+  } else {
+    window.open(url, '_system');
+  }
+}
 
 // ── Referral code from URL ────────────────────────────────────────────────────
 var _refCode = new URLSearchParams(window.location.search).get('ref') || '';
