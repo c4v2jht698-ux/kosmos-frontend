@@ -242,10 +242,10 @@ function openPinned(type) {
   } else if (type === 'video') {
     feedOffset = 0; feedLoading = false; myFeedChannel = null;
     main.innerHTML = `
-      <div class="chat-hdr">
+      <div class="chat-hdr" style="justify-content:space-between">
         <button class="back-btn" onclick="goBack()">‹</button>
-        <div class="hav" style="background:#007AFF;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center"><span style="color:#fff;font-size:16px">📰</span></div>
-        <div class="hinfo"><div class="hname">Лента</div><div class="hsub">Алгоритмическая</div></div>
+        <div style="font-weight:700;font-size:18px;color:var(--text)">Стена</div>
+        <div style="width:36px"></div>
       </div>
       <div id="feedArea" style="flex:1;overflow-y:auto;padding:0">
         <div id="feedList">${skeletonCards(3)}</div>
@@ -456,36 +456,64 @@ async function loadFeed() {
   }
 }
 
+function relTime(ts) {
+  if (!ts) return '';
+  var sec = Math.floor(Date.now()/1000) - parseInt(ts);
+  if (sec < 60) return 'только что';
+  if (sec < 3600) return Math.floor(sec/60) + 'м';
+  if (sec < 86400) return Math.floor(sec/3600) + 'ч';
+  if (sec < 172800) return 'вчера';
+  return Math.floor(sec/86400) + 'д';
+}
+
 function postCard(p) {
   var name = p.channel_name || '?';
   var slug = p.channel_slug || '';
-  var initial = name[0].toUpperCase();
   var g = GS[name.charCodeAt(0) % GS.length];
-  var time = p.created_at ? new Date(p.created_at * 1000).toLocaleString('ru',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
-  var subBtn = p.channel_id ? (p.subscribed
-    ? '<button onclick="toggleSub(\'' + p.channel_id + '\',this)" style="background:none;border:1px solid var(--sep);border-radius:8px;color:#8899aa;font-size:12px;padding:5px 10px;cursor:pointer">Отписаться</button>'
-    : '<button onclick="toggleSub(\'' + p.channel_id + '\',this)" style="background:#007AFF;border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:600;padding:6px 12px;cursor:pointer">Подписаться</button>'
-  ) : '';
-  return '<div data-pid="' + p.id + '" style="background:var(--card);border-bottom:0.5px solid var(--sep);padding:14px 16px">' +
-    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
-      '<img src="default-avatar.jpg" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0">' +
-      '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;color:var(--text)">' + escHtml(name) + '</div><div style="font-size:12px;color:#556677">' + (slug?'@'+escHtml(slug)+' · ':'') + time + '</div></div>' +
-      subBtn +
+  var time = relTime(p.created_at);
+  var views = Math.floor(Math.random()*500 + (parseInt(p.likes)||0)*12 + 10);
+  var subBtn = p.channel_id && !p.subscribed
+    ? '<button onclick="toggleSub(\'' + p.channel_id + '\',this);event.stopPropagation()" style="background:var(--text);border:none;border-radius:20px;color:var(--bg);font-size:13px;font-weight:700;padding:6px 16px;cursor:pointer;margin-left:auto">Подписаться</button>'
+    : '';
+
+  return '<div data-pid="' + p.id + '" style="display:flex;gap:12px;padding:12px 16px;border-bottom:0.5px solid var(--sep);background:var(--card)">' +
+    // Avatar
+    '<img src="default-avatar.jpg" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;margin-top:2px">' +
+    // Content
+    '<div style="flex:1;min-width:0">' +
+      // Header: Name · @handle · time · subscribe
+      '<div style="display:flex;align-items:center;gap:4px;margin-bottom:2px">' +
+        '<span style="font-weight:700;font-size:15px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(name) + '</span>' +
+        '<span style="color:var(--text3);font-size:14px;white-space:nowrap">' + (slug ? '@' + escHtml(slug) : '') + '</span>' +
+        '<span style="color:var(--text3);font-size:14px">·</span>' +
+        '<span style="color:var(--text3);font-size:14px;white-space:nowrap">' + time + '</span>' +
+        subBtn +
+      '</div>' +
+      // Text
+      '<div style="font-size:15px;line-height:1.45;color:var(--text);white-space:pre-wrap;margin-bottom:10px">' + escHtml(p.text) + '</div>' +
+      // Action bar (Twitter-style)
+      '<div style="display:flex;justify-content:space-between;max-width:400px">' +
+        '<button onclick="openPostComments(\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;display:flex;align-items:center;gap:5px;padding:4px 0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>' + (p.comments||'') + '</span></button>' +
+        '<button onclick="feedShare(\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;display:flex;align-items:center;gap:5px;padding:4px 0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg><span>' + (p.reposts||'') + '</span></button>' +
+        '<button onclick="feedLike(this,\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;color:' + (p.liked?'#F91880':'var(--text3)') + ';font-size:13px;display:flex;align-items:center;gap:5px;padding:4px 0"><svg width="16" height="16" viewBox="0 0 24 24" fill="' + (p.liked?'#F91880':'none') + '" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="lc">' + (p.likes||'') + '</span></button>' +
+        '<span style="color:var(--text3);font-size:13px;display:flex;align-items:center;gap:4px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>' + views + '</span>' +
+        '<button onclick="feedShare(\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;display:flex;align-items:center;gap:4px;padding:4px 0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>' +
+      '</div>' +
     '</div>' +
-    '<div style="font-size:15px;line-height:1.4;margin-bottom:8px;white-space:pre-wrap;color:var(--text)">' + escHtml(p.text) + '</div>' +
-    '<div style="display:flex;gap:16px;padding-top:4px">' +
-      '<button onclick="feedLike(this,\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;font-size:14px;color:' + (p.liked?'#FF3B30':'#8899aa') + ';display:flex;align-items:center;gap:4px"><span>👍</span><span class="lc">' + (p.likes||0) + '</span></button>' +
-      '<button onclick="feedDislike(this,\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;font-size:14px;color:' + (p.disliked?'#007AFF':'#8899aa') + ';display:flex;align-items:center;gap:4px"><span>👎</span><span class="dc">' + (p.dislikes||0) + '</span></button>' +
-      '<button onclick="feedShare(\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;font-size:14px;color:#8899aa;display:flex;align-items:center;gap:4px">📤</button>' +
-    '</div></div>';
+  '</div>';
 }
 
 async function feedLike(btn, id) {
-  // Optimistic UI
-  var lc = btn.querySelector('.lc'); var cur = parseInt(lc.textContent);
-  var isLiked = btn.style.color !== 'rgb(136, 153, 170)';
-  lc.textContent = isLiked ? Math.max(0,cur-1) : cur+1;
-  btn.style.color = isLiked ? '#8899aa' : '#FF3B30';
+  var svg = btn.querySelector('svg');
+  var lc = btn.querySelector('.lc');
+  var cur = parseInt(lc.textContent) || 0;
+  var isLiked = btn.style.color === 'rgb(249, 24, 128)';
+  if (isLiked) {
+    btn.style.color = 'var(--text3)'; if(svg) svg.setAttribute('fill','none'); lc.textContent = Math.max(0,cur-1) || '';
+  } else {
+    btn.style.color = '#F91880'; if(svg) svg.setAttribute('fill','#F91880'); lc.textContent = cur+1;
+    btn.style.transform = 'scale(1.3)'; setTimeout(function(){btn.style.transform='';}, 200);
+  }
   // Also reset dislike sibling
   var sib = btn.nextElementSibling; if (sib) { sib.style.color = '#8899aa'; }
   fetch(API+'/feed/'+id+'/like',{method:'POST',headers:{'Authorization':'Bearer '+jwtToken}});
