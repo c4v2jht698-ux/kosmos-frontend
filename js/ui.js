@@ -550,7 +550,6 @@ function buildFeedView(main) {
       '<button class="feed-filter" data-f="new" onclick="setFeedFilter(\'new\',this)">Новое</button>' +
     '</div>' +
     '<div id="feedArea" style="flex:1;overflow-y:auto;padding:0">' +
-      '<div class="ptr-indicator" id="ptrIndicator"><span class="ptr-spin">\u2B50</span> Обновление...</div>' +
       '<div class="stories-row" id="storiesRow"></div>' +
       '<div id="feedList">' + skeletonCards(3) + '</div>' +
       '<div id="feedLoader" style="text-align:center;padding:16px;color:var(--text3)"></div>' +
@@ -1394,7 +1393,7 @@ async function loadStories(container) {
   try {
     var r = await fetch(API + '/stories', { headers: { 'Authorization': 'Bearer ' + jwtToken } });
     var groups = await r.json();
-    var html = '<div class="story-item" onclick="createStory()"><div class="story-add">+</div><div class="story-name">Создать</div></div>';
+    var html = '';
     groups.forEach(function(g) {
       html += '<div class="story-item" onclick="viewStory(\'' + g.user_id + '\')">' +
         '<div class="story-ring"><div class="story-ring-inner ' + GS[(g.username||'?').charCodeAt(0)%GS.length] + '">\uD83D\uDC36</div></div>' +
