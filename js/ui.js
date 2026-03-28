@@ -372,6 +372,7 @@ async function openProfileScreen() {
           '<div class="profile-row" onclick="openEditProfile()"><div class="profile-row-label">Редактировать профиль</div><div class="profile-row-val">\u203A</div></div>' +
           '<div class="profile-row" onclick="showOnboarding()"><div class="profile-row-label">Изменить интересы</div><div class="profile-row-val">' + interests.length + ' выбрано \u203A</div></div>' +
           '<div class="profile-row" onclick="toggleTheme()"><div class="profile-row-label">Тема оформления</div><div class="profile-row-val">' + (document.documentElement.getAttribute('data-theme')==='light'?'Светлая':'Тёмная') + ' \u203A</div></div>' +
+          '<div class="profile-row" onclick="showReferral()"><div class="profile-row-label">Пригласить друга</div><div class="profile-row-val">\uD83D\uDD17 \u203A</div></div>' +
         '</div>' +
         '<div class="profile-section">' +
           '<div class="profile-row" onclick="logout()" style="justify-content:center"><div class="profile-row-label" style="color:#FF3B30">Выйти</div></div>' +
@@ -457,12 +458,17 @@ function openPinned(type) {
       '</div><button class="sbtn" onclick="sendAI()">\u27A4</button></div>';
     scrollBot(); showChatView();
   } else if (type === 'video') {
-    feedOffset = 0; feedLoading = false; myFeedChannel = null;
+    feedOffset = 0; feedLoading = false; myFeedChannel = null; feedFilter = 'all';
     main.innerHTML =
       '<div class="chat-hdr" style="justify-content:space-between">' +
         '<button class="back-btn" onclick="goBack()">\u2039</button>' +
         '<div style="font-weight:700;font-size:18px;color:var(--text)">Стена</div>' +
-        '<div style="width:36px"></div>' +
+        '<button class="hb" onclick="openGlobalSearch()">\uD83D\uDD0D</button>' +
+      '</div>' +
+      '<div style="display:flex;gap:6px;padding:8px 12px;background:var(--card);border-bottom:0.5px solid var(--sep);overflow-x:auto">' +
+        '<button class="feed-filter active" data-f="all" onclick="setFeedFilter(\'all\',this)">Все</button>' +
+        '<button class="feed-filter" data-f="interests" onclick="setFeedFilter(\'interests\',this)">По интересам</button>' +
+        '<button class="feed-filter" data-f="new" onclick="setFeedFilter(\'new\',this)">Новое</button>' +
       '</div>' +
       '<div id="feedArea" style="flex:1;overflow-y:auto;padding:0">' +
         '<div class="ptr-indicator" id="ptrIndicator"><span class="ptr-spin">\u2B50</span> Обновление...</div>' +
@@ -632,7 +638,7 @@ async function loadFeed() {
   try {
     var ctrl = new AbortController();
     var timer = setTimeout(function() { ctrl.abort(); }, 8000);
-    var res = await fetch(API + '/feed?offset=' + feedOffset, {
+    var res = await fetch(API + '/feed?offset=' + feedOffset + '&filter=' + (feedFilter || 'all'), {
       headers: { 'Authorization': 'Bearer ' + jwtToken }, signal: ctrl.signal
     });
     clearTimeout(timer);
@@ -673,29 +679,50 @@ function relTime(ts) {
   return Math.floor(sec/86400) + 'д';
 }
 
+var REACTION_MAP = {fire:'\uD83D\uDD25',heart:'\u2764\uFE0F',laugh:'\uD83D\uDE02',wow:'\uD83D\uDE2E'};
+
 function postCard(p) {
   var name = p.channel_name || '?';
   var slug = p.channel_slug || '';
   var time = relTime(p.created_at);
-  var views = Math.floor(Math.random()*500 + (parseInt(p.likes)||0)*12 + 10);
   var subBtn = p.channel_id && !p.subscribed
     ? '<button onclick="toggleSub(\'' + p.channel_id + '\',this);event.stopPropagation()" style="background:var(--accent);border:none;border-radius:20px;color:#fff;font-size:12px;font-weight:600;padding:4px 14px;cursor:pointer;margin-left:auto">Подписаться</button>'
     : '';
 
+  // Reactions display
+  var reactHtml = '';
+  var reacts = p.reactions || [];
+  if (reacts.length) {
+    reactHtml = reacts.slice(0,2).map(function(r) {
+      return '<span style="font-size:12px">' + (REACTION_MAP[r.reaction]||'') + ' ' + r.cnt + '</span>';
+    }).join(' ');
+  }
+
+  var authorId = p.author_id || '';
+  var nameClick = authorId ? ' onclick="openPublicProfile(\'' + authorId + '\')"' : '';
+
   return '<div data-pid="' + p.id + '" style="display:flex;gap:12px;padding:12px 16px;border-bottom:0.5px solid var(--sep);background:var(--card)">' +
-    defaultAvSq(name, 44) +
+    '<div style="cursor:pointer"' + nameClick + '>' + defaultAvSq(name, 44) + '</div>' +
     '<div style="flex:1;min-width:0">' +
       '<div style="display:flex;align-items:center;gap:4px;margin-bottom:2px">' +
-        '<span style="font-weight:700;font-size:15px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(name) + '</span>' +
+        '<span style="font-weight:700;font-size:15px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer"' + nameClick + '>' + escHtml(name) + '</span>' +
         (slug ? '<span style="color:var(--text3);font-size:13px">@' + escHtml(slug) + '</span>' : '') +
         '<span style="color:var(--text3);font-size:13px">\u00B7 ' + time + '</span>' +
         subBtn +
       '</div>' +
-      '<div style="font-size:15px;line-height:1.45;color:var(--text);white-space:pre-wrap;margin-bottom:10px">' + escHtml(p.text) + '</div>' +
-      '<div style="display:flex;justify-content:space-between;max-width:360px">' +
-        '<button onclick="feedLike(this,\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;color:' + (p.liked?'#F43F5E':'var(--text3)') + ';font-size:13px;display:flex;align-items:center;gap:5px;padding:4px 0;transition:all .15s"><svg width="16" height="16" viewBox="0 0 24 24" fill="' + (p.liked?'#F43F5E':'none') + '" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="lc">' + (p.likes||'') + '</span></button>' +
-        '<button onclick="feedShare(\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;display:flex;align-items:center;gap:5px;padding:4px 0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></button>' +
-        '<span style="color:var(--text3);font-size:13px;display:flex;align-items:center;gap:4px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>' + views + '</span>' +
+      '<div style="font-size:15px;line-height:1.45;color:var(--text);white-space:pre-wrap;margin-bottom:8px">' + escHtml(p.text) + '</div>' +
+      // Reaction buttons
+      '<div style="display:flex;gap:2px;margin-bottom:8px">' +
+        ['fire','heart','laugh','wow'].map(function(r) {
+          var active = p.myReaction === r;
+          return '<button onclick="postReact(this,\'' + p.id + '\',\'' + r + '\')" style="background:' + (active?'rgba(124,58,237,0.15)':'var(--bg)') + ';border:1px solid ' + (active?'var(--accent)':'var(--sep)') + ';border-radius:20px;padding:3px 8px;cursor:pointer;font-size:14px;transition:all .15s">' + REACTION_MAP[r] + '</button>';
+        }).join('') +
+        (reactHtml ? '<span style="margin-left:6px;color:var(--text3);font-size:12px;display:flex;align-items:center;gap:4px">' + reactHtml + '</span>' : '') +
+      '</div>' +
+      // Action bar
+      '<div style="display:flex;gap:16px">' +
+        '<button onclick="openComments(\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;display:flex;align-items:center;gap:4px;padding:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>' + (p.commentCount||'') + '</button>' +
+        '<button onclick="feedShare(\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;display:flex;align-items:center;gap:4px;padding:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>' +
       '</div>' +
     '</div></div>';
 }
@@ -734,6 +761,239 @@ async function feedShare(postId) {
       alert('Отправлено!');
     } catch(e) { alert('Ошибка'); }
   }
+}
+
+// ── Feed Filter ──────────────────────────────────────────────────────────────
+var feedFilter = 'all';
+function setFeedFilter(f, btn) {
+  feedFilter = f;
+  document.querySelectorAll('.feed-filter').forEach(function(b) { b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  feedOffset = 0; feedLoading = false;
+  var list = document.getElementById('feedList');
+  if (list) list.innerHTML = skeletonCards(3);
+  loadFeed();
+}
+
+// ── Post Reactions ──────────────────────────────────────────────────────────
+async function postReact(btn, postId, reaction) {
+  btn.style.animation = 'likeBounce .4s ease';
+  setTimeout(function() { btn.style.animation = ''; }, 400);
+  try {
+    var r = await fetch(API + '/feed/' + postId + '/react', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+      body: JSON.stringify({ reaction: reaction })
+    });
+    var d = await r.json();
+    // Update button state
+    var card = btn.closest('[data-pid]');
+    if (card) {
+      card.querySelectorAll('button[onclick*="postReact"]').forEach(function(b) {
+        b.style.background = 'var(--bg)';
+        b.style.borderColor = 'var(--sep)';
+      });
+      if (d.added) {
+        btn.style.background = 'rgba(124,58,237,0.15)';
+        btn.style.borderColor = 'var(--accent)';
+      }
+    }
+  } catch(e) {}
+}
+
+// ── Comments Bottom Sheet ───────────────────────────────────────────────────
+async function openComments(postId) {
+  var sheet = document.createElement('div');
+  sheet.className = 'comment-sheet';
+  sheet.id = 'commentSheet';
+  sheet.innerHTML =
+    '<div class="comment-sheet-inner">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:0.5px solid var(--sep)">' +
+        '<span style="font-weight:700;font-size:16px;color:var(--text)">Комментарии</span>' +
+        '<button onclick="document.getElementById(\'commentSheet\').remove()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer">\u2716</button>' +
+      '</div>' +
+      '<div id="commentsList" style="flex:1;overflow-y:auto;padding:12px 16px"><div style="text-align:center;color:var(--text3);padding:20px">Загрузка...</div></div>' +
+      '<div style="display:flex;gap:8px;padding:10px 12px;border-top:0.5px solid var(--sep);background:var(--card)">' +
+        '<input class="minp" id="commentInput" placeholder="Написать комментарий..." style="margin:0;flex:1">' +
+        '<button class="sbtn" onclick="submitComment(\'' + postId + '\')">\u27A4</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(sheet);
+  setTimeout(function() { sheet.classList.add('open'); }, 10);
+
+  try {
+    var r = await fetch(API + '/feed/' + postId + '/comments', { headers: { 'Authorization': 'Bearer ' + jwtToken } });
+    var comments = await r.json();
+    var list = document.getElementById('commentsList');
+    if (!comments.length) {
+      list.innerHTML = '<div style="text-align:center;color:var(--text3);padding:20px">Пока нет комментариев</div>';
+    } else {
+      list.innerHTML = comments.map(function(c) {
+        return '<div style="display:flex;gap:10px;margin-bottom:12px">' +
+          defaultAv(c.username, 32) +
+          '<div>' +
+            '<div style="font-size:13px"><span style="font-weight:600;color:var(--text)">' + escHtml(c.username) + '</span> <span style="color:var(--text3)">@' + escHtml(c.handle||'') + '</span></div>' +
+            '<div style="font-size:14px;color:var(--text);margin-top:2px">' + escHtml(c.text) + '</div>' +
+            '<div style="font-size:11px;color:var(--text3);margin-top:2px">' + relTime(c.created_at) + '</div>' +
+          '</div></div>';
+      }).join('');
+    }
+  } catch(e) {}
+}
+
+async function submitComment(postId) {
+  var inp = document.getElementById('commentInput');
+  if (!inp) return;
+  var text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  try {
+    var r = await fetch(API + '/feed/' + postId + '/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+      body: JSON.stringify({ text: text })
+    });
+    var c = await r.json();
+    var list = document.getElementById('commentsList');
+    if (list) {
+      var empty = list.querySelector('div[style*="text-align:center"]');
+      if (empty) empty.remove();
+      list.insertAdjacentHTML('beforeend',
+        '<div style="display:flex;gap:10px;margin-bottom:12px">' +
+          defaultAv(c.username || currentUser.username, 32) +
+          '<div><div style="font-size:13px"><span style="font-weight:600;color:var(--text)">' + escHtml(c.username || currentUser.username) + '</span></div>' +
+            '<div style="font-size:14px;color:var(--text);margin-top:2px">' + escHtml(c.text) + '</div>' +
+            '<div style="font-size:11px;color:var(--text3);margin-top:2px">только что</div></div></div>'
+      );
+      list.scrollTop = list.scrollHeight;
+    }
+    // Update comment count on card
+    var card = document.querySelector('[data-pid="' + postId + '"]');
+    if (card) {
+      var ccBtn = card.querySelector('button[onclick*="openComments"]');
+      if (ccBtn) {
+        var spans = ccBtn.querySelectorAll('span,text');
+        // Just update the text node
+        var num = parseInt(ccBtn.textContent.replace(/\D/g,'')) || 0;
+        ccBtn.innerHTML = ccBtn.innerHTML.replace(/>(\d*)<\/button>/, '>' + (num+1) + '</button>');
+      }
+    }
+  } catch(e) {}
+}
+
+// ── Public Profile ──────────────────────────────────────────────────────────
+async function openPublicProfile(userId) {
+  showChatView();
+  var main = document.getElementById('mainArea');
+  main.innerHTML = '<div class="profile-wrap" style="display:flex;align-items:center;justify-content:center"><div style="color:var(--text3)">Загрузка...</div></div>';
+  try {
+    var r = await fetch(API + '/users/' + userId + '/profile', { headers: { 'Authorization': 'Bearer ' + jwtToken } });
+    var u = await r.json();
+    var interests = (u.interests || []);
+    var interestTags = interests.map(function(i) {
+      var found = INTERESTS.find(function(x){return x.id===i});
+      return '<span class="interest-tag">' + (found ? found.emoji + ' ' : '') + i + '</span>';
+    }).join('');
+    var onlineHtml = u.online ? '<span style="color:var(--green);font-weight:600">\u25CF в сети</span>' : '<span style="color:var(--text3)">был(а) недавно</span>';
+
+    main.innerHTML =
+      '<div class="chat-hdr"><button class="back-btn" onclick="goBack()">\u2039</button><div class="hinfo"><div class="hname">Профиль</div></div></div>' +
+      '<div class="profile-wrap">' +
+        '<div class="profile-header">' +
+          '<div class="profile-av ' + GS[(u.username||'?').charCodeAt(0)%GS.length] + '">\uD83D\uDC36</div>' +
+          '<div class="profile-name">' + escHtml(u.username || '') + '</div>' +
+          '<div class="profile-handle">@' + escHtml(u.handle || '') + '</div>' +
+          '<div style="margin-top:6px">' + onlineHtml + '</div>' +
+          (u.bio ? '<div class="profile-bio">' + escHtml(u.bio) + '</div>' : '') +
+          (u.city ? '<div style="font-size:14px;color:var(--text2);margin-top:6px">\uD83D\uDCCD ' + escHtml(u.city) + '</div>' : '') +
+          (interestTags ? '<div class="profile-interests">' + interestTags + '</div>' : '') +
+        '</div>' +
+        '<div style="display:flex;gap:10px;max-width:300px;margin:0 auto">' +
+          '<button onclick="startDMFromProfile(\'' + userId + '\',\'' + escHtml(u.username||'') + '\',\'' + escHtml(u.handle||'') + '\')" style="flex:1;background:var(--accent);border:none;border-radius:12px;color:#fff;padding:12px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer">Написать</button>' +
+        '</div>' +
+      '</div>';
+  } catch(e) {
+    main.innerHTML = '<div class="profile-wrap" style="text-align:center;padding:40px"><div style="color:var(--text3)">Профиль не найден</div></div>';
+  }
+}
+
+function startDMFromProfile(userId, username, handle) {
+  goBack();
+  startDM(userId, username, handle);
+}
+
+// ── Global Search ───────────────────────────────────────────────────────────
+function openGlobalSearch() {
+  showChatView();
+  var main = document.getElementById('mainArea');
+  main.innerHTML =
+    '<div class="chat-hdr"><button class="back-btn" onclick="goBack()">\u2039</button><div class="hinfo"><div class="hname">Поиск</div></div></div>' +
+    '<div style="padding:12px 16px">' +
+      '<input class="minp" id="globalSearchInput" placeholder="Поиск людей и каналов..." oninput="doGlobalSearch(this.value)" style="margin:0">' +
+    '</div>' +
+    '<div style="display:flex;gap:0;border-bottom:0.5px solid var(--sep)">' +
+      '<button class="feed-filter active" id="gsTabPeople" onclick="gsTab(\'people\')" style="flex:1;border-radius:0">Люди</button>' +
+      '<button class="feed-filter" id="gsTabChannels" onclick="gsTab(\'channels\')" style="flex:1;border-radius:0">Каналы</button>' +
+    '</div>' +
+    '<div id="globalSearchResults" style="flex:1;overflow-y:auto;padding:8px"></div>';
+  setTimeout(function() { var inp = document.getElementById('globalSearchInput'); if (inp) inp.focus(); }, 100);
+}
+
+var _gsTab = 'people', _gsTimer = null;
+function gsTab(tab) {
+  _gsTab = tab;
+  document.getElementById('gsTabPeople').classList.toggle('active', tab==='people');
+  document.getElementById('gsTabChannels').classList.toggle('active', tab==='channels');
+  var inp = document.getElementById('globalSearchInput');
+  if (inp && inp.value.trim()) doGlobalSearch(inp.value);
+}
+
+function doGlobalSearch(q) {
+  clearTimeout(_gsTimer);
+  if (!q.trim()) { document.getElementById('globalSearchResults').innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3)">Введите запрос</div>'; return; }
+  _gsTimer = setTimeout(async function() {
+    var res = document.getElementById('globalSearchResults');
+    try {
+      if (_gsTab === 'people') {
+        var r = await fetch(API + '/users?search=' + encodeURIComponent(q), { headers: { 'Authorization': 'Bearer ' + jwtToken } });
+        var users = await r.json();
+        if (!users.length) { res.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3)">Никого не найдено</div>'; return; }
+        res.innerHTML = users.map(function(u) {
+          return '<div class="ci" onclick="openPublicProfile(\'' + u.id + '\')">' +
+            defaultAv(u.username) +
+            '<div class="ci-info"><div class="ci-name">' + escHtml(u.username) + '</div><div class="ci-prev">@' + escHtml(u.handle||'') + '</div></div>' +
+            '<button onclick="event.stopPropagation();startDM(\'' + u.id + '\',\'' + escSearch(u.username) + '\',\'' + escSearch(u.handle||'') + '\')" style="background:var(--accent);border:none;border-radius:20px;color:#fff;font-size:12px;padding:5px 14px;cursor:pointer;font-weight:600">Написать</button>' +
+          '</div>';
+        }).join('');
+      } else {
+        var r = await fetch(API + '/channels?search=' + encodeURIComponent(q), { headers: { 'Authorization': 'Bearer ' + jwtToken } });
+        var chs = await r.json();
+        if (!chs.length) { res.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3)">Каналов не найдено</div>'; return; }
+        res.innerHTML = chs.map(function(c) {
+          return '<div class="ci" onclick="joinChannel(\'' + c.id + '\',\'' + escSearch(c.name) + '\',\'' + escSearch(c.slug||'') + '\')">' +
+            defaultAvSq(c.name) +
+            '<div class="ci-info"><div class="ci-name">' + escHtml(c.name) + '</div><div class="ci-prev">' + (c.members||0) + ' участников</div></div>' +
+            '<button onclick="event.stopPropagation();joinChannel(\'' + c.id + '\',\'' + escSearch(c.name) + '\',\'' + escSearch(c.slug||'') + '\')" style="background:var(--accent);border:none;border-radius:20px;color:#fff;font-size:12px;padding:5px 14px;cursor:pointer;font-weight:600">Подписаться</button>' +
+          '</div>';
+        }).join('');
+      }
+    } catch(e) { res.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3)">Ошибка поиска</div>'; }
+  }, 300);
+}
+
+// ── Referral ────────────────────────────────────────────────────────────────
+async function showReferral() {
+  try {
+    var r = await fetch(API + '/me/referral', { headers: { 'Authorization': 'Bearer ' + jwtToken } });
+    var d = await r.json();
+    var link = 'https://c4v2jht698-ux.github.io/kosmos-frontend/?ref=' + d.code;
+    var msg = 'Твоя реферальная ссылка:\n\n' + link + '\n\nПриглашено друзей: ' + (d.invited || 0);
+    if (navigator.share) {
+      navigator.share({ title: 'Космос', text: 'Присоединяйся к Космосу!', url: link }).catch(function(){});
+    } else {
+      navigator.clipboard.writeText(link).then(function() { alert(msg + '\n\nСсылка скопирована!'); }).catch(function() { prompt('Скопируйте ссылку:', link); });
+    }
+  } catch(e) { alert('Ошибка'); }
 }
 
 async function toggleSub(channelId, btn) {

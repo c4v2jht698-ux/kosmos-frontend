@@ -161,7 +161,7 @@ async function submitAuth() {
       if (!handle) { showError('Введи @username'); btn.disabled = false; btn.textContent = 'Создать аккаунт'; return; }
       if (!/^[a-z0-9_]{3,20}$/.test(handle)) { showError('@username: только a-z, 0-9 и _ (3\u201320 символов)'); btn.disabled = false; btn.textContent = 'Создать аккаунт'; return; }
       url = API + '/register';
-      body = { username: name, handle: handle };
+      body = { username: name, handle: handle, ref: _refCode || undefined };
     } else {
       var seed = getSeedFromGrid();
       if (!seed.replace(/\s/g,'')) { showError('Введите все 12 слов'); btn.disabled = false; btn.textContent = 'Войти в Космос'; return; }
@@ -308,6 +308,9 @@ if (isWebView) {
   // Also hide the "или" divider above it
   if (tgWrap && tgWrap.previousElementSibling) tgWrap.previousElementSibling.style.display = 'none';
 }
+
+// ── Referral code from URL ────────────────────────────────────────────────────
+var _refCode = new URLSearchParams(window.location.search).get('ref') || '';
 
 // ── Init on load ─────────────────────────────────────────────────────────────
 applyTheme(localStorage.getItem('kosmos_theme') !== 'light');

@@ -285,6 +285,20 @@ body{
 .match-screen{text-align:center;animation:matchPop .5s ease}
 @keyframes matchPop{0%{transform:scale(.5);opacity:0}50%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
 
+/* ── FEED FILTER TABS ── */
+.feed-filter{padding:6px 14px;border-radius:20px;border:1px solid var(--sep);background:none;color:var(--text3);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
+.feed-filter.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* ── COMMENT SHEET ── */
+.comment-sheet{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.4);display:flex;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .2s}
+.comment-sheet.open{opacity:1}
+.comment-sheet-inner{width:100%;max-width:500px;max-height:70vh;background:var(--card);border-radius:16px 16px 0 0;display:flex;flex-direction:column;animation:sheetUp .25s ease}
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
+
+/* ── SCROLL TO TOP ── */
+.scroll-top-btn{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);background:var(--accent);border:none;border-radius:20px;color:#fff;padding:6px 16px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;box-shadow:var(--shadow);z-index:10;opacity:0;transition:opacity .2s;pointer-events:none}
+.scroll-top-btn.visible{opacity:1;pointer-events:auto}
+
 /* ── TOAST NOTIFICATION ── */
 .toast{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-100px);z-index:9000;background:var(--card);border:1px solid var(--sep);border-radius:14px;padding:10px 16px;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow);max-width:calc(100vw - 32px);transition:transform .3s ease;pointer-events:auto}
 .toast.show{transform:translateX(-50%) translateY(0)}
