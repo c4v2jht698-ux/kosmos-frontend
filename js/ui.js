@@ -370,21 +370,33 @@ function navTo(tab) {
   var navEl = document.getElementById('nav' + tab.charAt(0).toUpperCase() + tab.slice(1));
   if (navEl) navEl.classList.add('active');
 
-  // First, ensure clean state
-  document.body.classList.remove('chat-open');
+  // Clean state
   cur = null;
 
   if (tab === 'chats') {
-    // Show sidebar, reset main to empty
+    document.body.classList.remove('chat-open');
     document.getElementById('mainArea').innerHTML = '<div class="empty"><div class="empty-card"><div class="empty-icon">\uD83D\uDE80</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>';
     render();
-  } else if (tab === 'feed') {
-    openPinned('video');
-  } else if (tab === 'dating') {
-    openPinned('social');
-  } else if (tab === 'profile') {
-    openProfileScreen();
+  } else {
+    // For feed/dating/profile — show main area directly, hide sidebar
+    document.body.classList.add('chat-open');
+
+    if (tab === 'feed') {
+      openPinnedContent('video');
+    } else if (tab === 'dating') {
+      openPinnedContent('social');
+    } else if (tab === 'profile') {
+      openProfileScreen();
+    }
   }
+}
+
+// Version of openPinned that doesn't call showChatView/render (used by navTo)
+function openPinnedContent(type) {
+  cur = null;
+  var main = document.getElementById('mainArea');
+  if (type === 'video') { buildFeedView(main); }
+  else if (type === 'social') { buildDatingView(main); }
 }
 
 // ── Profile Screen ──────────────────────────────────────────────────────────
@@ -519,100 +531,110 @@ function openPinned(type) {
       '</div><button class="sbtn" onclick="sendAI()">\u27A4</button></div>';
     scrollBot(); showChatView();
   } else if (type === 'video') {
-    feedOffset = 0; feedLoading = false; myFeedChannel = null; feedFilter = 'all';
-    main.innerHTML =
-      '<div class="chat-hdr" style="justify-content:space-between">' +
-        '<button class="back-btn" onclick="goBack()">\u2039</button>' +
-        '<div style="font-weight:700;font-size:18px;color:var(--text)">Стена</div>' +
-        '<button class="hb" onclick="openGlobalSearch()">\uD83D\uDD0D</button>' +
-      '</div>' +
-      '<div style="display:flex;gap:6px;padding:8px 12px;background:var(--card);border-bottom:0.5px solid var(--sep);overflow-x:auto">' +
-        '<button class="feed-filter active" data-f="all" onclick="setFeedFilter(\'all\',this)">Все</button>' +
-        '<button class="feed-filter" data-f="interests" onclick="setFeedFilter(\'interests\',this)">По интересам</button>' +
-        '<button class="feed-filter" data-f="new" onclick="setFeedFilter(\'new\',this)">Новое</button>' +
-      '</div>' +
-      '<div id="feedArea" style="flex:1;overflow-y:auto;padding:0">' +
-        '<div class="ptr-indicator" id="ptrIndicator"><span class="ptr-spin">\u2B50</span> Обновление...</div>' +
-        '<div class="stories-row" id="storiesRow"></div>' +
-        '<div id="challengeWrap" style="padding:12px 0 0"></div>' +
-        '<div id="feedList">' + skeletonCards(3) + '</div>' +
-        '<div id="feedLoader" style="text-align:center;padding:16px;color:var(--text3)"></div>' +
-      '</div>' +
-      '<div style="position:absolute;bottom:80px;right:20px;z-index:10">' +
-        '<button onclick="openCreatePost()" style="width:56px;height:56px;border-radius:50%;background:var(--accent);border:none;color:#fff;font-size:24px;cursor:pointer;box-shadow:0 4px 20px rgba(124,58,237,0.4);display:flex;align-items:center;justify-content:center">\u270F\uFE0F</button>' +
-      '</div>';
+    buildFeedView(main);
     showChatView();
-    loadFeed();
-    // Load stories
-    var sr = document.getElementById('storiesRow');
-    if (sr) loadStories(sr);
-    // Load daily challenge
-    loadDailyChallenge().then(function(ch) {
-      var wrap = document.getElementById('challengeWrap');
-      if (wrap && ch) wrap.innerHTML = challengeCardHtml(ch);
-    });
-    var feedArea = document.getElementById('feedArea');
-    feedArea.addEventListener('scroll', function() {
-      if (this.scrollTop + this.clientHeight >= this.scrollHeight - 200 && !feedLoading) loadFeed();
-    });
-    // Pull-to-refresh
-    var _ptrStart = 0, _ptrActive = false;
-    feedArea.addEventListener('touchstart', function(e) { if (feedArea.scrollTop <= 0) _ptrStart = e.touches[0].clientY; else _ptrStart = 0; }, { passive: true });
-    feedArea.addEventListener('touchmove', function(e) {
-      if (!_ptrStart) return;
-      var diff = e.touches[0].clientY - _ptrStart;
-      if (diff > 60 && !_ptrActive) {
-        _ptrActive = true;
-        var ptr = document.getElementById('ptrIndicator');
-        if (ptr) ptr.classList.add('active');
-      }
-    }, { passive: true });
-    feedArea.addEventListener('touchend', function() {
-      if (_ptrActive) {
-        _ptrActive = false;
-        feedOffset = 0; feedLoading = false;
-        var list = document.getElementById('feedList');
-        if (list) list.innerHTML = skeletonCards(3);
-        loadFeed();
-        setTimeout(function() { var ptr = document.getElementById('ptrIndicator'); if (ptr) ptr.classList.remove('active'); }, 1000);
-      }
-      _ptrStart = 0;
-    });
-    if (window._feedRefresh) clearInterval(window._feedRefresh);
-    window._feedRefresh = setInterval(function() {
-      var list = document.getElementById('feedList');
-      if (!list) { clearInterval(window._feedRefresh); return; }
-      fetch(API + '/feed?offset=0', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          var posts = data.posts || [];
-          if (posts.length && list.children.length) {
-            var firstId = list.children[0] ? list.children[0].getAttribute('data-pid') : null;
-            if (posts[0].id !== firstId) {
-              var newHtml = '';
-              for (var i = 0; i < posts.length; i++) {
-                if (posts[i].id === firstId) break;
-                newHtml += postCard(posts[i]);
-              }
-              if (newHtml) list.insertAdjacentHTML('afterbegin', newHtml);
-            }
-          }
-        }).catch(function() {});
-    }, 60000);
   } else if (type === 'social') {
-    main.innerHTML =
-      '<div class="chat-hdr">' +
-        '<button class="back-btn" onclick="goBack()">\u2039</button>' +
-        '<div class="av g5 sq" style="width:36px;height:36px;font-size:16px"><span style="color:#fff">\u2665</span></div>' +
-        '<div class="hinfo"><div class="hname">Встречи</div><div class="hsub">Знакомства</div></div>' +
-        '<div class="hacts"><button class="hb" onclick="openDatingProfile()">\u2699</button></div>' +
-      '</div>' +
-      '<div id="datingArea" style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px;overflow:hidden">' +
-        '<div style="color:var(--text3)">Загрузка...</div>' +
-      '</div>';
+    buildDatingView(main);
     showChatView();
-    loadDatingCards();
   }
+}
+
+// ── Build Feed View ──────────────────────────────────────────────────────────
+function buildFeedView(main) {
+  feedOffset = 0; feedLoading = false; myFeedChannel = null; feedFilter = 'all';
+  var backBtn = currentNav === 'feed' ? '' : '<button class="back-btn" onclick="goBack()">\u2039</button>';
+  main.innerHTML =
+    '<div class="chat-hdr" style="justify-content:space-between">' +
+      backBtn +
+      '<div style="font-weight:700;font-size:18px;color:var(--text)">Стена</div>' +
+      '<button class="hb" onclick="openGlobalSearch()">\uD83D\uDD0D</button>' +
+    '</div>' +
+    '<div style="display:flex;gap:6px;padding:8px 12px;background:var(--card);border-bottom:0.5px solid var(--sep);overflow-x:auto">' +
+      '<button class="feed-filter active" data-f="all" onclick="setFeedFilter(\'all\',this)">Все</button>' +
+      '<button class="feed-filter" data-f="interests" onclick="setFeedFilter(\'interests\',this)">По интересам</button>' +
+      '<button class="feed-filter" data-f="new" onclick="setFeedFilter(\'new\',this)">Новое</button>' +
+    '</div>' +
+    '<div id="feedArea" style="flex:1;overflow-y:auto;padding:0;padding-bottom:72px">' +
+      '<div class="ptr-indicator" id="ptrIndicator"><span class="ptr-spin">\u2B50</span> Обновление...</div>' +
+      '<div class="stories-row" id="storiesRow"></div>' +
+      '<div id="challengeWrap" style="padding:12px 0 0"></div>' +
+      '<div id="feedList">' + skeletonCards(3) + '</div>' +
+      '<div id="feedLoader" style="text-align:center;padding:16px;color:var(--text3)"></div>' +
+    '</div>' +
+    '<div style="position:absolute;bottom:80px;right:20px;z-index:10">' +
+      '<button onclick="openCreatePost()" style="width:56px;height:56px;border-radius:50%;background:var(--accent);border:none;color:#fff;font-size:24px;cursor:pointer;box-shadow:0 4px 20px rgba(124,58,237,0.4);display:flex;align-items:center;justify-content:center">\u270F\uFE0F</button>' +
+    '</div>';
+  loadFeed();
+  var sr = document.getElementById('storiesRow');
+  if (sr) loadStories(sr);
+  loadDailyChallenge().then(function(ch) {
+    var wrap = document.getElementById('challengeWrap');
+    if (wrap && ch) wrap.innerHTML = challengeCardHtml(ch);
+  });
+  var feedArea = document.getElementById('feedArea');
+  feedArea.addEventListener('scroll', function() {
+    if (this.scrollTop + this.clientHeight >= this.scrollHeight - 200 && !feedLoading) loadFeed();
+  });
+  // Pull-to-refresh
+  var _ptrStart = 0, _ptrActive = false;
+  feedArea.addEventListener('touchstart', function(e) { if (feedArea.scrollTop <= 0) _ptrStart = e.touches[0].clientY; else _ptrStart = 0; }, { passive: true });
+  feedArea.addEventListener('touchmove', function(e) {
+    if (!_ptrStart) return;
+    var diff = e.touches[0].clientY - _ptrStart;
+    if (diff > 60 && !_ptrActive) {
+      _ptrActive = true;
+      var ptr = document.getElementById('ptrIndicator');
+      if (ptr) ptr.classList.add('active');
+    }
+  }, { passive: true });
+  feedArea.addEventListener('touchend', function() {
+    if (_ptrActive) {
+      _ptrActive = false;
+      feedOffset = 0; feedLoading = false;
+      var list = document.getElementById('feedList');
+      if (list) list.innerHTML = skeletonCards(3);
+      loadFeed();
+      setTimeout(function() { var ptr = document.getElementById('ptrIndicator'); if (ptr) ptr.classList.remove('active'); }, 1000);
+    }
+    _ptrStart = 0;
+  });
+  if (window._feedRefresh) clearInterval(window._feedRefresh);
+  window._feedRefresh = setInterval(function() {
+    var list = document.getElementById('feedList');
+    if (!list) { clearInterval(window._feedRefresh); return; }
+    fetch(API + '/feed?offset=0', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var posts = data.posts || [];
+        if (posts.length && list.children.length) {
+          var firstId = list.children[0] ? list.children[0].getAttribute('data-pid') : null;
+          if (posts[0].id !== firstId) {
+            var newHtml = '';
+            for (var i = 0; i < posts.length; i++) {
+              if (posts[i].id === firstId) break;
+              newHtml += postCard(posts[i]);
+            }
+            if (newHtml) list.insertAdjacentHTML('afterbegin', newHtml);
+          }
+        }
+      }).catch(function() {});
+  }, 60000);
+}
+
+// ── Build Dating View ────────────────────────────────────────────────────────
+function buildDatingView(main) {
+  var backBtn = currentNav === 'dating' ? '' : '<button class="back-btn" onclick="goBack()">\u2039</button>';
+  main.innerHTML =
+    '<div class="chat-hdr">' +
+      backBtn +
+      '<div class="av g5 sq" style="width:36px;height:36px;font-size:16px"><span style="color:#fff">\u2665</span></div>' +
+      '<div class="hinfo"><div class="hname">Встречи</div><div class="hsub">Знакомства</div></div>' +
+      '<div class="hacts"><button class="hb" onclick="openDatingProfile()">\u2699</button></div>' +
+    '</div>' +
+    '<div id="datingArea" style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px;overflow:hidden;padding-bottom:72px">' +
+      '<div style="color:var(--text3)">Загрузка...</div>' +
+    '</div>';
+  loadDatingCards();
 }
 
 function saveNote() {
