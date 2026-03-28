@@ -81,28 +81,47 @@ function buildSeedGrid() {
       words.slice(0, 12).forEach(function(w, i) { if (inputs[i]) inputs[i].value = w; });
     }
   });
+  function seedAdvance(input) {
+    var val = input.value;
+    if (val.indexOf(' ') === -1) return false;
+    var parts = val.split(/\s+/);
+    input.value = parts[0];
+    var inputs = grid.querySelectorAll('input');
+    var idx = parseInt(input.dataset.idx) || 0;
+    for (var j = 1; j < parts.length; j++) {
+      if (inputs[idx + j] && parts[j]) inputs[idx + j].value = parts[j];
+    }
+    var next = inputs[idx + 1];
+    if (next) next.focus();
+    return true;
+  }
+  // input event — catches paste and typing on most browsers
   grid.addEventListener('input', function(e) {
     if (e.target.tagName !== 'INPUT') return;
-    var val = e.target.value;
-    // Strip spaces and auto-advance
-    if (val.indexOf(' ') !== -1) {
-      var parts = val.split(/\s+/);
-      e.target.value = parts[0];
+    seedAdvance(e.target);
+  });
+  // keyup on space — fallback for WebView where input event may miss the space
+  grid.addEventListener('keyup', function(e) {
+    if (e.target.tagName !== 'INPUT') return;
+    if (e.key === ' ' || e.keyCode === 32) {
+      e.target.value = e.target.value.replace(/\s/g, '');
       var inputs = grid.querySelectorAll('input');
       var idx = parseInt(e.target.dataset.idx) || 0;
-      // Fill remaining words into next fields
-      for (var j = 1; j < parts.length; j++) {
-        if (inputs[idx + j] && parts[j]) inputs[idx + j].value = parts[j];
-      }
-      // Focus next empty field
       var next = inputs[idx + 1];
       if (next) next.focus();
-      return;
     }
   });
+  // keydown on Enter — advance to next field
   grid.addEventListener('keydown', function(e) {
     if (e.target.tagName !== 'INPUT') return;
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.keyCode === 13) {
+      e.preventDefault();
+      var inputs = grid.querySelectorAll('input');
+      var idx = parseInt(e.target.dataset.idx) || 0;
+      var next = inputs[idx + 1];
+      if (next) next.focus();
+    }
+    if (e.key === ' ' || e.keyCode === 32) {
       e.preventDefault();
       var inputs = grid.querySelectorAll('input');
       var idx = parseInt(e.target.dataset.idx) || 0;
