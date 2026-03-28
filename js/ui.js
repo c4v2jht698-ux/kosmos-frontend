@@ -139,21 +139,67 @@ function itm(c) {
 
 function initSwipeToLeave() {
   document.querySelectorAll('.ci-wrap[data-type="channel"]').forEach(function(wrap) {
+    if (wrap._swipeInit) return; // don't double-bind
+    wrap._swipeInit = true;
     var ci = wrap.querySelector('.ci');
-    var mc = new Hammer(ci);
-    mc.get('swipe').set({ direction: Hammer.DIRECTION_HORIZONTAL });
-    mc.on('swipeleft', function() {
-      document.querySelectorAll('.ci-wrap.swiped').forEach(function(el) { if (el !== wrap) el.classList.remove('swiped'); });
-      wrap.classList.add('swiped');
+    var startX = 0, startY = 0, deltaX = 0, swiping = false;
+
+    ci.addEventListener('touchstart', function(e) {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      deltaX = 0; swiping = false;
+      ci.style.transition = 'none';
+    }, { passive: true });
+
+    ci.addEventListener('touchmove', function(e) {
+      var dx = e.touches[0].clientX - startX;
+      var dy = e.touches[0].clientY - startY;
+      // Only swipe horizontally
+      if (!swiping && Math.abs(dy) > Math.abs(dx)) return;
+      swiping = true;
+      deltaX = Math.min(0, Math.max(-90, dx));
+      if (deltaX < 0) {
+        wrap.classList.add('swiping');
+        ci.style.transform = 'translateX(' + deltaX + 'px)';
+      }
+    }, { passive: true });
+
+    ci.addEventListener('touchend', function() {
+      ci.style.transition = 'transform .25s ease';
+      if (deltaX < -60) {
+        // Close others first
+        document.querySelectorAll('.ci-wrap.swiped').forEach(function(el) {
+          if (el !== wrap) { el.classList.remove('swiped','swiping'); el.querySelector('.ci').style.transform = ''; }
+        });
+        wrap.classList.add('swiped');
+        ci.style.transform = 'translateX(-90px)';
+      } else {
+        wrap.classList.remove('swiped','swiping');
+        ci.style.transform = '';
+      }
     });
-    mc.on('swiperight', function() { wrap.classList.remove('swiped'); });
   });
+
+  // Close all swipes when tapping elsewhere
+  document.addEventListener('touchstart', function(e) {
+    if (!e.target.closest('.ci-wrap.swiped') && !e.target.closest('.ci-leave-bg')) {
+      document.querySelectorAll('.ci-wrap.swiped').forEach(function(el) {
+        el.classList.remove('swiped','swiping');
+        el.querySelector('.ci').style.transform = '';
+      });
+    }
+  }, { passive: true });
+
   document.querySelectorAll('.ci-leave-bg').forEach(function(btn) {
     btn.onclick = function(e) {
       e.stopPropagation();
       var wrap = btn.closest('.ci-wrap');
       var id = wrap.dataset.id;
-      if (!confirm('Покинуть канал?')) { wrap.classList.remove('swiped'); return; }
+      if (!confirm('Покинуть канал?')) {
+        wrap.classList.remove('swiped','swiping');
+        wrap.querySelector('.ci').style.transform = '';
+        return;
+      }
       leaveChannel(id);
     };
   });
@@ -324,9 +370,14 @@ function navTo(tab) {
   var navEl = document.getElementById('nav' + tab.charAt(0).toUpperCase() + tab.slice(1));
   if (navEl) navEl.classList.add('active');
 
+  // First, ensure clean state
+  document.body.classList.remove('chat-open');
+  cur = null;
+
   if (tab === 'chats') {
-    if (document.body.classList.contains('chat-open')) goBack();
-    document.getElementById('sidebar').style.display = '';
+    // Show sidebar, reset main to empty
+    document.getElementById('mainArea').innerHTML = '<div class="empty"><div class="empty-card"><div class="empty-icon">\uD83D\uDE80</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>';
+    render();
   } else if (tab === 'feed') {
     openPinned('video');
   } else if (tab === 'dating') {
