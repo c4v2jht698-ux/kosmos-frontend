@@ -93,16 +93,20 @@ function render() {
 
   var chList = document.getElementById('chList');
   if (chList) {
-    if (all.length) {
-      chList.innerHTML = all.map(function(c){return itm(c)}).join('');
-    } else {
-      chList.innerHTML = '<div style="text-align:center;padding:32px 16px">' +
-        '<div style="font-size:40px;margin-bottom:8px">\uD83D\uDE80</div>' +
-        '<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px">Начни общение!</div>' +
-        '<div style="font-size:13px;color:var(--text3);margin-bottom:12px">Найди людей в разделе Встречи</div>' +
-        '<button onclick="navTo(\'dating\')" style="background:var(--accent);border:none;border-radius:10px;color:#fff;padding:8px 20px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer">Найти людей</button>' +
-      '</div>';
-    }
+    var pinned =
+      '<div class="ci" onclick="openPinned(\'important\')">' +
+        '<div class="av g4 sq" style="width:48px;height:48px;font-size:20px"><span style="color:#fff">\u2B50</span></div>' +
+        '<div class="ci-info"><div class="ci-name">Важное</div><div class="ci-prev">Заметки для себя</div></div></div>' +
+      '<div class="ci" onclick="openPinned(\'ai\')">' +
+        '<div class="av g1 sq" style="width:48px;height:48px;font-size:20px"><span style="color:#fff">\uD83E\uDD16</span></div>' +
+        '<div class="ci-info"><div class="ci-name">ГигаЧАТ AI</div><div class="ci-prev">Умный ассистент</div></div></div>' +
+      '<div class="ci" onclick="navTo(\'feed\')">' +
+        '<div class="av g3 sq" style="width:48px;height:48px;font-size:20px"><span style="color:#fff">\uD83D\uDCF0</span></div>' +
+        '<div class="ci-info"><div class="ci-name">Стена</div><div class="ci-prev">Посты и новости</div></div></div>' +
+      '<div class="ci" onclick="navTo(\'dating\')">' +
+        '<div class="av g5 sq" style="width:48px;height:48px;font-size:20px"><span style="color:#fff">\uD83D\uDC95</span></div>' +
+        '<div class="ci-info"><div class="ci-name">Знакомства</div><div class="ci-prev">Свайпай и общайся</div></div></div>';
+    chList.innerHTML = pinned + all.map(function(c){return itm(c)}).join('');
   }
 
   var dmSec = document.getElementById('dmSection');
