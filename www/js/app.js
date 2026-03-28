@@ -335,26 +335,27 @@ window.addEventListener('online', function() {
   loadMyChats();
 });
 
-// ── Swipe back + Android back button ─────────────────────────────────────────
+// ── Swipe back (Hammer.js) + Android back button ─────────────────────────────
 (function() {
-  var touchStartX = 0, touchStartY = 0, swiping = false;
-  document.addEventListener('touchstart', function(e) {
-    var t = e.touches[0];
-    touchStartX = t.clientX; touchStartY = t.clientY;
-    swiping = touchStartX < 30; // Only from left edge
-  }, { passive: true });
-  document.addEventListener('touchmove', function(e) {
-    if (!swiping || !document.body.classList.contains('chat-open')) return;
-    var dx = e.touches[0].clientX - touchStartX;
-    var dy = Math.abs(e.touches[0].clientY - touchStartY);
-    if (dx > 80 && dy < 60) { swiping = false; goBack(); }
-  }, { passive: true });
+  if (typeof Hammer !== 'undefined') {
+    var mc = new Hammer(document.body, { recognizers: [[Hammer.Swipe, { direction: Hammer.DIRECTION_RIGHT, threshold: 50, velocity: 0.3 }]] });
+    mc.on('swiperight', function() {
+      if (document.body.classList.contains('chat-open')) goBack();
+    });
+  }
 
-  // Android hardware back button (Capacitor)
-  document.addEventListener('backbutton', function(e) {
-    if (document.body.classList.contains('chat-open')) { e.preventDefault(); goBack(); }
+  // Android back button — Capacitor App plugin
+  document.addEventListener('backbutton', function() {
+    if (document.body.classList.contains('chat-open')) goBack();
   });
-  // Also history-based back
+  try {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+      window.Capacitor.Plugins.App.addListener('backButton', function() {
+        if (document.body.classList.contains('chat-open')) goBack();
+      });
+    }
+  } catch(e) {}
+  // Browser back
   window.addEventListener('popstate', function() {
     if (document.body.classList.contains('chat-open')) goBack();
   });

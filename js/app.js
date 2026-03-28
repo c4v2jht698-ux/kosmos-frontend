@@ -318,6 +318,32 @@ if (jwtToken) {
     .catch(() => {});
 }
 
+// ── Telegram Auth ────────────────────────────────────────────────────────────
+function onTelegramAuth(user) {
+  fetch(API + '/auth/telegram', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(user),
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.token) {
+        jwtToken = data.token;
+        refreshToken = data.refreshToken;
+        currentUser = data.user;
+        localStorage.setItem('kosmos_token', jwtToken);
+        if (data.refreshToken) localStorage.setItem('kosmos_refresh', data.refreshToken);
+        localStorage.setItem('kosmos_user', JSON.stringify(data.user));
+        enterApp();
+      } else {
+        alert(data.error || 'Ошибка авторизации');
+      }
+    })
+    .catch(function() { alert('Нет связи с сервером'); });
+}
+// Make it global for Telegram widget callback
+window.onTelegramAuth = onTelegramAuth;
+
 render();
 
 // ── Offline detection ────────────────────────────────────────────────────────
