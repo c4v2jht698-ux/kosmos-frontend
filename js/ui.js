@@ -552,7 +552,6 @@ function buildFeedView(main) {
     '<div id="feedArea" style="flex:1;overflow-y:auto;padding:0">' +
       '<div class="ptr-indicator" id="ptrIndicator"><span class="ptr-spin">\u2B50</span> Обновление...</div>' +
       '<div class="stories-row" id="storiesRow"></div>' +
-      '<div id="challengeWrap" style="padding:12px 0 0"></div>' +
       '<div id="feedList">' + skeletonCards(3) + '</div>' +
       '<div id="feedLoader" style="text-align:center;padding:16px;color:var(--text3)"></div>' +
     '</div>' +
@@ -562,10 +561,6 @@ function buildFeedView(main) {
   loadFeed();
   var sr = document.getElementById('storiesRow');
   if (sr) loadStories(sr);
-  loadDailyChallenge().then(function(ch) {
-    var wrap = document.getElementById('challengeWrap');
-    if (wrap && ch) wrap.innerHTML = challengeCardHtml(ch);
-  });
   var feedArea = document.getElementById('feedArea');
   feedArea.addEventListener('scroll', function() {
     if (this.scrollTop + this.clientHeight >= this.scrollHeight - 200 && !feedLoading) loadFeed();
