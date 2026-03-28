@@ -226,7 +226,7 @@ body{
 .bcrte:hover{opacity:.9}
 
 /* ── THEME TOGGLE ── */
-.theme-btn{background:none;border:none;cursor:pointer;font-size:18px;padding:4px;transition:opacity .15s}
+.theme-btn{background:var(--search-bg);border:none;cursor:pointer;font-size:22px;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:opacity .15s}
 .theme-btn:hover{opacity:.7}
 
 /* ── USER SEARCH ── */
