@@ -264,11 +264,8 @@ function closeSplash() {
 
 // ── Theme ────────────────────────────────────────────────────────────────────
 function applyTheme(theme) {
-  if (theme === 'dark' || theme === 'light') theme = 'blue'; // migrate old themes
   if (theme !== 'blue' && theme !== 'pink') theme = 'blue';
   document.documentElement.setAttribute('data-theme', theme);
-  var btn = document.getElementById('themeBtn');
-  if (btn) btn.textContent = theme === 'pink' ? '\uD83C\uDF38' : '\u2600\uFE0F';
 }
 function toggleTheme() {
   var cur = document.documentElement.getAttribute('data-theme') || 'blue';
@@ -305,11 +302,19 @@ function onChatTypeChange() {
 // ── WebView / Capacitor detection ────────────────────────────────────────────
 var isWebView = /wv|WebView/i.test(navigator.userAgent) || !!window.Capacitor;
 if (isWebView) {
-  // Hide Telegram Login in APK — causes "Bot domain invalid"
-  var tgWrap = document.getElementById('telegramLoginWrap');
-  if (tgWrap) tgWrap.style.display = 'none';
-  // Also hide the "или" divider above it
-  if (tgWrap && tgWrap.previousElementSibling) tgWrap.previousElementSibling.style.display = 'none';
+  // In APK: hide seed-phrase login, show only Register + Telegram
+  var loginFields = document.getElementById('loginFields');
+  if (loginFields) loginFields.style.display = 'none';
+  var authTabs = document.querySelector('.auth-tabs');
+  if (authTabs) authTabs.style.display = 'none';
+  // Switch to register mode
+  var regFields = document.getElementById('regFields');
+  if (regFields) regFields.style.display = 'block';
+  var authBtn = document.getElementById('authBtn');
+  if (authBtn) authBtn.textContent = 'Создать аккаунт';
+  var toggleBtn = document.getElementById('authToggleBtn');
+  if (toggleBtn) toggleBtn.style.display = 'none';
+  authMode = 'register';
 }
 
 // ── Referral code from URL ────────────────────────────────────────────────────

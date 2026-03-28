@@ -308,7 +308,7 @@ function inpHTML() {
       '<button class="ib" onclick="togE()">\uD83D\uDE0A</button>' +
     '</div>' +
     '<span class="char-counter" id="charCount"></span>' +
-    '<button class="sbtn" onclick="send()">\u27A4</button>' +
+    '<button class="sbtn" onclick="send()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9H4l4 4-2 7 6-4 6 4-2-7 4-4h-5z"/></svg></button>' +
   '</div>';
 }
 
@@ -506,7 +506,7 @@ function openPinned(type) {
       '</div>' +
       '<div class="inp-zone"><div class="inp-box">' +
         '<textarea class="minput" id="mi" placeholder="Записать заметку..." rows="1" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();saveNote()}" oninput="aRes(this)"></textarea>' +
-      '</div><button class="sbtn" onclick="saveNote()">\u27A4</button></div>';
+      '</div><button class="sbtn" onclick="saveNote()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9H4l4 4-2 7 6-4 6 4-2-7 4-4h-5z"/></svg></button></div>';
     scrollBot(); showChatView();
   } else if (type === 'ai') {
     aiMessages = JSON.parse(localStorage.getItem('kosmos_ai_history') || '[]');
@@ -523,7 +523,7 @@ function openPinned(type) {
       '</div>' +
       '<div class="inp-zone"><div class="inp-box">' +
         '<textarea class="minput" id="mi" placeholder="Спросить AI..." rows="1" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendAI()}" oninput="aRes(this)"></textarea>' +
-      '</div><button class="sbtn" onclick="sendAI()">\u27A4</button></div>';
+      '</div><button class="sbtn" onclick="sendAI()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9H4l4 4-2 7 6-4 6 4-2-7 4-4h-5z"/></svg></button></div>';
     scrollBot(); showChatView();
   } else if (type === 'video') {
     buildFeedView(main);
@@ -883,7 +883,7 @@ async function openComments(postId) {
       '<div id="commentsList" style="flex:1;overflow-y:auto;padding:12px 16px"><div style="text-align:center;color:var(--text3);padding:20px">Загрузка...</div></div>' +
       '<div style="display:flex;gap:8px;padding:10px 12px;border-top:0.5px solid var(--sep);background:var(--card)">' +
         '<input class="minp" id="commentInput" placeholder="Написать комментарий..." style="margin:0;flex:1">' +
-        '<button class="sbtn" onclick="submitComment(\'' + postId + '\')">\u27A4</button>' +
+        '<button class="sbtn" onclick="submitComment(\'' + postId + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9H4l4 4-2 7 6-4 6 4-2-7 4-4h-5z"/></svg></button>' +
       '</div>' +
     '</div>';
   document.body.appendChild(sheet);
