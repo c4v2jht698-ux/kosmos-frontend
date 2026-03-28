@@ -251,8 +251,8 @@ function openPinned(type) {
         <div id="feedList">${skeletonCards(3)}</div>
         <div id="feedLoader" style="text-align:center;padding:16px;color:#556677"></div>
       </div>
-      <div id="feedFab" style="display:none;position:absolute;bottom:20px;right:20px;z-index:10">
-        <button onclick="openCreatePost()" style="width:52px;height:52px;border-radius:50%;background:#007AFF;border:none;color:#fff;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(0,122,255,0.35)">+</button>
+      <div style="position:absolute;bottom:20px;right:20px;z-index:10">
+        <button onclick="openCreatePost()" style="width:56px;height:56px;border-radius:50%;background:#1D9BF0;border:none;color:#fff;font-size:26px;cursor:pointer;box-shadow:0 4px 20px rgba(29,155,240,0.4)">✏️</button>
       </div>`;
     showChatView();
     loadFeed();
@@ -439,7 +439,8 @@ async function loadFeed() {
       try { localStorage.setItem('feed_cache', JSON.stringify(posts.slice(0, 10))); } catch(e) {}
     }
     if (!posts.length) {
-      if (feedOffset === 0 && !list.children.length) list.innerHTML = '<div style="text-align:center;padding:40px;color:#8899aa">Нет постов пока</div>';
+      var msg = feedOffset === 0 ? 'Нет постов. Напиши первый!' : 'Вы всё прочитали ✓';
+      if (!list.querySelector('[data-pid]') || feedOffset > 0) list.insertAdjacentHTML('beforeend', '<div style="text-align:center;padding:30px;color:var(--text3);font-size:14px">' + msg + '</div>');
       feedLoading = false; return;
     }
     posts.forEach(function(p) { list.insertAdjacentHTML('beforeend', postCard(p)); });
@@ -529,12 +530,26 @@ async function feedDislike(btn, id) {
 }
 
 async function feedShare(postId) {
-  var handle = prompt('Введите @username друга:');
-  if (!handle) return;
-  var users = await (await fetch(API+'/users?search='+encodeURIComponent(handle),{headers:{'Authorization':'Bearer '+jwtToken}})).json();
-  if (!users.length) { alert('Пользователь не найден'); return; }
-  await fetch(API+'/feed/'+postId+'/share',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwtToken},body:JSON.stringify({targetUserId:users[0].id})});
-  alert('Отправлено!');
+  var choice = prompt('Куда отправить?\n1 — Другу (@username)\n2 — В Важное (заметки)\n\nВведите 1 или 2:');
+  if (choice === '2') {
+    // Save to notes
+    var post = document.querySelector('[data-pid="' + postId + '"]');
+    var text = post ? post.querySelector('div[style*="pre-wrap"]')?.textContent || '' : '';
+    var saved = JSON.parse(localStorage.getItem('kosmos_notes') || '[]');
+    var time = new Date().getHours().toString().padStart(2,'0') + ':' + new Date().getMinutes().toString().padStart(2,'0');
+    saved.push({ text: '📌 ' + text, time: time });
+    localStorage.setItem('kosmos_notes', JSON.stringify(saved));
+    alert('Сохранено в Важное!');
+  } else if (choice === '1') {
+    var handle = prompt('Введите @username друга:');
+    if (!handle) return;
+    try {
+      var users = await (await fetch(API+'/users?search='+encodeURIComponent(handle),{headers:{'Authorization':'Bearer '+jwtToken}})).json();
+      if (!users.length) { alert('Пользователь не найден'); return; }
+      await fetch(API+'/feed/'+postId+'/share',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwtToken},body:JSON.stringify({targetUserId:users[0].id})});
+      alert('Отправлено!');
+    } catch(e) { alert('Ошибка'); }
+  }
 }
 
 async function toggleSub(channelId, btn) {
@@ -548,20 +563,26 @@ async function toggleSub(channelId, btn) {
 function openCreatePost() {
   var main = document.getElementById('feedArea') || document.getElementById('mainArea');
   main.innerHTML =
-    '<div style="padding:20px;max-width:500px;margin:0 auto">' +
-      '<div style="font-size:20px;font-weight:600;margin-bottom:16px;color:var(--text)">Новый пост</div>' +
-      '<textarea id="postText" maxlength="140" oninput="var c=this.value.length;document.getElementById(\'cc\').textContent=c+\'/140\';document.getElementById(\'cc\').style.color=c>130?\'#FF3B30\':\'#556677\'" style="width:100%;min-height:100px;background:var(--bg);border:0.5px solid var(--sep);border-radius:12px;padding:14px;font-family:inherit;font-size:15px;resize:none;outline:none;color:var(--text)" placeholder="Что нового?"></textarea>' +
-      '<div id="cc" style="text-align:right;font-size:12px;color:#556677;margin:4px 4px 8px">0/140</div>' +
-      '<div style="display:flex;gap:8px">' +
-        '<button onclick="openPinned(\'video\')" style="flex:1;background:var(--card);border:none;border-radius:12px;padding:12px;font-family:inherit;font-size:15px;cursor:pointer;color:var(--text2)">Отмена</button>' +
-        '<button onclick="submitFeedPost()" style="flex:1;background:#007AFF;border:none;border-radius:12px;padding:12px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;color:#fff">Опубликовать</button>' +
-      '</div></div>';
+    '<div style="padding:16px;max-width:500px;margin:0 auto">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' +
+        '<button onclick="openPinned(\'video\')" style="background:none;border:none;color:var(--text3);font-size:15px;cursor:pointer">Отмена</button>' +
+        '<button onclick="submitFeedPost()" style="background:#1D9BF0;border:none;border-radius:20px;padding:8px 20px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;color:#fff">Опубликовать</button>' +
+      '</div>' +
+      '<div style="display:flex;gap:12px">' +
+        '<img src="default-avatar.jpg" style="width:48px;height:48px;border-radius:50%;flex-shrink:0">' +
+        '<textarea id="postText" maxlength="280" oninput="var c=this.value.length;document.getElementById(\'cc\').textContent=c+\'/280\';document.getElementById(\'cc\').style.color=c>250?\'#FF3B30\':\'var(--text3)\'" style="flex:1;min-height:120px;background:transparent;border:none;padding:8px 0;font-family:inherit;font-size:18px;resize:none;outline:none;color:var(--text);line-height:1.4" placeholder="Что происходит?"></textarea>' +
+      '</div>' +
+      '<div style="border-top:0.5px solid var(--sep);padding-top:8px;display:flex;justify-content:space-between;align-items:center">' +
+        '<div style="color:var(--text3);font-size:13px">От вашего имени</div>' +
+        '<div id="cc" style="font-size:13px;color:var(--text3)">0/280</div>' +
+      '</div>' +
+    '</div>';
 }
 
 async function submitFeedPost() {
   var text = document.getElementById('postText').value.trim();
-  if (!text || !myFeedChannel) return;
-  await fetch(API+'/feed/post',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwtToken},body:JSON.stringify({channelId:myFeedChannel,text:text})});
+  if (!text) return;
+  await fetch(API+'/feed/post',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwtToken},body:JSON.stringify({channelId:myFeedChannel||null,text:text})});
   openPinned('video');
 }
 
