@@ -403,8 +403,8 @@ body{
   body.chat-open .main{transform:translateX(0);z-index:3}
   .back-btn{display:flex;align-items:center}
   .chat-hdr{padding:0 8px}
-  .msg-area{padding:8px 12px}
-  .inp-zone{padding:6px 8px 10px}
+  .msg-area{padding:8px 12px;padding-bottom:130px}
+  .inp-zone{position:fixed;bottom:72px;left:0;right:0;z-index:50;padding:6px 8px 10px}
   .auth-card{width:calc(100vw - 24px);padding:24px 16px}
   .modal{width:calc(100vw - 24px);padding:20px}
   .bottom-nav{display:block}
