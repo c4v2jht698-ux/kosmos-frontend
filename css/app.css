@@ -24,6 +24,19 @@ html{position:fixed;width:100%;height:100dvh;overflow:hidden;overscroll-behavior
   --tab-bg:#FFFFFF;--nav-bg:rgba(255,255,255,0.92);
 }
 
+/* Pink theme */
+[data-theme="pink"]{
+  --accent:#F4A7C3;--accent2:#F48FB1;--blue:#F4A7C3;--green:#81C784;--pink:#F4A7C3;
+  --text:#4A2040;--text2:#6D4060;--text3:#A07090;--muted:#B08898;
+  --bg:#F5E642;--bg2:#F7EC6A;--card:#FFF9C4;--sep:rgba(244,167,195,0.2);
+  --bubble-them:#FFF3E0;--bubble-me:linear-gradient(135deg,#F4A7C3,#F48FB1);
+  --search-bg:rgba(244,167,195,0.12);
+  --hover:rgba(244,167,195,0.08);--shadow:0 8px 30px rgba(244,167,195,0.15);
+  --online:#81C784;--tab-bg:#FFF9C4;--nav-bg:rgba(245,230,66,0.92);
+}
+[data-theme="pink"] .auth-btn,[data-theme="pink"] .bcrte,[data-theme="pink"] .new-btn{color:#F5E642}
+[data-theme="pink"] .me .bbl{color:#F5E642}
+
 body{
   font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Roboto,sans-serif;
   height:100dvh;width:100%;display:flex;overflow:hidden;position:fixed;

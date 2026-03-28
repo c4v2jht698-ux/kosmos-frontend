@@ -263,15 +263,17 @@ function closeSplash() {
 }
 
 // ── Theme ────────────────────────────────────────────────────────────────────
-function applyTheme(dark) {
-  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+function applyTheme(theme) {
+  if (typeof theme === 'boolean') theme = theme ? 'dark' : 'light'; // backward compat
+  document.documentElement.setAttribute('data-theme', theme);
   var btn = document.getElementById('themeBtn');
-  if (btn) btn.textContent = dark ? '\u263E' : '\u2600';
+  if (btn) btn.textContent = theme === 'dark' ? '\u263E' : theme === 'pink' ? '\uD83C\uDF38' : '\u2600';
 }
 function toggleTheme() {
-  var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-  localStorage.setItem('kosmos_theme', isDark ? 'light' : 'dark');
-  applyTheme(!isDark);
+  var cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  var next = cur === 'dark' ? 'light' : cur === 'light' ? 'pink' : 'dark';
+  localStorage.setItem('kosmos_theme', next);
+  applyTheme(next);
 }
 
 // ── Modal ────────────────────────────────────────────────────────────────────
@@ -313,7 +315,7 @@ if (isWebView) {
 var _refCode = new URLSearchParams(window.location.search).get('ref') || '';
 
 // ── Init on load ─────────────────────────────────────────────────────────────
-applyTheme(localStorage.getItem('kosmos_theme') !== 'light');
+applyTheme(localStorage.getItem('kosmos_theme') || 'dark');
 buildSeedGrid();
 
 document.getElementById('overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });

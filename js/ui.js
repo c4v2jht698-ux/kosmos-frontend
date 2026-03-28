@@ -434,7 +434,7 @@ async function openProfileScreen() {
           '<div class="profile-row" onclick="openEditProfile()"><div class="profile-row-label">Редактировать профиль</div><div class="profile-row-val">\u203A</div></div>' +
           '<div class="profile-row" onclick="openStatusEditor()"><div class="profile-row-label">Статус и настроение</div><div class="profile-row-val">' + (u.mood||'') + ' \u203A</div></div>' +
           '<div class="profile-row" onclick="showOnboarding()"><div class="profile-row-label">Изменить интересы</div><div class="profile-row-val">' + interests.length + ' выбрано \u203A</div></div>' +
-          '<div class="profile-row" onclick="toggleTheme()"><div class="profile-row-label">Тема оформления</div><div class="profile-row-val">' + (document.documentElement.getAttribute('data-theme')==='light'?'Светлая':'Тёмная') + ' \u203A</div></div>' +
+          '<div class="profile-row" onclick="toggleTheme();openProfileScreen()"><div class="profile-row-label">Тема оформления</div><div class="profile-row-val">' + ({dark:'Тёмная',light:'Светлая',pink:'Розовая'}[document.documentElement.getAttribute('data-theme')]||'Тёмная') + ' \u203A</div></div>' +
           '<div class="profile-row" onclick="showReferral()"><div class="profile-row-label">Пригласить друга</div><div class="profile-row-val">\uD83D\uDD17 \u203A</div></div>' +
         '</div>' +
         '<div class="profile-section">' +
