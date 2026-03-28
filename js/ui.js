@@ -331,15 +331,6 @@ function onInput(el) {
   }
 }
 
-function send() {
-  var inp = document.getElementById('mi');
-  if (!inp) return;
-  var text = inp.value.trim();
-  if (!text) return;
-  inp.value = ''; inp.style.height = 'auto';
-  if (socket && socket.connected && cur) socket.emit('chat_msg', { chatId: cur, text: text });
-}
-
 function appendMsg(msg, isCh) {
   var area = document.getElementById('msgArea');
   if (!area) return;
@@ -822,20 +813,6 @@ function postCard(p) {
         '<button onclick="feedShare(\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;display:flex;align-items:center;gap:4px;padding:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>' +
       '</div>' +
     '</div></div>';
-}
-
-async function feedLike(btn, id) {
-  var svg = btn.querySelector('svg');
-  var lc = btn.querySelector('.lc');
-  var cur = parseInt(lc.textContent) || 0;
-  var isLiked = btn.style.color === 'rgb(244, 63, 94)';
-  if (isLiked) {
-    btn.style.color = 'var(--text3)'; if(svg) svg.setAttribute('fill','none'); lc.textContent = Math.max(0,cur-1) || '';
-  } else {
-    btn.style.color = '#F43F5E'; if(svg) svg.setAttribute('fill','#F43F5E'); lc.textContent = cur+1;
-    btn.style.animation = 'likeBounce .4s ease'; setTimeout(function(){btn.style.animation='';}, 400);
-  }
-  fetch(API+'/feed/'+id+'/like',{method:'POST',headers:{'Authorization':'Bearer '+jwtToken}});
 }
 
 async function feedShare(postId) {
@@ -1321,12 +1298,10 @@ async function submitChannel() {
 }
 
 // ── Utilities ───────────────────────────────────────────────────────────────
-function togE() { var ep = document.getElementById('ep'); if (ep) ep.classList.toggle('open'); }
 function insE(e) { var i = document.getElementById('mi'); if (i) { i.value += e; i.focus(); } var ep = document.getElementById('ep'); if (ep) ep.classList.remove('open'); }
 function scrollBot() { var a = document.getElementById('msgArea'); if (a) a.scrollTop = a.scrollHeight; }
 function showChatView() { document.body.classList.add('chat-open'); history.pushState({ chat: true }, ''); }
 function goBack() { document.body.classList.remove('chat-open'); cur = null; render(); }
-function openPostComments() {}
 
 // ── Context Menu (long press on message) ────────────────────────────────────
 var _longPressTimer = null;
@@ -1402,9 +1377,7 @@ function cancelReply() {
   if (q) q.remove();
 }
 
-// Override send to include reply
-var _origSend = send;
-send = function() {
+function send() {
   var inp = document.getElementById('mi');
   if (!inp) return;
   var text = inp.value.trim();
