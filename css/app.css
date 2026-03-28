@@ -46,8 +46,8 @@ html{position:fixed;width:100%;height:100dvh;overflow:hidden;overscroll-behavior
 /* Space pattern on msg-area */
 .msg-area{position:relative}
 .msg-area::before{content:'';position:absolute;inset:0;pointer-events:none;opacity:0.12;z-index:0;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cpath d='M25 35l-5-15h4l3 10 3-10h4l-5 15z' fill='currentColor' opacity='.5'/%3E%3Ccircle cx='100' cy='28' r='8' stroke='currentColor' fill='none' stroke-width='1.5'/%3E%3Cellipse cx='100' cy='28' rx='14' ry='4' stroke='currentColor' fill='none' stroke-width='1'/%3E%3Cellipse cx='55' cy='65' rx='6' ry='3' fill='currentColor' opacity='.4'/%3E%3Cline x1='45' y1='60' x2='55' y2='62' stroke='currentColor' stroke-width='1'/%3E%3Cline x1='45' y1='70' x2='55' y2='68' stroke='currentColor' stroke-width='1'/%3E%3Ccircle cx='140' cy='60' r='3' fill='currentColor' opacity='.6'/%3E%3Cpath d='M140 48v-5m4 3l-4 4-4-4' stroke='currentColor' stroke-width='1' fill='none'/%3E%3Cpath d='M20 100l8-3-3 8z' fill='currentColor' opacity='.5'/%3E%3Cline x1='28' y1='105' x2='45' y2='115' stroke='currentColor' stroke-width='1' opacity='.4'/%3E%3Ccircle cx='105' cy='100' r='5' stroke='currentColor' fill='none' stroke-width='1.5'/%3E%3Cline x1='100' y1='100' x2='110' y2='100' stroke='currentColor' stroke-width='1'/%3E%3Cline x1='105' y1='95' x2='105' y2='105' stroke='currentColor' stroke-width='1'/%3E%3Cpath d='M155 95a8 8 0 0 1 0 16' stroke='currentColor' fill='none' stroke-width='1.5'/%3E%3Ccircle cx='155' cy='103' r='2' fill='currentColor'/%3E%3Cpath d='M60 140l3-12h6l3 12-2-2h-8z' fill='currentColor' opacity='.5'/%3E%3Cpath d='M63 128l3-5 3 5' fill='currentColor' opacity='.4'/%3E%3Ccircle cx='130' cy='145' r='6' stroke='currentColor' fill='none' stroke-width='1'/%3E%3Ccircle cx='130' cy='145' r='2' fill='currentColor' opacity='.4'/%3E%3Ccircle cx='15' cy='155' r='1.5' fill='currentColor'/%3E%3Ccircle cx='22' cy='150' r='1' fill='currentColor'/%3E%3Ccircle cx='18' cy='162' r='1' fill='currentColor'/%3E%3Cline x1='15' y1='155' x2='22' y2='150' stroke='currentColor' stroke-width='.5'/%3E%3Cline x1='15' y1='155' x2='18' y2='162' stroke='currentColor' stroke-width='.5'/%3E%3C/svg%3E");
-  background-size:180px 180px;color:var(--accent)}
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg transform='scale(0.6)' fill='currentColor' stroke='currentColor'%3E%3Cpath d='M25 35l-5-15h4l3 10 3-10h4l-5 15z' fill='currentColor' stroke='none' opacity='.5'/%3E%3Ccircle cx='100' cy='28' r='8' fill='none' stroke-width='1.5'/%3E%3Cellipse cx='100' cy='28' rx='14' ry='4' fill='none' stroke-width='1'/%3E%3Cellipse cx='55' cy='65' rx='6' ry='3' stroke='none' opacity='.4'/%3E%3Cline x1='45' y1='60' x2='55' y2='62' stroke-width='1'/%3E%3Cline x1='45' y1='70' x2='55' y2='68' stroke-width='1'/%3E%3Ccircle cx='140' cy='60' r='3' stroke='none' opacity='.6'/%3E%3Cpath d='M140 48v-5m4 3l-4 4-4-4' stroke-width='1' fill='none'/%3E%3Cpath d='M20 100l8-3-3 8z' stroke='none' opacity='.5'/%3E%3Ccircle cx='105' cy='100' r='5' fill='none' stroke-width='1.5'/%3E%3Cpath d='M155 95a8 8 0 0 1 0 16' fill='none' stroke-width='1.5'/%3E%3Ccircle cx='155' cy='103' r='2' stroke='none'/%3E%3Cpath d='M60 140l3-12h6l3 12-2-2h-8z' stroke='none' opacity='.5'/%3E%3Ccircle cx='130' cy='145' r='6' fill='none' stroke-width='1'/%3E%3Ccircle cx='15' cy='155' r='1.5' stroke='none'/%3E%3Ccircle cx='22' cy='150' r='1' stroke='none'/%3E%3Cline x1='15' y1='155' x2='22' y2='150' stroke-width='.5'/%3E%3C/g%3E%3C/svg%3E");
+  background-size:120px 120px;color:var(--accent)}
 [data-theme="blue"] .msg-area::before{color:#0369a1}
 [data-theme="pink"] .msg-area::before{color:#c0587a}
 .msg-area>*{position:relative;z-index:1}
@@ -138,11 +138,9 @@ body{
 .ci-wrap.swiped .ci-leave-bg{display:flex}
 .ci-wrap.swiped .ci{transform:translateX(-90px);transition:transform .25s ease}
 .ci{display:flex;align-items:center;gap:12px;padding:12px 16px;min-height:64px;border-radius:12px;cursor:pointer;transition:background .15s;margin-bottom:1px}
-.ci:hover{background:var(--hover)}
-.ci.active{background:var(--accent);color:#fff}
-.ci.active .ci-name{color:#fff}
-.ci.active .ci-prev{color:rgba(255,255,255,0.7)}
-.ci.active .ci-time{color:rgba(255,255,255,0.6)}
+.ci:hover{background:none}
+.ci.active{background:none}
+.ci{cursor:default}
 
 /* ── Default Dog Avatar ── */
 .av{width:48px;height:48px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;color:#fff;position:relative}

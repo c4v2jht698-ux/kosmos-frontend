@@ -301,21 +301,7 @@ function onChatTypeChange() {
 
 // ── WebView / Capacitor detection ────────────────────────────────────────────
 var isWebView = /wv|WebView/i.test(navigator.userAgent) || !!window.Capacitor;
-if (isWebView) {
-  // In APK: hide seed-phrase login, show only Register + Telegram
-  var loginFields = document.getElementById('loginFields');
-  if (loginFields) loginFields.style.display = 'none';
-  var authTabs = document.querySelector('.auth-tabs');
-  if (authTabs) authTabs.style.display = 'none';
-  // Switch to register mode
-  var regFields = document.getElementById('regFields');
-  if (regFields) regFields.style.display = 'block';
-  var authBtn = document.getElementById('authBtn');
-  if (authBtn) authBtn.textContent = 'Создать аккаунт';
-  var toggleBtn = document.getElementById('authToggleBtn');
-  if (toggleBtn) toggleBtn.style.display = 'none';
-  authMode = 'register';
-}
+// In APK: keep seed-phrase login + Telegram visible (no hiding)
 
 // ── Referral code from URL ────────────────────────────────────────────────────
 var _refCode = new URLSearchParams(window.location.search).get('ref') || '';
