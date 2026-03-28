@@ -24,24 +24,65 @@ function render() {
     const lbl = chSec.querySelector('.sec-label');
     if (lbl) lbl.textContent = 'Чаты';
   }
+  setTimeout(initSwipeToLeave, 50);
 }
 
 function itm(c) {
   const isCh = c.type === 'channel';
-  return `<div class="ci${cur === c.id ? ' active' : ''}" onclick="openChat('${c.id}')">
-    <div class="av ${c.g}${isCh ? ' sq' : ''}" style="position:relative">
-      <span style="color:#fff">${c.em}</span>
-      ${!isCh && c.online ? '<div class="odot"></div>' : ''}
-    </div>
-    <div class="ci-info">
-      <div class="ci-name">${c.name}</div>
-      <div class="ci-prev">${c.prev || ''}</div>
-    </div>
-    <div class="ci-meta">
-      <div class="ci-time">${c.time || ''}</div>
-      ${c.unread ? `<div class="badge">${c.unread}</div>` : ''}
+  return `<div class="ci-wrap" data-id="${c.id}" data-type="${c.type}">
+    <div class="ci-leave-bg">Покинуть</div>
+    <div class="ci${cur === c.id ? ' active' : ''}" onclick="openChat('${c.id}')">
+      <div class="av ${c.g}${isCh ? ' sq' : ''}" style="position:relative">
+        <span style="color:#fff">${c.em}</span>
+        ${!isCh && c.online ? '<div class="odot"></div>' : ''}
+      </div>
+      <div class="ci-info">
+        <div class="ci-name">${c.name}</div>
+        <div class="ci-prev">${c.prev || ''}</div>
+      </div>
+      <div class="ci-meta">
+        <div class="ci-time">${c.time || ''}</div>
+        ${c.unread ? `<div class="badge">${c.unread}</div>` : ''}
+      </div>
     </div>
   </div>`;
+}
+
+function initSwipeToLeave() {
+  document.querySelectorAll('.ci-wrap[data-type="channel"]').forEach(wrap => {
+    const ci = wrap.querySelector('.ci');
+    const mc = new Hammer(ci);
+    mc.get('swipe').set({ direction: Hammer.DIRECTION_HORIZONTAL });
+    mc.on('swipeleft', function() {
+      // Close any other open swipe
+      document.querySelectorAll('.ci-wrap.swiped').forEach(el => { if (el !== wrap) el.classList.remove('swiped'); });
+      wrap.classList.add('swiped');
+    });
+    mc.on('swiperight', function() {
+      wrap.classList.remove('swiped');
+    });
+  });
+  // Leave button click
+  document.querySelectorAll('.ci-leave-bg').forEach(btn => {
+    btn.onclick = function(e) {
+      e.stopPropagation();
+      const wrap = btn.closest('.ci-wrap');
+      const id = wrap.dataset.id;
+      if (!confirm('Покинуть канал?')) { wrap.classList.remove('swiped'); return; }
+      leaveChannel(id);
+    };
+  });
+}
+
+async function leaveChannel(id) {
+  try {
+    await apiFetch(`${API}/channels/${id}/leave`, { method: 'POST' });
+  } catch(e) {}
+  const idx = channels.findIndex(c => c.id === id);
+  if (idx !== -1) channels.splice(idx, 1);
+  if (cur === id) { cur = null; goBack(); }
+  render();
+  setTimeout(initSwipeToLeave, 50);
 }
 
 function openChat(id) {
@@ -103,7 +144,7 @@ function openChat(id) {
       <div class="datediv"><span>Сегодня</span></div>
       ${item.msgs.map(m => mHTML(m, isCh)).join('')}
     </div>
-    ${inpHTML()}
+    ${isCh ? '<div class="ro-bar">📢 Канал только для чтения</div>' : inpHTML()}
   `;
   scrollBot();
   showChatView();
