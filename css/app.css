@@ -1,5 +1,6 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{position:fixed;width:100%;height:100%;overflow:hidden;overscroll-behavior:none}
+html{position:fixed;width:100%;height:100dvh;overflow:hidden;overscroll-behavior:none}
+@supports not (height:100dvh){html{height:100%}}
 
 /* Dark theme (default) — cosmic purple + blue */
 :root,[data-theme="dark"]{
@@ -25,10 +26,11 @@ html{position:fixed;width:100%;height:100%;overflow:hidden;overscroll-behavior:n
 
 body{
   font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Roboto,sans-serif;
-  height:100%;width:100%;display:flex;overflow:hidden;position:fixed;
+  height:100dvh;width:100%;display:flex;overflow:hidden;position:fixed;
   font-size:15px;color:var(--text);background:var(--bg);
   overscroll-behavior:none;touch-action:pan-y;-webkit-font-smoothing:antialiased;
 }
+@supports not (height:100dvh){body{height:100%}}
 
 /* ── SPLASH ── */
 .splash{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000;transition:opacity .6s ease}
@@ -282,6 +284,38 @@ body{
 /* ── MATCH ── */
 .match-screen{text-align:center;animation:matchPop .5s ease}
 @keyframes matchPop{0%{transform:scale(.5);opacity:0}50%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+
+/* ── TOAST NOTIFICATION ── */
+.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-100px);z-index:9000;background:var(--card);border:1px solid var(--sep);border-radius:14px;padding:10px 16px;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow);max-width:calc(100vw - 32px);transition:transform .3s ease;pointer-events:auto}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast-av{width:36px;height:36px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px}
+.toast-body{min-width:0}
+.toast-name{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toast-text{font-size:13px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+
+/* ── CONTEXT MENU ── */
+.ctx-menu{position:fixed;z-index:500;background:var(--card);border:1px solid var(--sep);border-radius:14px;padding:6px 0;box-shadow:var(--shadow);min-width:160px;animation:mopen .15s ease}
+.ctx-item{padding:10px 16px;font-size:14px;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .1s}
+.ctx-item:hover{background:var(--hover)}
+.ctx-item.danger{color:#FF3B30}
+
+/* ── TAB BADGE ── */
+.nav-tab{position:relative}
+.tab-badge{position:absolute;top:2px;right:6px;min-width:16px;height:16px;border-radius:8px;background:#FF3B30;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px}
+
+/* ── CHAR COUNTER ── */
+.char-counter{position:absolute;right:52px;bottom:18px;font-size:11px;color:var(--text3);pointer-events:none;transition:color .15s}
+.char-counter.warn{color:#FF9500}
+.char-counter.over{color:#FF3B30}
+
+/* ── PULL TO REFRESH ── */
+.ptr-indicator{text-align:center;padding:12px;color:var(--accent);font-size:20px;overflow:hidden;max-height:0;transition:max-height .3s ease}
+.ptr-indicator.active{max-height:50px}
+.ptr-spin{display:inline-block;animation:ptrSpin 1s linear infinite}
+@keyframes ptrSpin{to{transform:rotate(360deg)}}
+
+/* ── LIKE BOUNCE ── */
+@keyframes likeBounce{0%{transform:scale(1)}25%{transform:scale(1.35)}50%{transform:scale(.9)}75%{transform:scale(1.1)}100%{transform:scale(1)}}
 
 /* ── MOBILE ── */
 .back-btn{display:none;background:none;border:none;cursor:pointer;font-size:24px;color:var(--accent);padding:4px;margin-right:4px;flex-shrink:0}

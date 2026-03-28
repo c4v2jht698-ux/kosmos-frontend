@@ -90,18 +90,30 @@ function render() {
   });
 
   var chList = document.getElementById('chList');
-  if (chList) chList.innerHTML = all.map(function(c){return itm(c)}).join('');
+  if (chList) {
+    if (all.length) {
+      chList.innerHTML = all.map(function(c){return itm(c)}).join('');
+    } else {
+      chList.innerHTML = '<div style="text-align:center;padding:32px 16px">' +
+        '<div style="font-size:40px;margin-bottom:8px">\uD83D\uDE80</div>' +
+        '<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px">Начни общение!</div>' +
+        '<div style="font-size:13px;color:var(--text3);margin-bottom:12px">Найди людей в разделе Встречи</div>' +
+        '<button onclick="navTo(\'dating\')" style="background:var(--accent);border:none;border-radius:10px;color:#fff;padding:8px 20px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer">Найти людей</button>' +
+      '</div>';
+    }
+  }
 
   var dmSec = document.getElementById('dmSection');
   if (dmSec) dmSec.style.display = 'none';
 
   var chSec = document.getElementById('chSection');
   if (chSec) {
-    chSec.style.display = all.length ? '' : 'none';
+    chSec.style.display = '';
     var lbl = chSec.querySelector('.sec-label');
-    if (lbl) lbl.textContent = 'Чаты';
+    if (lbl) lbl.textContent = all.length ? 'Чаты' : '';
   }
   setTimeout(initSwipeToLeave, 50);
+  if (typeof updateTabBadges === 'function') updateTabBadges();
 }
 
 function itm(c) {
@@ -237,12 +249,13 @@ function escHtml(s) {
 }
 
 function inpHTML() {
-  return '<div class="inp-zone">' +
+  return '<div class="inp-zone" style="position:relative">' +
     '<div class="epanel" id="ep">' + EMOJIS.map(function(e){return '<span class="ep" onclick="insE(\'' + e + '\')">' + e + '</span>'}).join('') + '</div>' +
     '<div class="inp-box">' +
-      '<textarea class="minput" id="mi" placeholder="Написать сообщение..." rows="1" onkeydown="hKey(event)" oninput="onInput(this)"></textarea>' +
+      '<textarea class="minput" id="mi" placeholder="Написать сообщение..." rows="1" maxlength="500" onkeydown="hKey(event)" oninput="onInput(this)"></textarea>' +
       '<button class="ib" onclick="togE()">\uD83D\uDE0A</button>' +
     '</div>' +
+    '<span class="char-counter" id="charCount"></span>' +
     '<button class="sbtn" onclick="send()">\u27A4</button>' +
   '</div>';
 }
@@ -252,6 +265,18 @@ function aRes(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scro
 function onInput(el) {
   aRes(el);
   if (socket && socket.connected && cur) socket.emit('typing', { chatId: cur });
+  // Update char counter
+  var cc = document.getElementById('charCount');
+  if (cc) {
+    var len = el.value.length;
+    if (len > 400) {
+      cc.textContent = len + '/500';
+      cc.className = 'char-counter' + (len > 480 ? ' over' : ' warn');
+    } else {
+      cc.textContent = '';
+      cc.className = 'char-counter';
+    }
+  }
 }
 
 function send() {
@@ -440,6 +465,7 @@ function openPinned(type) {
         '<div style="width:36px"></div>' +
       '</div>' +
       '<div id="feedArea" style="flex:1;overflow-y:auto;padding:0">' +
+        '<div class="ptr-indicator" id="ptrIndicator"><span class="ptr-spin">\u2B50</span> Обновление...</div>' +
         '<div id="feedList">' + skeletonCards(3) + '</div>' +
         '<div id="feedLoader" style="text-align:center;padding:16px;color:var(--text3)"></div>' +
       '</div>' +
@@ -448,8 +474,32 @@ function openPinned(type) {
       '</div>';
     showChatView();
     loadFeed();
-    document.getElementById('feedArea').addEventListener('scroll', function() {
+    var feedArea = document.getElementById('feedArea');
+    feedArea.addEventListener('scroll', function() {
       if (this.scrollTop + this.clientHeight >= this.scrollHeight - 200 && !feedLoading) loadFeed();
+    });
+    // Pull-to-refresh
+    var _ptrStart = 0, _ptrActive = false;
+    feedArea.addEventListener('touchstart', function(e) { if (feedArea.scrollTop <= 0) _ptrStart = e.touches[0].clientY; else _ptrStart = 0; }, { passive: true });
+    feedArea.addEventListener('touchmove', function(e) {
+      if (!_ptrStart) return;
+      var diff = e.touches[0].clientY - _ptrStart;
+      if (diff > 60 && !_ptrActive) {
+        _ptrActive = true;
+        var ptr = document.getElementById('ptrIndicator');
+        if (ptr) ptr.classList.add('active');
+      }
+    }, { passive: true });
+    feedArea.addEventListener('touchend', function() {
+      if (_ptrActive) {
+        _ptrActive = false;
+        feedOffset = 0; feedLoading = false;
+        var list = document.getElementById('feedList');
+        if (list) list.innerHTML = skeletonCards(3);
+        loadFeed();
+        setTimeout(function() { var ptr = document.getElementById('ptrIndicator'); if (ptr) ptr.classList.remove('active'); }, 1000);
+      }
+      _ptrStart = 0;
     });
     if (window._feedRefresh) clearInterval(window._feedRefresh);
     window._feedRefresh = setInterval(function() {
@@ -659,7 +709,7 @@ async function feedLike(btn, id) {
     btn.style.color = 'var(--text3)'; if(svg) svg.setAttribute('fill','none'); lc.textContent = Math.max(0,cur-1) || '';
   } else {
     btn.style.color = '#F43F5E'; if(svg) svg.setAttribute('fill','#F43F5E'); lc.textContent = cur+1;
-    btn.style.transform = 'scale(1.3)'; setTimeout(function(){btn.style.transform='';}, 200);
+    btn.style.animation = 'likeBounce .4s ease'; setTimeout(function(){btn.style.animation='';}, 400);
   }
   fetch(API+'/feed/'+id+'/like',{method:'POST',headers:{'Authorization':'Bearer '+jwtToken}});
 }
@@ -739,7 +789,7 @@ async function loadDatingCards() {
     datingCards = await res.json();
     datingIdx = 0;
     if (!datingCards.length) {
-      area.innerHTML = '<div class="empty-card" style="text-align:center"><div style="font-size:48px;margin-bottom:12px">\uD83D\uDD0D</div><h2>Пока нет анкет</h2><p>Заполните свой профиль (\u2699) и ждите новых пользователей</p></div>';
+      area.innerHTML = '<div class="empty-card" style="text-align:center"><div style="font-size:48px;margin-bottom:12px">\uD83D\uDC9C</div><h2>Свайпай больше!</h2><p>Новые люди появляются каждый день.<br>Заполните профиль (\u2699) чтобы вас находили</p></div>';
       return;
     }
     showDatingCard();
@@ -920,3 +970,50 @@ function scrollBot() { var a = document.getElementById('msgArea'); if (a) a.scro
 function showChatView() { document.body.classList.add('chat-open'); history.pushState({ chat: true }, ''); }
 function goBack() { document.body.classList.remove('chat-open'); cur = null; render(); }
 function openPostComments() {}
+
+// ── Context Menu (long press on message) ────────────────────────────────────
+var _longPressTimer = null;
+document.addEventListener('touchstart', function(e) {
+  var bbl = e.target.closest('.bbl');
+  if (!bbl) return;
+  _longPressTimer = setTimeout(function() {
+    _longPressTimer = null;
+    showContextMenu(bbl, e.touches[0].clientX, e.touches[0].clientY);
+  }, 500);
+}, { passive: true });
+document.addEventListener('touchend', function() { if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; } });
+document.addEventListener('touchmove', function() { if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; } });
+document.addEventListener('click', function() { var m = document.querySelector('.ctx-menu'); if (m) m.remove(); });
+
+function showContextMenu(bbl, x, y) {
+  var old = document.querySelector('.ctx-menu');
+  if (old) old.remove();
+  var text = bbl.textContent || '';
+  // Strip time from text
+  var timeEl = bbl.querySelector('.mt');
+  if (timeEl) text = text.replace(timeEl.textContent, '').trim();
+  var checkEl = bbl.querySelector('.ms');
+  if (checkEl) text = text.replace(checkEl.textContent, '').trim();
+
+  var menu = document.createElement('div');
+  menu.className = 'ctx-menu';
+  menu.style.left = Math.min(x, window.innerWidth - 180) + 'px';
+  menu.style.top = Math.min(y, window.innerHeight - 120) + 'px';
+  menu.innerHTML =
+    '<div class="ctx-item" onclick="copyMsgText(this)">\uD83D\uDCCB Копировать</div>' +
+    '<div class="ctx-item danger" onclick="this.parentElement.remove()">\u2716 Закрыть</div>';
+  menu.dataset.text = text;
+  document.body.appendChild(menu);
+  // Prevent it going off screen
+  var rect = menu.getBoundingClientRect();
+  if (rect.bottom > window.innerHeight) menu.style.top = (y - rect.height) + 'px';
+}
+
+function copyMsgText(el) {
+  var menu = el.closest('.ctx-menu');
+  var text = menu ? menu.dataset.text : '';
+  navigator.clipboard.writeText(text).then(function() {
+    showToast('', 'Скопировано');
+  }).catch(function() {});
+  if (menu) menu.remove();
+}

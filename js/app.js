@@ -247,8 +247,15 @@ function logout() {
 }
 
 var _splashDone = false;
+var _splashStart = Date.now();
 function closeSplash() {
   if (_splashDone) return;
+  // Ensure minimum 1.5s display
+  var elapsed = Date.now() - _splashStart;
+  if (elapsed < 1500) {
+    setTimeout(closeSplash, 1500 - elapsed);
+    return;
+  }
   _splashDone = true;
   var sp = document.getElementById('splash');
   if (sp) { sp.style.transform = 'scale(1.1)'; sp.style.opacity = '0'; setTimeout(function(){ sp.remove(); }, 800); }
@@ -290,6 +297,16 @@ function onChatTypeChange() {
   document.getElementById('userSearchWrap').style.display = isCh ? 'none' : 'block';
   document.getElementById('channelNameWrap').style.display = isCh ? 'block' : 'none';
   document.getElementById('chatCancelWrap').style.display = isCh ? 'none' : 'block';
+}
+
+// ── WebView / Capacitor detection ────────────────────────────────────────────
+var isWebView = /wv|WebView/i.test(navigator.userAgent) || !!window.Capacitor;
+if (isWebView) {
+  // Hide Telegram Login in APK — causes "Bot domain invalid"
+  var tgWrap = document.getElementById('telegramLoginWrap');
+  if (tgWrap) tgWrap.style.display = 'none';
+  // Also hide the "или" divider above it
+  if (tgWrap && tgWrap.previousElementSibling) tgWrap.previousElementSibling.style.display = 'none';
 }
 
 // ── Init on load ─────────────────────────────────────────────────────────────
@@ -386,13 +403,27 @@ window.addEventListener('online', function() {
       if (document.body.classList.contains('chat-open')) goBack();
     });
   }
-  document.addEventListener('backbutton', function() {
-    if (document.body.classList.contains('chat-open')) goBack();
-  });
+
+  function handleBack() {
+    // If in a chat/sub-screen, go back
+    if (document.body.classList.contains('chat-open')) { goBack(); return; }
+    // If onboarding is visible, ignore
+    var ob = document.getElementById('onboarding');
+    if (ob && !ob.classList.contains('hidden')) return;
+    // Otherwise show exit dialog (APK only)
+    if (isWebView && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+      if (confirm('Выйти из приложения?')) {
+        window.Capacitor.Plugins.App.exitApp();
+      }
+    }
+  }
+
+  document.addEventListener('backbutton', handleBack);
   try {
     if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
-      window.Capacitor.Plugins.App.addListener('backButton', function() {
-        if (document.body.classList.contains('chat-open')) goBack();
+      window.Capacitor.Plugins.App.addListener('backButton', function(e) {
+        // e.canGoBack is true if webview has history
+        handleBack();
       });
     }
   } catch(e) {}
