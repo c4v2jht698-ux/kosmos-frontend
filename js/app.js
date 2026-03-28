@@ -264,14 +264,15 @@ function closeSplash() {
 
 // ── Theme ────────────────────────────────────────────────────────────────────
 function applyTheme(theme) {
-  if (typeof theme === 'boolean') theme = theme ? 'dark' : 'light'; // backward compat
+  if (theme === 'dark' || theme === 'light') theme = 'blue'; // migrate old themes
+  if (theme !== 'blue' && theme !== 'pink') theme = 'blue';
   document.documentElement.setAttribute('data-theme', theme);
   var btn = document.getElementById('themeBtn');
-  if (btn) btn.textContent = theme === 'dark' ? '\u263E' : theme === 'pink' ? '\uD83C\uDF38' : '\u2600';
+  if (btn) btn.textContent = theme === 'pink' ? '\uD83C\uDF38' : '\u2600\uFE0F';
 }
 function toggleTheme() {
-  var cur = document.documentElement.getAttribute('data-theme') || 'dark';
-  var next = cur === 'dark' ? 'light' : cur === 'light' ? 'pink' : 'dark';
+  var cur = document.documentElement.getAttribute('data-theme') || 'blue';
+  var next = cur === 'blue' ? 'pink' : 'blue';
   localStorage.setItem('kosmos_theme', next);
   applyTheme(next);
 }
@@ -315,7 +316,7 @@ if (isWebView) {
 var _refCode = new URLSearchParams(window.location.search).get('ref') || '';
 
 // ── Init on load ─────────────────────────────────────────────────────────────
-applyTheme(localStorage.getItem('kosmos_theme') || 'dark');
+applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
 buildSeedGrid();
 
 document.getElementById('overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
