@@ -12,7 +12,7 @@ html{position:fixed;width:100%;height:100dvh;overflow:hidden;overscroll-behavior
   --hover:transparent;--shadow:0 8px 30px rgba(2,132,199,0.1);
   --online:#0284c7;--tab-bg:#ffffff;--nav-bg:rgba(224,242,254,0.92);
 }
-[data-theme="blue"] .me .bbl{color:#831843}
+[data-theme="blue"] .me .bbl{color:#ffffff}
 [data-theme="blue"] .sidebar{background:#fff}
 [data-theme="blue"] .ci.active{background:transparent}
 [data-theme="blue"] .ci-info{border-bottom:0.5px solid rgba(2,132,199,0.1)}
@@ -32,7 +32,7 @@ html{position:fixed;width:100%;height:100dvh;overflow:hidden;overscroll-behavior
   --hover:transparent;--shadow:0 8px 30px rgba(244,167,195,0.12);
   --online:#e8629a;--tab-bg:#ffffff;--nav-bg:rgba(255,245,247,0.92);
 }
-[data-theme="pink"] .me .bbl{color:#831843}
+[data-theme="pink"] .me .bbl{color:#ffffff}
 [data-theme="pink"] .sidebar{background:#fff;box-shadow:2px 0 10px rgba(233,98,154,0.1)}
 [data-theme="pink"] .ci.active{background:transparent}
 [data-theme="pink"] .ci-info{border-bottom:0.5px solid rgba(244,167,195,0.3)}
@@ -123,7 +123,7 @@ body{
 .ob-counter{font-size:13px;color:var(--text3);margin-bottom:16px}
 
 /* ── SIDEBAR ── */
-.sidebar{width:320px;flex-shrink:0;display:flex;flex-direction:column;background:var(--card);border-right:0.5px solid var(--sep);overflow-y:auto}
+.sidebar{width:320px;flex-shrink:0;display:flex;flex-direction:column;background:#ffffff;border-right:0.5px solid var(--sep);overflow-y:auto}
 .logo-wrap{padding:20px 20px 14px}
 .logo{font-size:28px;font-weight:700;letter-spacing:-.5px;color:var(--text);margin-bottom:2px}
 .logo em{font-style:normal;color:var(--accent)}
