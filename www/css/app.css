@@ -430,11 +430,11 @@ body{
   body.chat-open .main{transform:translateX(0);z-index:3}
   .back-btn{display:flex;align-items:center}
   .chat-hdr{padding:0 8px}
-  .msg-area{padding:8px 12px;padding-bottom:130px}
-  .inp-zone{position:fixed;bottom:0;left:0;right:0;z-index:50;padding:6px 8px 10px}
+  .msg-area{padding:8px 12px;padding-bottom:160px}
+  .inp-zone{position:fixed;bottom:72px;left:0;right:0;z-index:50;padding:6px 8px 10px}
   .auth-card{width:calc(100vw - 24px);padding:24px 16px}
   .modal{width:calc(100vw - 24px);padding:20px}
-  .bottom-nav{display:none}
+  .bottom-nav{display:flex}
 }
 @media(max-width:480px){
   .auth-card{padding:20px 16px}
@@ -450,3 +450,29 @@ body{
   .seed-cell{padding:14px 14px 14px 36px}
   .seed-cell input{font-size:15px}
 }
+
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;height:72px;background:var(--card);border-top:.5px solid var(--sep);display:flex;align-items:flex-start;justify-content:space-around;padding-top:10px;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
+.bn-item{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;color:var(--text3);min-width:70px}
+.bn-item span{font-size:10px;font-weight:500}
+.bn-item.active{color:var(--accent)}
+.sidebar{padding-bottom:80px;overflow-y:auto}
+.main{padding-bottom:0}
+.msg-area{padding-bottom:80px}
+
+/* Анимации переходов */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideOutRight {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(100%); opacity: 0; }
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+#qrScreen { animation: slideInRight .28s cubic-bezier(.4,0,.2,1); }
+#settingsScreen { animation: slideInRight .28s cubic-bezier(.4,0,.2,1); }
+.main { animation: fadeIn .2s ease; }

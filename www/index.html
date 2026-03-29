@@ -13,6 +13,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
 <link rel="stylesheet" href="css/app.css?v=2">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 </head>
 <body>
 
@@ -119,12 +121,13 @@
         <div class="logo-sub" id="logoSub">мессенджер</div>
       </div>
       <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Сменить тему"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9H4l4 4-2 7 6-4 6 4-2-7 4-4h-5z"/></svg></button>
+      <button class="theme-btn" id="qrBtn" onclick="openQRModal()" title="QR-код"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="5" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="16" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="5" y="16" width="3" height="3" fill="currentColor" stroke="none"/><circle cx="17" cy="17" r="1.5" fill="currentColor" stroke="none"/></svg></button>
     </div>
   </div>
   <div class="search-wrap">
     <div class="search">
       <span style="color:var(--muted);font-size:15px">&#8981;</span>
-      <input type="text" placeholder="Поиск пользователей..." oninput="sidebarSearch(this.value)">
+      <input type="text" placeholder="Поиск пользователей..." oninput="debouncedSearch(this.value)">
     </div>
   </div>
   <div id="sidebarResults" style="display:none;padding:0 9px"></div>
@@ -172,6 +175,98 @@
     </div>
     <div id="chatCancelWrap">
       <button class="bcnl" style="width:100%;margin-top:4px" onclick="closeModal()">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="qrOverlay" style="display:none" onclick="if(event.target===this)closeQRModal()">
+  <div class="modal" style="max-width:340px;text-align:center">
+    <div style="display:flex;margin-bottom:20px;background:var(--bg2);border-radius:10px;padding:3px">
+      <button id="qrTabMy" onclick="switchQRTab('my')" style="flex:1;padding:8px;border:none;border-radius:8px;font-family:inherit;font-size:14px;font-weight:600;background:var(--accent);color:#fff;cursor:pointer">Мой QR</button>
+      <button id="qrTabScan" onclick="switchQRTab('scan')" style="flex:1;padding:8px;border:none;border-radius:8px;font-family:inherit;font-size:14px;font-weight:600;background:none;color:var(--text2);cursor:pointer">Сканировать</button>
+    </div>
+    <div id="qrMyPanel">
+      <div id="qrcode" style="display:flex;justify-content:center;margin-bottom:12px"></div>
+      <div style="font-size:13px;color:var(--text2)" id="qrUsername"></div>
+    </div>
+    <div id="qrScanPanel" style="display:none">
+      <video id="qrVideo" style="width:100%;border-radius:12px;max-height:280px" autoplay playsinline></video>
+      <canvas id="qrCanvas" style="display:none"></canvas>
+      <div id="qrScanResult" style="margin-top:12px;font-size:14px;color:var(--accent)"></div>
+    </div>
+    <button onclick="closeQRModal()" style="margin-top:16px;width:100%;padding:12px;background:none;border:1px solid var(--sep);border-radius:10px;font-family:inherit;font-size:14px;color:var(--text2);cursor:pointer">Закрыть</button>
+  </div>
+</div>
+
+<!-- НИЖНЯЯ НАВИГАЦИЯ -->
+<div class="bottom-nav" id="bottomNav" style="display:none">
+  <div class="bn-item" id="bnQR" onclick="showTab('qr')">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="5" y="5" width="3" height="3" fill="currentColor" stroke="none" rx=".5"/><rect x="16" y="5" width="3" height="3" fill="currentColor" stroke="none" rx=".5"/><rect x="5" y="16" width="3" height="3" fill="currentColor" stroke="none" rx=".5"/><rect x="14" y="14" width="3" height="3" fill="currentColor" stroke="none" rx=".5"/><rect x="18" y="14" width="3" height="3" fill="currentColor" stroke="none" rx=".5"/><rect x="14" y="18" width="3" height="3" fill="currentColor" stroke="none" rx=".5"/><rect x="18" y="18" width="3" height="3" fill="currentColor" stroke="none" rx=".5"/></svg>
+    <span>QR-код</span>
+  </div>
+  <div class="bn-item active" id="bnChats" onclick="showTab('chats')">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    <span>Чаты</span>
+  </div>
+  <div class="bn-item" id="bnSettings" onclick="showTab('settings')">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    <span>Настройки</span>
+  </div>
+</div>
+
+<!-- QR ЭКРАН -->
+<div id="qrScreen" style="display:none;position:fixed;inset:0;bottom:72px;background:var(--bg);overflow-y:auto;z-index:99;flex-direction:column;align-items:center;padding:20px 16px;gap:16px">
+  <div style="font-size:20px;font-weight:700;color:var(--text);margin-bottom:8px">Мой QR-код</div>
+  <div style="width:100%;max-width:340px;background:var(--card);border-radius:20px;padding:28px 20px;display:flex;flex-direction:column;align-items:center;gap:14px;box-shadow:0 2px 12px rgba(0,0,0,.07)">
+    <div style="font-size:16px;font-weight:600;color:var(--text)" id="qrScreenUsername"></div>
+    <div style="position:relative;display:inline-block">
+      <div id="qrCodeDiv"></div>
+      <div id="qrAvatarCenter" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;border:3px solid #fff;z-index:2"></div>
+    </div>
+    <div style="font-size:13px;color:var(--text2)" id="qrScanLabel"></div>
+    <button onclick="shareQR()" style="width:100%;padding:14px;background:var(--accent);border:none;border-radius:13px;color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit">Поделиться ссылкой</button>
+  </div>
+</div>
+
+<!-- НАСТРОЙКИ ЭКРАН -->
+<div id="settingsScreen" style="display:none;position:fixed;inset:0;bottom:72px;background:var(--bg);overflow-y:auto;z-index:99">
+  <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+    <div style="background:var(--card);border-radius:16px;padding:16px;display:flex;align-items:center;gap:12px">
+      <div id="settingsAvatar" style="width:58px;height:58px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff;flex-shrink:0"></div>
+      <div>
+        <div id="settingsName" style="font-size:17px;font-weight:700;color:var(--text)"></div>
+        <div id="settingsHandle" style="font-size:13px;color:var(--text2);margin-top:2px"></div>
+      </div>
+    </div>
+    <div style="background:var(--card);border-radius:14px;overflow:hidden">
+      <div onclick="toggleTheme()" style="display:flex;align-items:center;gap:12px;padding:14px;border-bottom:.5px solid var(--sep);cursor:pointer">
+        <div style="width:32px;height:32px;border-radius:8px;background:#f5f0ff;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9b6ab5" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2"/></svg></div>
+        <span style="flex:1;font-size:15px;color:var(--text)">Тема оформления</span>
+        <span style="color:#c7c7cc">›</span>
+      </div>
+      <div onclick="document.getElementById('bgPicker').click()" style="display:flex;align-items:center;gap:12px;padding:14px;border-bottom:.5px solid var(--sep);cursor:pointer">
+        <div style="width:32px;height:32px;border-radius:8px;background:#f0f6ff;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5b8dd9" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
+        <span style="flex:1;font-size:15px;color:var(--text)">Фон чата</span>
+        <span id="bgPreview" style="width:28px;height:28px;border-radius:6px;background:var(--bg);border:.5px solid var(--sep);display:block"></span>
+        <span style="color:#c7c7cc">›</span>
+      </div>
+      <input type="file" id="bgPicker" accept="image/*" style="display:none" onchange="setChatBg(this)">
+      <div style="display:flex;align-items:center;gap:12px;padding:14px;border-bottom:.5px solid var(--sep)">
+        <div style="width:32px;height:32px;border-radius:8px;background:#f0fff4;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/></svg></div>
+        <span style="flex:1;font-size:15px;color:var(--text)">Уведомления</span>
+        <span style="color:#c7c7cc">›</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:14px">
+        <div style="width:32px;height:32px;border-radius:8px;background:#fff8f0;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e0844a" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <span style="flex:1;font-size:15px;color:var(--text)">Конфиденциальность</span>
+        <span style="color:#c7c7cc">›</span>
+      </div>
+    </div>
+    <div style="background:var(--card);border-radius:14px;overflow:hidden">
+      <div onclick="logout()" style="display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer">
+        <div style="width:32px;height:32px;border-radius:8px;background:#fff0f0;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div>
+        <span style="flex:1;font-size:15px;color:#e74c3c">Выйти</span>
+      </div>
     </div>
   </div>
 </div>

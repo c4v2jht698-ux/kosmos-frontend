@@ -178,6 +178,8 @@ function enterAfterReg() {
     localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
     // Show onboarding for new users
     document.getElementById('auth').classList.add('hidden');
+    document.getElementById('bottomNav').style.display = 'flex';
+    applyChatBg();
     showOnboarding();
     initSocket();
     loadMyChats();
@@ -186,6 +188,9 @@ function enterAfterReg() {
 
 async function submitAuth() {
   clearAuthMessages();
+  var _lastAuthAttempt = window._lastAuthAttempt || 0;
+  if (Date.now() - _lastAuthAttempt < 2000) { showError('Подождите секунду...'); return; }
+  window._lastAuthAttempt = Date.now();
   var btn = document.getElementById('authBtn');
   btn.disabled = true; btn.textContent = '...';
 
@@ -253,6 +258,8 @@ async function submitAuth() {
 // ── App lifecycle ───────────────────────────────────────────────────────────
 function enterApp() {
   document.getElementById('auth').classList.add('hidden');
+  document.getElementById('bottomNav').style.display = 'flex';
+  applyChatBg();
   // Check if needs onboarding
   if (!localStorage.getItem('kosmos_onboarded') && currentUser) {
     // Check if user has interests
@@ -269,6 +276,13 @@ function enterApp() {
 }
 
 function logout() {
+  var bn = document.getElementById('bottomNav');
+  if (bn) bn.style.display = 'none';
+  var qr = document.getElementById('qrScreen');
+  if (qr) qr.style.display = 'none';
+  var st = document.getElementById('settingsScreen');
+  if (st) st.style.display = 'none';
+  localStorage.removeItem('chatBg');
   localStorage.removeItem('kosmos_token');
   localStorage.removeItem('kosmos_refresh');
   localStorage.removeItem('kosmos_user');
@@ -455,17 +469,27 @@ window.addEventListener('online', function() {
   }
 
   function handleBack() {
-    // If in a chat/sub-screen, go back
-    if (document.body.classList.contains('chat-open')) { goBack(); return; }
-    // If onboarding is visible, ignore
-    var ob = document.getElementById('onboarding');
-    if (ob && !ob.classList.contains('hidden')) return;
-    // Otherwise show exit dialog (APK only)
-    if (isWebView && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
-      if (confirm('Выйти из приложения?')) {
-        window.Capacitor.Plugins.App.exitApp();
-      }
+    var qrScreen = document.getElementById('qrScreen');
+    var settingsScreen = document.getElementById('settingsScreen');
+
+    if (qrScreen && qrScreen.style.display !== 'none') {
+      showTab('chats');
+      return;
     }
+    if (settingsScreen && settingsScreen.style.display !== 'none') {
+      showTab('chats');
+      return;
+    }
+    if (document.body.classList.contains('chat-open')) {
+      goBack();
+      return;
+    }
+    var d = document.createElement('div');
+    d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;padding:16px';
+    d.innerHTML = '<div style="background:var(--card);border-radius:16px;padding:20px;width:100%;text-align:center"><div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:8px">Выйти из Космоса?</div><div style="font-size:13px;color:var(--text2);margin-bottom:16px">Вы можете войти снова с помощью seed-фразы</div><button onclick="if(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App)window.Capacitor.Plugins.App.exitApp();this.closest(\'[data-exit]\').remove()" style="width:100%;padding:14px;background:#ff3b30;border:none;border-radius:12px;color:#fff;font-size:16px;font-weight:600;margin-bottom:8px;cursor:pointer">Выйти</button><button onclick="this.closest(\'[data-exit]\').remove()" style="width:100%;padding:14px;background:var(--bg2);border:none;border-radius:12px;color:var(--text);font-size:16px;cursor:pointer">Отмена</button></div>';
+    d.setAttribute('data-exit','');
+    d.onclick = function(e){ if(e.target===d) d.remove(); };
+    document.body.appendChild(d);
   }
 
   document.addEventListener('backbutton', handleBack);

@@ -1,5 +1,20 @@
 // ── UI: Render, chat open, message HTML, input helpers ──────────────────────
 
+function toast(msg, type) {
+  var t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:' + (type==='error'?'#ff3b30':type==='success'?'#34c759':'#333') + ';color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;font-weight:500;z-index:9999;opacity:0;transition:opacity .2s;white-space:nowrap;max-width:80vw;text-align:center';
+  document.body.appendChild(t);
+  setTimeout(function(){ t.style.opacity='1'; }, 10);
+  setTimeout(function(){ t.style.opacity='0'; setTimeout(function(){ t.remove(); }, 200); }, 2500);
+}
+
+var _searchTimer = null;
+function debouncedSearch(val) {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(function(){ sidebarSearch(val); }, 350);
+}
+
 // ── Default Avatar Helper ───────────────────────────────────────────────────
 function defaultAv(name, size) {
   size = size || 48;
@@ -130,11 +145,11 @@ function itm(c) {
     '<div class="ci' + (cur === c.id ? ' active' : '') + '" onclick="openChat(\'' + c.id + '\')">' +
       avHtml +
       '<div class="ci-info">' +
-        '<div class="ci-name">' + c.name + '</div>' +
-        '<div class="ci-prev">' + (c.prev || '') + '</div>' +
+        '<div class="ci-name">' + escHtml(c.name || '') + '</div>' +
+        '<div class="ci-prev">' + escHtml(c.prev || '') + '</div>' +
       '</div>' +
       '<div class="ci-meta">' +
-        '<div class="ci-time">' + (c.time || '') + '</div>' +
+        '<div class="ci-time">' + escHtml(c.time || '') + '</div>' +
         (c.unread ? '<div class="badge">' + c.unread + '</div>' : '') +
       '</div>' +
     '</div>' +
@@ -427,12 +442,12 @@ async function openProfileScreen() {
             '<div class="pstat"><div class="pstat-num">' + dms.length + '</div><div class="pstat-label">Чатов</div></div>' +
           '</div>' +
         '</div>' +
-        (u.status ? '<div style="font-size:14px;color:var(--text2);margin-top:6px">' + (u.mood||'') + ' ' + escHtml(u.status) + '</div>' : '') +
+        (u.status ? '<div style="font-size:14px;color:var(--text2);margin-top:6px">' + escHtml(u.mood||'') + ' ' + escHtml(u.status) + '</div>' : '') +
         '<div class="profile-section" id="badgeSection"><div class="profile-section-title">Достижения</div><div style="text-align:center;color:var(--text3);padding:8px">Загрузка...</div></div>' +
         '<div class="profile-section">' +
           '<div class="profile-section-title">Настройки</div>' +
           '<div class="profile-row" onclick="openEditProfile()"><div class="profile-row-label">Редактировать профиль</div><div class="profile-row-val">\u203A</div></div>' +
-          '<div class="profile-row" onclick="openStatusEditor()"><div class="profile-row-label">Статус и настроение</div><div class="profile-row-val">' + (u.mood||'') + ' \u203A</div></div>' +
+          '<div class="profile-row" onclick="openStatusEditor()"><div class="profile-row-label">Статус и настроение</div><div class="profile-row-val">' + escHtml(u.mood||'') + ' \u203A</div></div>' +
           '<div class="profile-row" onclick="showOnboarding()"><div class="profile-row-label">Изменить интересы</div><div class="profile-row-val">' + interests.length + ' выбрано \u203A</div></div>' +
           '<div class="profile-row" onclick="toggleTheme();openProfileScreen()"><div class="profile-row-label">Тема оформления</div><div class="profile-row-val">' + ({blue:'Голубая',pink:'Розовая'}[document.documentElement.getAttribute('data-theme')]||'Голубая') + ' \u203A</div></div>' +
           '<div class="profile-row" onclick="showReferral()"><div class="profile-row-label">Пригласить друга</div><div class="profile-row-val">\uD83D\uDD17 \u203A</div></div>' +
@@ -818,16 +833,16 @@ async function feedShare(postId) {
     var time = new Date().getHours().toString().padStart(2,'0') + ':' + new Date().getMinutes().toString().padStart(2,'0');
     saved.push({ text: '\uD83D\uDCCC ' + text, time: time });
     localStorage.setItem('kosmos_notes', JSON.stringify(saved));
-    alert('Сохранено в Важное!');
+    toast('Сохранено в Важное!', 'success');
   } else if (choice === '1') {
     var handle = prompt('Введите @username друга:');
     if (!handle) return;
     try {
       var users = await (await fetch(API+'/users?search='+encodeURIComponent(handle),{headers:{'Authorization':'Bearer '+jwtToken}})).json();
-      if (!users.length) { alert('Пользователь не найден'); return; }
+      if (!users.length) { toast('Пользователь не найден', 'error'); return; }
       await fetch(API+'/feed/'+postId+'/share',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwtToken},body:JSON.stringify({targetUserId:users[0].id})});
-      alert('Отправлено!');
-    } catch(e) { alert('Ошибка'); }
+      toast('Отправлено!', 'success');
+    } catch(e) { toast('Ошибка', 'error'); }
   }
 }
 
@@ -1059,9 +1074,9 @@ async function showReferral() {
     if (navigator.share) {
       navigator.share({ title: 'Космос', text: 'Присоединяйся к Космосу!', url: link }).catch(function(){});
     } else {
-      navigator.clipboard.writeText(link).then(function() { alert(msg + '\n\nСсылка скопирована!'); }).catch(function() { prompt('Скопируйте ссылку:', link); });
+      navigator.clipboard.writeText(link).then(function() { toast('Ссылка скопирована!', 'success'); }).catch(function() { toast('Не удалось скопировать', 'error'); });
     }
-  } catch(e) { alert('Ошибка'); }
+  } catch(e) { toast('Ошибка', 'error'); }
 }
 
 async function toggleSub(channelId, btn) {
@@ -1288,7 +1303,7 @@ async function submitChannel() {
     body: JSON.stringify({ name: name, description: desc, slug: slug })
   });
   if (r.ok) { goBack(); loadMyChats(); }
-  else { var d = await r.json(); alert(d.error || 'Ошибка'); }
+  else { var d = await r.json(); toast(d.error || 'Ошибка', 'error'); }
 }
 
 // ── Utilities ───────────────────────────────────────────────────────────────
@@ -1638,3 +1653,205 @@ function showTourStep() {
 
 function nextTourStep() { _tourStep++; showTourStep(); }
 function endTour() { localStorage.setItem('kosmos_tour_done', '1'); var o = document.querySelector('.tour-overlay'); if (o) o.remove(); }
+
+// ── QR Code ─────────────────────────────────────────────────────────────────
+function openQRModal() {
+  document.getElementById('qrOverlay').style.display = 'flex';
+  switchQRTab('my');
+}
+
+function closeQRModal() {
+  document.getElementById('qrOverlay').style.display = 'none';
+  stopQRScan();
+}
+
+function switchQRTab(tab) {
+  var myPanel = document.getElementById('qrMyPanel');
+  var scanPanel = document.getElementById('qrScanPanel');
+  var tabMy = document.getElementById('qrTabMy');
+  var tabScan = document.getElementById('qrTabScan');
+  if (tab === 'my') {
+    myPanel.style.display = 'block';
+    scanPanel.style.display = 'none';
+    tabMy.style.background = 'var(--accent)';
+    tabMy.style.color = '#fff';
+    tabScan.style.background = 'none';
+    tabScan.style.color = 'var(--text2)';
+    stopQRScan();
+    generateMyQR();
+  } else {
+    myPanel.style.display = 'none';
+    scanPanel.style.display = 'block';
+    tabScan.style.background = 'var(--accent)';
+    tabScan.style.color = '#fff';
+    tabMy.style.background = 'none';
+    tabMy.style.color = 'var(--text2)';
+    startQRScan();
+  }
+}
+
+function generateMyQR() {
+  var el = document.getElementById('qrcode');
+  el.innerHTML = '';
+  var me = currentUser || {};
+  var username = me.username || me.handle || 'unknown';
+  var url = 'https://kosmos.app/u/' + username;
+  document.getElementById('qrUsername').textContent = '@' + username;
+  new QRCode(el, {
+    text: url,
+    width: 220,
+    height: 220,
+    colorDark: '#000',
+    colorLight: '#fff',
+    correctLevel: QRCode.CorrectLevel.H
+  });
+}
+
+var qrStream = null;
+var qrScanInterval = null;
+
+function startQRScan() {
+  var video = document.getElementById('qrVideo');
+  var result = document.getElementById('qrScanResult');
+  result.textContent = 'Наведите камеру на QR-код...';
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then(function(stream) {
+      qrStream = stream;
+      video.srcObject = stream;
+      video.play();
+      qrScanInterval = setInterval(function() {
+        if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+        var canvas = document.getElementById('qrCanvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        var imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+        var code = jsQR(imageData.data, imageData.width, imageData.height);
+        if (code) {
+          result.textContent = 'Найден: ' + code.data;
+          stopQRScan();
+          var match = code.data.match(/\/u\/([^/?]+)/);
+          if (match) searchUsers(match[1]);
+        }
+      }, 300);
+    })
+    .catch(function() { result.textContent = 'Нет доступа к камере'; });
+}
+
+function stopQRScan() {
+  if (qrStream) { qrStream.getTracks().forEach(function(t) { t.stop(); }); qrStream = null; }
+  if (qrScanInterval) { clearInterval(qrScanInterval); qrScanInterval = null; }
+}
+
+// ── Bottom Nav Tabs ─────────────────────────────────────────────────────────
+function showTab(tab) {
+  var qrScreen = document.getElementById('qrScreen');
+  var settingsScreen = document.getElementById('settingsScreen');
+
+  document.querySelectorAll('.bn-item').forEach(function(i){ i.classList.remove('active'); });
+
+  if (tab === 'qr') {
+    settingsScreen.style.display = 'none';
+    document.getElementById('bnQR').classList.add('active');
+    qrScreen.style.display = 'flex';
+    qrScreen.style.animation = 'none';
+    qrScreen.offsetHeight;
+    qrScreen.style.animation = 'slideInRight .28s cubic-bezier(.4,0,.2,1)';
+    renderQRScreen();
+  } else if (tab === 'chats') {
+    document.getElementById('bnChats').classList.add('active');
+    if (qrScreen.style.display !== 'none') {
+      qrScreen.style.animation = 'slideOutRight .22s cubic-bezier(.4,0,.2,1)';
+      setTimeout(function(){ qrScreen.style.display = 'none'; }, 220);
+    }
+    if (settingsScreen.style.display !== 'none') {
+      settingsScreen.style.animation = 'slideOutRight .22s cubic-bezier(.4,0,.2,1)';
+      setTimeout(function(){ settingsScreen.style.display = 'none'; }, 220);
+    }
+  } else if (tab === 'settings') {
+    qrScreen.style.display = 'none';
+    document.getElementById('bnSettings').classList.add('active');
+    settingsScreen.style.display = 'block';
+    settingsScreen.style.animation = 'none';
+    settingsScreen.offsetHeight;
+    settingsScreen.style.animation = 'slideInRight .28s cubic-bezier(.4,0,.2,1)';
+    renderSettingsScreen();
+  }
+}
+
+function renderQRScreen() {
+  var u = currentUser || {};
+  var username = u.username || u.handle || 'unknown';
+  var name = u.name || username;
+  document.getElementById('qrScreenUsername').textContent = '@' + username;
+  document.getElementById('qrScanLabel').textContent = 'Scan to chat with @' + username;
+  document.getElementById('qrAvatarCenter').textContent = name[0].toUpperCase();
+  var div = document.getElementById('qrCodeDiv');
+  div.innerHTML = '<div style="width:200px;height:200px;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:13px">Генерация...</div>';
+  new QRCode(div, { text: 'https://kosmos.app/u/' + username, width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
+}
+
+function renderSettingsScreen() {
+  var u = currentUser || {};
+  var name = u.name || u.username || 'Пользователь';
+  var username = u.username || u.handle || '';
+  document.getElementById('settingsName').textContent = name;
+  document.getElementById('settingsHandle').textContent = '@' + username;
+  document.getElementById('settingsAvatar').textContent = name[0].toUpperCase();
+}
+
+function shareQR() {
+  var u = currentUser || {};
+  var username = u.username || u.handle || 'unknown';
+  var url = 'https://kosmos.app/u/' + username;
+  if (navigator.share) { navigator.share({ title: 'Космос', text: 'Напиши мне в Космос!', url: url }); }
+  else { navigator.clipboard.writeText(url); toast('Ссылка скопирована!', 'success'); }
+}
+
+// ── Chat Background ─────────────────────────────────────────────────────────
+function setChatBg(input) {
+  var file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { toast('Фото слишком большое. Максимум 5MB', 'error'); input.value=''; return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement('canvas');
+      var max = 1200;
+      var w = img.width, h = img.height;
+      if (w > max || h > max) {
+        if (w > h) { h = Math.round(h * max / w); w = max; }
+        else { w = Math.round(w * max / h); h = max; }
+      }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      var compressed = canvas.toDataURL('image/jpeg', 0.7);
+      try {
+        localStorage.setItem('chatBg', compressed);
+        applyChatBg();
+        var preview = document.getElementById('bgPreview');
+        if (preview) { preview.style.backgroundImage='url('+compressed+')'; preview.style.backgroundSize='cover'; }
+        toast('Фон установлен!', 'success');
+      } catch(e) {
+        toast('Фото слишком большое для сохранения', 'error');
+      }
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function applyChatBg() {
+  var bg = localStorage.getItem('chatBg');
+  var areas = document.querySelectorAll('.msg-area');
+  areas.forEach(function(area) {
+    if (bg) {
+      area.style.backgroundImage = 'url(' + bg + ')';
+      area.style.backgroundSize = 'cover';
+      area.style.backgroundPosition = 'center';
+    } else {
+      area.style.backgroundImage = '';
+    }
+  });
+}
