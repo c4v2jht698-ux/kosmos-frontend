@@ -178,6 +178,7 @@ function enterAfterReg() {
     localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
     // Show onboarding for new users
     document.getElementById('auth').classList.add('hidden');
+    document.getElementById('seedPhrase').textContent = '';
     document.getElementById('bottomNav').style.display = 'flex';
     applyChatBg();
     showOnboarding();
@@ -258,6 +259,7 @@ async function submitAuth() {
 // ── App lifecycle ───────────────────────────────────────────────────────────
 function enterApp() {
   document.getElementById('auth').classList.add('hidden');
+    document.getElementById('seedPhrase').textContent = '';
   document.getElementById('bottomNav').style.display = 'flex';
   applyChatBg();
   // Check if needs onboarding

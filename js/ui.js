@@ -27,7 +27,7 @@ function defaultAvSq(name, size) {
   size = size || 48;
   var g = GS[(name || '?').charCodeAt(0) % GS.length];
   return '<div class="av ' + g + ' sq" style="width:' + size + 'px;height:' + size + 'px;font-size:' + Math.round(size * 0.45) + 'px">' +
-    '<span style="color:#fff">' + (name || '?')[0].toUpperCase() + '</span></div>';
+    '<span style="color:#fff">' + escHtml((name || '?')[0].toUpperCase()) + '</span></div>';
 }
 
 // ── Interests Data ──────────────────────────────────────────────────────────
@@ -149,7 +149,7 @@ function itm(c) {
       '</div>' +
       '<div class="ci-meta">' +
         '<div class="ci-time">' + escHtml(c.time || '') + '</div>' +
-        (c.unread ? '<div class="badge">' + c.unread + '</div>' : '') +
+        (c.unread ? '<div class="badge">' + parseInt(c.unread||0) + '</div>' : '') +
       '</div>' +
     '</div>' +
   '</div>';
@@ -273,7 +273,7 @@ function openChat(id) {
 
   var isCh = item.type === 'channel';
   var sub = isCh
-    ? (item.slug ? '#'+item.slug+' · ' : '') + (item.members || 0) + ' подписчиков'
+    ? (item.slug ? '#'+escHtml(item.slug)+' · ' : '') + (item.members || 0) + ' подписчиков'
     : (item.online ? '<span style="color:var(--online);font-weight:600">● в сети</span>' : 'был(а) недавно');
 
   var avHtml = isCh ? defaultAvSq(item.name, 36) : defaultAv(item.name, 36);
@@ -282,7 +282,7 @@ function openChat(id) {
     '<div class="chat-hdr">' +
       '<button class="back-btn" onclick="goBack()">\u2039</button>' +
       avHtml +
-      '<div class="hinfo"><div class="hname">' + item.name + '</div><div class="hsub">' + sub + '</div></div>' +
+      '<div class="hinfo"><div class="hname">' + escHtml(item.name) + '</div><div class="hsub">' + sub + '</div></div>' +
       '<div class="hacts"><button class="hb">\uD83D\uDD0D</button></div>' +
     '</div>' +
     '<div class="msg-area" id="msgArea">' +
@@ -442,7 +442,7 @@ async function openProfileScreen() {
             '<div class="pstat"><div class="pstat-num">' + dms.length + '</div><div class="pstat-label">Чатов</div></div>' +
           '</div>' +
         '</div>' +
-        (u.status ? '<div style="font-size:14px;color:var(--text2);margin-top:6px">' + escHtmlescHtml(u.mood||'') + ' ' + escHtml(u.status) + '</div>' : '') +
+        (u.status ? '<div style="font-size:14px;color:var(--text2);margin-top:6px">' + escHtml(u.mood||'') + ' ' + escHtml(u.status) + '</div>' : '') +
         '<div class="profile-section" id="badgeSection"><div class="profile-section-title">Достижения</div><div style="text-align:center;color:var(--text3);padding:8px">Загрузка...</div></div>' +
         '<div class="profile-section">' +
           '<div class="profile-section-title">Настройки</div>' +

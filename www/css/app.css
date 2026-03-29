@@ -264,7 +264,7 @@ body{
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
 
 /* ── BOTTOM NAV ── */
-.bottom-nav{display:none !important}
+
 .bottom-nav .nav-tabs{display:flex;justify-content:space-around;align-items:center}
 .nav-tab{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 12px;border:none;background:none;cursor:pointer;color:var(--text3);transition:color .15s;font-family:inherit;min-width:0}
 .nav-tab.active{color:var(--accent)}
