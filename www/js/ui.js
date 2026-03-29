@@ -1896,7 +1896,7 @@ function sidebarSearch(q) {
       var users = data.users || data || [];
       if (!users.length) { resultsEl.innerHTML = '<div style="padding:16px;color:var(--text3);font-size:13px;text-align:center">Никого не найдено</div>'; return; }
       resultsEl.innerHTML = users.map(function(u){
-        return '<div class="ci" onclick="openChat(''+u.id+'')" style="padding:10px 14px;display:flex;align-items:center;gap:10px;cursor:pointer">'+defaultAv(u.username,40)+'<div><div style="font-weight:600;font-size:14px">'+escHtml(u.username||'')+'</div><div style="color:var(--text3);font-size:12px">@'+escHtml(u.handle||'')+'</div></div></div>';
+        return '<div class="ci" onclick="openChat('\''+u.id+'\'')" style="padding:10px 14px;display:flex;align-items:center;gap:10px;cursor:pointer">'+defaultAv(u.username,40)+'<div><div style="font-weight:600;font-size:14px">'+escHtml(u.username||'')+'</div><div style="color:var(--text3);font-size:12px">@'+escHtml(u.handle||'')+'</div></div></div>';
       }).join('');
     }).catch(function(){ resultsEl.innerHTML = '<div style="padding:16px;color:var(--text3);font-size:13px;text-align:center">Ошибка поиска</div>'; });
   }, 300);
