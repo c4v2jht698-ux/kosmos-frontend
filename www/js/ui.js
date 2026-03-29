@@ -442,7 +442,7 @@ async function openProfileScreen() {
             '<div class="pstat"><div class="pstat-num">' + dms.length + '</div><div class="pstat-label">Чатов</div></div>' +
           '</div>' +
         '</div>' +
-        (u.status ? '<div style="font-size:14px;color:var(--text2);margin-top:6px">' + escHtml(u.mood||'') + ' ' + escHtml(u.status) + '</div>' : '') +
+        (u.status ? '<div style="font-size:14px;color:var(--text2);margin-top:6px">' + escHtmlescHtml(u.mood||'') + ' ' + escHtml(u.status) + '</div>' : '') +
         '<div class="profile-section" id="badgeSection"><div class="profile-section-title">Достижения</div><div style="text-align:center;color:var(--text3);padding:8px">Загрузка...</div></div>' +
         '<div class="profile-section">' +
           '<div class="profile-section-title">Настройки</div>' +
@@ -1695,7 +1695,7 @@ function generateMyQR() {
   el.innerHTML = '';
   var me = currentUser || {};
   var username = me.username || me.handle || 'unknown';
-  var url = 'https://kosmos.app/u/' + username;
+  var url = 'https://c4v2jht698-ux.github.io/kosmos-frontend/?u=' + username;
   document.getElementById('qrUsername').textContent = '@' + username;
   new QRCode(el, {
     text: url,
@@ -1788,7 +1788,7 @@ function renderQRScreen() {
   document.getElementById('qrAvatarCenter').textContent = name[0].toUpperCase();
   var div = document.getElementById('qrCodeDiv');
   div.innerHTML = '<div style="width:200px;height:200px;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:13px">Генерация...</div>';
-  new QRCode(div, { text: 'https://kosmos.app/u/' + username, width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
+  new QRCode(div, { text: 'https://c4v2jht698-ux.github.io/kosmos-frontend/?u=' + username, width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
 }
 
 function renderSettingsScreen() {
@@ -1803,7 +1803,7 @@ function renderSettingsScreen() {
 function shareQR() {
   var u = currentUser || {};
   var username = u.username || u.handle || 'unknown';
-  var url = 'https://kosmos.app/u/' + username;
+  var url = 'https://c4v2jht698-ux.github.io/kosmos-frontend/?u=' + username;
   if (navigator.share) { navigator.share({ title: 'Космос', text: 'Напиши мне в Космос!', url: url }); }
   else { navigator.clipboard.writeText(url); toast('Ссылка скопирована!', 'success'); }
 }
@@ -1869,4 +1869,35 @@ function showConfirm(msg, onOk, onCancel) {
   overlay.querySelector('#sc-ok').onclick = function() { document.body.removeChild(overlay); if(onOk) onOk(); };
   overlay.querySelector('#sc-cancel').onclick = function() { document.body.removeChild(overlay); if(onCancel) onCancel(); };
   overlay.onclick = function(e) { if(e.target===overlay) { document.body.removeChild(overlay); if(onCancel) onCancel(); } };
+}
+
+function sidebarSearch(q) {
+  var resultsEl = document.getElementById('sidebarResults');
+  if (!resultsEl) return;
+  q = (q || '').trim();
+  if (!q) {
+    resultsEl.style.display = 'none'; resultsEl.innerHTML = '';
+    var ch = document.getElementById('chSection'); if(ch) ch.style.display = '';
+    var dm = document.getElementById('dmSection'); if(dm) dm.style.display = '';
+    return;
+  }
+  var ch = document.getElementById('chSection'); if(ch) ch.style.display = 'none';
+  var dm = document.getElementById('dmSection'); if(dm) dm.style.display = 'none';
+  resultsEl.style.display = 'block';
+  var ql = q.toLowerCase();
+  var local = channels.concat(dms).filter(function(c) { return (c.name||'').toLowerCase().indexOf(ql) !== -1; });
+  if (local.length) { resultsEl.innerHTML = local.map(function(c){return itm(c);}).join(''); return; }
+  resultsEl.innerHTML = '<div style="padding:8px;color:var(--text3);font-size:13px">Поиск...</div>';
+  clearTimeout(sidebarSearch._t);
+  sidebarSearch._t = setTimeout(function() {
+    fetch(API + '/users/search?q=' + encodeURIComponent(q), { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+    .then(function(r){return r.json();})
+    .then(function(data){
+      var users = data.users || data || [];
+      if (!users.length) { resultsEl.innerHTML = '<div style="padding:16px;color:var(--text3);font-size:13px;text-align:center">Никого не найдено</div>'; return; }
+      resultsEl.innerHTML = users.map(function(u){
+        return '<div class="ci" onclick="openChat(''+u.id+'')" style="padding:10px 14px;display:flex;align-items:center;gap:10px;cursor:pointer">'+defaultAv(u.username,40)+'<div><div style="font-weight:600;font-size:14px">'+escHtml(u.username||'')+'</div><div style="color:var(--text3);font-size:12px">@'+escHtml(u.handle||'')+'</div></div></div>';
+      }).join('');
+    }).catch(function(){ resultsEl.innerHTML = '<div style="padding:16px;color:var(--text3);font-size:13px;text-align:center">Ошибка поиска</div>'; });
+  }, 300);
 }
