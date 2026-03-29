@@ -214,12 +214,12 @@ function initSwipeToLeave() {
       e.stopPropagation();
       var wrap = btn.closest('.ci-wrap');
       var id = wrap.dataset.id;
-      if (!confirm('Покинуть канал?')) {
+      showConfirm('Покинуть канал?', function() {
+        leaveChannel(id);
+      }, function() {
         wrap.classList.remove('swiped','swiping');
         wrap.querySelector('.ci').style.transform = '';
-        return;
-      }
-      leaveChannel(id);
+      });
     };
   });
 }
@@ -1854,4 +1854,19 @@ function applyChatBg() {
       area.style.backgroundImage = '';
     }
   });
+}
+
+function showConfirm(msg, onOk, onCancel) {
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = '<div style="background:var(--bg,#1e1e2e);border-radius:16px;padding:24px;max-width:280px;width:90%;text-align:center">'
+    + '<p style="margin:0 0 20px;font-size:16px;color:var(--text,#fff)">' + msg + '</p>'
+    + '<div style="display:flex;gap:12px;justify-content:center">'
+    + '<button id="sc-cancel" style="flex:1;padding:10px;border:none;border-radius:10px;background:rgba(255,255,255,0.1);color:var(--text,#fff);font-size:15px;cursor:pointer">Отмена</button>'
+    + '<button id="sc-ok" style="flex:1;padding:10px;border:none;border-radius:10px;background:#e53935;color:#fff;font-size:15px;font-weight:500;cursor:pointer">Покинуть</button>'
+    + '</div></div>';
+  document.body.appendChild(overlay);
+  overlay.querySelector('#sc-ok').onclick = function() { document.body.removeChild(overlay); if(onOk) onOk(); };
+  overlay.querySelector('#sc-cancel').onclick = function() { document.body.removeChild(overlay); if(onCancel) onCancel(); };
+  overlay.onclick = function(e) { if(e.target===overlay) { document.body.removeChild(overlay); if(onCancel) onCancel(); } };
 }

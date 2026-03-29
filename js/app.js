@@ -435,10 +435,10 @@ function onTelegramAuth(user) {
         localStorage.setItem('kosmos_user', JSON.stringify(data.user));
         enterApp();
       } else {
-        alert(data.error || 'Ошибка авторизации');
+        toast(data.error || 'Ошибка авторизации', 'error');
       }
     })
-    .catch(function() { alert('Нет связи с сервером'); });
+    .catch(function() { toast('Нет связи с сервером', 'error'); });
 }
 window.onTelegramAuth = onTelegramAuth;
 
