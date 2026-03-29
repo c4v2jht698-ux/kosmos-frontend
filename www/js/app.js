@@ -290,7 +290,7 @@ function logout() {
   localStorage.removeItem('chatBg');
   jwtToken = null; refreshToken = null; currentUser = null;
   if (socket) { socket.disconnect(); socket = null; }
-  cur = null; channels.length = 0; dms.length = 0; render();
+  cur = null; channels.length = 0; dms.length = 0;
   document.getElementById('auth').classList.remove('hidden');
   document.getElementById('seedResult').style.display = 'none';
   document.getElementById('authBtn').style.display = '';
@@ -444,7 +444,6 @@ function onTelegramAuth(user) {
     })
     .catch(function() { toast('Нет связи с сервером', 'error'); });
 }
-window.onTelegramAuth = onTelegramAuth;
 
 render();
 

@@ -50,7 +50,6 @@ var INTERESTS = [
 function showOnboarding() {
   var el = document.getElementById('onboarding');
   el.classList.remove('hidden');
-  var selected = [];
   el.innerHTML =
     '<div style="max-width:440px;width:100%">' +
       '<div class="ob-title">Что тебе интересно?</div>' +
@@ -292,6 +291,7 @@ function openChat(id) {
     '</div>' +
     (isCh ? '<div class="ro-bar">Канал только для чтения</div>' : inpHTML());
   scrollBot();
+  applyChatBg();
   showChatView();
 }
 
