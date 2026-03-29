@@ -10,6 +10,7 @@ function toast(msg, type) {
 }
 
 var _searchTimer = null;
+var _swipeDocListenerAdded = false;
 function debouncedSearch(val) {
   clearTimeout(_searchTimer);
   _searchTimer = setTimeout(function(){ sidebarSearch(val); }, 350);
@@ -199,14 +200,17 @@ function initSwipeToLeave() {
   });
 
   // Close all swipes when tapping elsewhere
-  document.addEventListener('touchstart', function(e) {
-    if (!e.target.closest('.ci-wrap.swiped') && !e.target.closest('.ci-leave-bg')) {
-      document.querySelectorAll('.ci-wrap.swiped').forEach(function(el) {
-        el.classList.remove('swiped','swiping');
-        el.querySelector('.ci').style.transform = '';
-      });
-    }
-  }, { passive: true });
+  if (!_swipeDocListenerAdded) {
+    _swipeDocListenerAdded = true;
+    document.addEventListener('touchstart', function(e) {
+      if (!e.target.closest('.ci-wrap.swiped') && !e.target.closest('.ci-leave-bg')) {
+        document.querySelectorAll('.ci-wrap.swiped').forEach(function(el) {
+          el.classList.remove('swiped','swiping');
+          el.querySelector('.ci').style.transform = '';
+        });
+      }
+    }, { passive: true });
+  }
 
   document.querySelectorAll('.ci-leave-bg').forEach(function(btn) {
     btn.onclick = function(e) {
@@ -1601,7 +1605,7 @@ var EMOJI_FULL = ['\uD83D\uDE00','\uD83D\uDE02','\uD83D\uDE0D','\uD83E\uDD70','\
   '\uD83D\uDCAA','\uD83C\uDFC6','\uD83C\uDFAE','\uD83D\uDCF7','\uD83D\uDE4C','\uD83E\uDD1D','\uD83D\uDC99','\uD83D\uDC9C'];
 
 // Override togE to show full grid
-togE = function() {
+var togE = function() {
   var ep = document.getElementById('ep');
   if (!ep) return;
   if (ep.classList.contains('open')) { ep.classList.remove('open'); return; }
