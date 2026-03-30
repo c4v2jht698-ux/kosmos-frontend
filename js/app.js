@@ -455,6 +455,7 @@ function onTelegramAuth(user) {
     })
     .catch(function() { toast('Нет связи с сервером', 'error'); });
 }
+window.onTelegramAuth = onTelegramAuth;
 
 render();
 
