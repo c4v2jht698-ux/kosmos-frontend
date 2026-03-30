@@ -2,7 +2,11 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.socket.io https://cdnjs.cloudflare.com https://telegram.org; connect-src 'self' https://kosmos-backend-1.onrender.com wss://kosmos-backend-1.onrender.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.socket.io https://cdnjs.cloudflare.com https://telegram.org https://appleid.cdn-apple.com; connect-src 'self' https://kosmos-backend-1.onrender.com wss://kosmos-backend-1.onrender.com https://appleid.apple.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:;">
+<meta name="appleid-signin-client-id" content="com.kosmos.app">
+<meta name="appleid-signin-scope" content="name email">
+<meta name="appleid-signin-redirect-uri" content="https://c4v2jht698-ux.github.io/kosmos-frontend/">
+<meta name="appleid-signin-use-popup" content="true">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -13,6 +17,7 @@
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+<script type="text/javascript" src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js"></script>
 <link rel="stylesheet" href="css/app.css?v=2">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
@@ -102,6 +107,13 @@
         <button onclick="openTelegramAuth()" style="display:inline-flex;align-items:center;gap:8px;background:#54A9EB;border:none;border-radius:12px;color:#fff;padding:14px 24px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm5.53 8.16l-1.8 8.49c-.14.6-.5.75-.99.47l-2.75-2.03-1.33 1.27c-.14.15-.27.27-.56.27l.2-2.82 5.1-4.6c.22-.2-.05-.3-.34-.13l-6.3 3.97-2.72-.85c-.59-.18-.6-.59.12-.87l10.63-4.1c.49-.18.92.12.76.87z"/></svg>
           Войти через Telegram
+        </button>
+      </div>
+
+      <div id="appleSignInBtn" style="text-align:center;margin-top:10px">
+        <button onclick="onAppleAuth()" style="display:inline-flex;align-items:center;gap:8px;background:#000;border:none;border-radius:12px;color:#fff;padding:14px 24px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;width:100%;justify-content:center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+          Sign in with Apple
         </button>
       </div>
 

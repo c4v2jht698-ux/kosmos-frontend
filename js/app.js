@@ -457,6 +457,46 @@ function onTelegramAuth(user) {
 }
 window.onTelegramAuth = onTelegramAuth;
 
+// ── Apple Auth ───────────────────────────────────────────────────────────────
+function onAppleAuth() {
+  if (typeof AppleID === 'undefined') {
+    toast('Apple Sign In недоступен', 'error');
+    return;
+  }
+  AppleID.auth.signIn().then(function(response) {
+    var idToken = response.authorization && response.authorization.id_token;
+    if (!idToken) { toast('Не удалось получить токен Apple', 'error'); return; }
+    fetch(API + '/auth/apple', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id_token: idToken,
+        user: response.user || null,
+      }),
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.token) {
+          jwtToken = data.token;
+          refreshToken = data.refreshToken;
+          currentUser = data.user;
+          localStorage.setItem('kosmos_token', jwtToken);
+          if (data.refreshToken) localStorage.setItem('kosmos_refresh', data.refreshToken);
+          localStorage.setItem('kosmos_user', JSON.stringify(data.user));
+          enterApp();
+        } else {
+          toast(data.error || 'Ошибка авторизации Apple', 'error');
+        }
+      })
+      .catch(function() { toast('Нет связи с сервером', 'error'); });
+  }).catch(function(err) {
+    if (err.error === 'popup_closed_by_user') return;
+    console.error('[apple] auth error:', err);
+    toast('Ошибка Apple Sign In', 'error');
+  });
+}
+window.onAppleAuth = onAppleAuth;
+
 render();
 
 // ── Offline detection ────────────────────────────────────────────────────────
