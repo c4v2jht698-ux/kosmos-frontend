@@ -254,7 +254,8 @@ async function leaveChannel(id) {
   render();
 }
 
-function deleteDM(id) {
+async function deleteDM(id) {
+  try { await apiFetch(API + '/chats/' + encodeURIComponent(id), { method: 'DELETE' }); } catch(e) {}
   var idx = dms.findIndex(function(d){return d.id===id});
   if (idx !== -1) dms.splice(idx, 1);
   if (cur === id) { cur = null; goBack(); }
@@ -2052,33 +2053,3 @@ function showConfirm(msg, onOk, onCancel) {
   overlay.onclick = function(e) { if(e.target===overlay) { document.body.removeChild(overlay); if(onCancel) onCancel(); } };
 }
 
-function sidebarSearch(q) {
-  var resultsEl = document.getElementById('sidebarResults');
-  if (!resultsEl) return;
-  q = (q || '').trim();
-  if (!q) {
-    resultsEl.style.display = 'none'; resultsEl.innerHTML = '';
-    var ch = document.getElementById('chSection'); if(ch) ch.style.display = '';
-    var dm = document.getElementById('dmSection'); if(dm) dm.style.display = '';
-    return;
-  }
-  var ch = document.getElementById('chSection'); if(ch) ch.style.display = 'none';
-  var dm = document.getElementById('dmSection'); if(dm) dm.style.display = 'none';
-  resultsEl.style.display = 'block';
-  var ql = q.toLowerCase();
-  var local = channels.concat(dms).filter(function(c) { return (c.name||'').toLowerCase().indexOf(ql) !== -1; });
-  if (local.length) { resultsEl.innerHTML = local.map(function(c){return itm(c);}).join(''); return; }
-  resultsEl.innerHTML = '<div style="padding:8px;color:var(--text3);font-size:13px">Поиск...</div>';
-  clearTimeout(sidebarSearch._t);
-  sidebarSearch._t = setTimeout(function() {
-    fetch(API + '/users/search?q=' + encodeURIComponent(q), { headers: { 'Authorization': 'Bearer ' + jwtToken } })
-    .then(function(r){return r.json();})
-    .then(function(data){
-      var users = data.users || data || [];
-      if (!users.length) { resultsEl.innerHTML = '<div style="padding:16px;color:var(--text3);font-size:13px;text-align:center">Никого не найдено</div>'; return; }
-      resultsEl.innerHTML = users.map(function(u){
-        return '<div class="ci" onclick="openChat(\x27'+u.id+'\x27)" style="padding:10px 14px;display:flex;align-items:center;gap:10px;cursor:pointer">'+defaultAv(u.username,40)+'<div><div style="font-weight:600;font-size:14px">'+escHtml(u.username||'')+'</div><div style="color:var(--text3);font-size:12px">@'+escHtml(u.handle||'')+'</div></div></div>';
-      }).join('');
-    }).catch(function(){ resultsEl.innerHTML = '<div style="padding:16px;color:var(--text3);font-size:13px;text-align:center">Ошибка поиска</div>'; });
-  }, 300);
-}

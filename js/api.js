@@ -105,30 +105,33 @@ async function sidebarSearch(q) {
 
       if (ur.length) {
         html += '<div class="sec-label" style="padding:10px 11px 4px">Пользователи</div>';
-        html += ur.map(u => `
-          <div class="ci" onclick="startDM('${u.id}','${escSearch(u.username)}','${escSearch(u.handle || '')}')">
-            <div class="av ${GS[u.username.charCodeAt(0) % GS.length]}">${u.username[0].toUpperCase()}</div>
-            <div class="ci-info">
-              <div class="ci-name">${u.username}</div>
-              <div class="ci-prev">@${u.handle || ''}</div>
-            </div>
-          </div>`).join('');
+        html += ur.map(u => {
+          var safe = { id: escSearch(u.id), name: escHtml(u.username || ''), handle: escHtml(u.handle || '') };
+          return '<div class="ci" data-action="dm" data-uid="' + safe.id + '" data-uname="' + escSearch(u.username) + '" data-uhandle="' + escSearch(u.handle || '') + '">' +
+            '<div class="av ' + GS[(u.username||'?').charCodeAt(0) % GS.length] + '">' + safe.name[0].toUpperCase() + '</div>' +
+            '<div class="ci-info"><div class="ci-name">' + safe.name + '</div><div class="ci-prev">@' + safe.handle + '</div></div></div>';
+        }).join('');
       }
 
       if (cr.length) {
         html += '<div class="sec-label" style="padding:10px 11px 4px">Каналы</div>';
-        html += cr.map(c => `
-          <div class="ci" onclick="joinChannel('${c.id}','${escSearch(c.name)}','${escSearch(c.slug || '')}')">
-            <div class="av ${GS[c.name.charCodeAt(0) % GS.length]} sq">${c.name[0].toUpperCase()}</div>
-            <div class="ci-info">
-              <div class="ci-name">${c.name}</div>
-              <div class="ci-prev">${c.members || 0} участников</div>
-            </div>
-          </div>`).join('');
+        html += cr.map(c => {
+          var safe = { id: escSearch(c.id), name: escHtml(c.name || ''), slug: escHtml(c.slug || '') };
+          return '<div class="ci" data-action="join" data-cid="' + safe.id + '" data-cname="' + escSearch(c.name) + '" data-cslug="' + escSearch(c.slug || '') + '">' +
+            '<div class="av ' + GS[(c.name||'?').charCodeAt(0) % GS.length] + ' sq">' + safe.name[0].toUpperCase() + '</div>' +
+            '<div class="ci-info"><div class="ci-name">' + safe.name + '</div><div class="ci-prev">' + (c.members || 0) + ' участников</div></div></div>';
+        }).join('');
       }
 
       if (!html) html = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">Ничего не найдено</div>';
       sr.innerHTML = html;
+      // Delegated click handler — no inline onclick
+      sr.onclick = function(e) {
+        var ci = e.target.closest('.ci[data-action]');
+        if (!ci) return;
+        if (ci.dataset.action === 'dm') startDM(ci.dataset.uid, ci.dataset.uname, ci.dataset.uhandle);
+        else if (ci.dataset.action === 'join') joinChannel(ci.dataset.cid, ci.dataset.cname, ci.dataset.cslug);
+      };
     } catch(e) {
       console.error('[api] search:', e);
     }

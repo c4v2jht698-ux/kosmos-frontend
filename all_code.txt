@@ -1,3 +1,1266 @@
+// ── Config & State ──────────────────────────────────────────────────────────
+var API = 'https://kosmos-backend-1.onrender.com';
+var EMOJIS = ['\u2764\uFE0F','\uD83D\uDE02','\uD83D\uDC4D','\uD83D\uDD25','\uD83D\uDE2E','\uD83D\uDC4F','\uD83C\uDF89','\uD83D\uDE4F'];
+var GS = ['g1','g2','g3','g4','g5','g6','g7'];
+
+var jwtToken = localStorage.getItem('kosmos_token');
+var refreshToken = localStorage.getItem('kosmos_refresh');
+var currentUser = JSON.parse(localStorage.getItem('kosmos_user') || 'null');
+var socket = null;
+var typingTimeout = null;
+var cur = null;
+
+var channels = [];
+var dms = [];
+
+// Auto-refresh token every 12 min
+setInterval(async function() {
+  if (!refreshToken) return;
+  try {
+    var r = await fetch(API + '/refresh', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: refreshToken })
+    });
+    if (r.ok) {
+      var d = await r.json();
+      jwtToken = d.token;
+      localStorage.setItem('kosmos_token', jwtToken);
+    }
+  } catch(e) {}
+}, 12 * 60 * 1000);
+
+// Inactivity logout — 30 min
+var _lastActivity = Date.now();
+document.addEventListener('click', function() { _lastActivity = Date.now(); });
+document.addEventListener('keydown', function() { _lastActivity = Date.now(); });
+setInterval(function() {
+  if (jwtToken && Date.now() - _lastActivity > 30 * 60 * 1000) {
+
+    logout();
+  }
+}, 60000);
+
+// ── Auth ────────────────────────────────────────────────────────────────────
+var authMode = 'login';
+var pendingToken = null;
+var pendingUser = null;
+var pendingRefresh = null;
+
+function switchTab(mode) {
+  authMode = mode;
+  document.querySelectorAll('.auth-tab').forEach(function(t, i) {
+    t.classList.toggle('active', (mode === 'login' && i === 0) || (mode === 'register' && i === 1));
+  });
+  document.getElementById('regFields').style.display = mode === 'register' ? 'block' : 'none';
+  document.getElementById('loginFields').style.display = mode === 'login' ? 'block' : 'none';
+  document.getElementById('seedResult').style.display = 'none';
+  document.getElementById('authBtn').style.display = '';
+  document.getElementById('authBtn').textContent = mode === 'register' ? 'Создать аккаунт' : 'Войти в Космос';
+  document.getElementById('authToggleBtn').textContent = mode === 'register' ? 'Уже есть аккаунт' : 'Создать новый аккаунт';
+  document.getElementById('authToggleBtn').onclick = function() { switchTab(mode === 'register' ? 'login' : 'register'); };
+  document.getElementById('authToggleBtn').style.display = '';
+  clearAuthMessages();
+}
+
+function buildSeedGrid() {
+  var grid = document.getElementById('seedGrid');
+  grid.innerHTML = '';
+  for (var i = 0; i < 12; i++) {
+    var cell = document.createElement('div');
+    cell.className = 'seed-cell';
+    cell.innerHTML = '<span class="seed-num">' + String(i+1).padStart(2,'0') + '</span><input type="text" data-idx="' + i + '" placeholder="..." autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">';
+    grid.appendChild(cell);
+  }
+  grid.addEventListener('paste', function(e) {
+    var text = (e.clipboardData || window.clipboardData).getData('text').trim();
+    var words = text.split(/\s+/);
+    if (words.length >= 2) {
+      e.preventDefault();
+      e.stopPropagation();
+      var inputs = grid.querySelectorAll('input');
+      words.slice(0, 12).forEach(function(w, i) { if (inputs[i]) inputs[i].value = w; });
+    }
+  });
+  function seedAdvance(input) {
+    var val = input.value;
+    if (val.indexOf(' ') === -1) return false;
+    var parts = val.split(/\s+/);
+    input.value = parts[0];
+    var inputs = grid.querySelectorAll('input');
+    var idx = parseInt(input.dataset.idx) || 0;
+    for (var j = 1; j < parts.length; j++) {
+      if (inputs[idx + j] && parts[j]) inputs[idx + j].value = parts[j];
+    }
+    var next = inputs[idx + 1];
+    if (next) next.focus();
+    return true;
+  }
+  // input event — catches paste and typing on most browsers
+  grid.addEventListener('input', function(e) {
+    if (e.target.tagName !== 'INPUT') return;
+    seedAdvance(e.target);
+  });
+  // keyup on space — fallback for WebView where input event may miss the space
+  grid.addEventListener('keyup', function(e) {
+    if (e.target.tagName !== 'INPUT') return;
+    if (e.key === ' ' || e.keyCode === 32) {
+      e.target.value = e.target.value.replace(/\s/g, '');
+      var inputs = grid.querySelectorAll('input');
+      var idx = parseInt(e.target.dataset.idx) || 0;
+      var next = inputs[idx + 1];
+      if (next) next.focus();
+    }
+  });
+  // keydown on Enter — advance to next field
+  grid.addEventListener('keydown', function(e) {
+    if (e.target.tagName !== 'INPUT') return;
+    if (e.key === 'Enter' || e.keyCode === 13) {
+      e.preventDefault();
+      var inputs = grid.querySelectorAll('input');
+      var idx = parseInt(e.target.dataset.idx) || 0;
+      var next = inputs[idx + 1];
+      if (next) next.focus();
+    }
+    if (e.key === ' ' || e.keyCode === 32) {
+      e.preventDefault();
+      var inputs = grid.querySelectorAll('input');
+      var idx = parseInt(e.target.dataset.idx) || 0;
+      var next = inputs[idx + 1];
+      if (next) next.focus();
+    }
+  });
+}
+
+function getSeedFromGrid() {
+  var inputs = document.querySelectorAll('#seedGrid input');
+  return Array.from(inputs).map(function(i) { return i.value.trim().toLowerCase(); }).join(' ');
+}
+
+function showSeedInGrid(phrase) {
+  var grid = document.getElementById('seedShowGrid');
+  var words = phrase.split(/\s+/);
+  grid.innerHTML = words.map(function(w, i) {
+    return '<div class="seed-cell" style="cursor:default"><span class="seed-num">' + String(i+1).padStart(2,'0') + '</span><span style="font-family:\'Space Mono\',monospace;font-size:13px;color:var(--text);user-select:all">' + w + '</span></div>';
+  }).join('');
+}
+
+function clearAuthMessages() {
+  document.getElementById('authError').classList.remove('show');
+  document.getElementById('authSuccess').classList.remove('show');
+}
+function showError(msg) {
+  var el = document.getElementById('authError');
+  el.textContent = msg; el.classList.add('show');
+  document.getElementById('authSuccess').classList.remove('show');
+}
+function showSuccess(msg) {
+  var el = document.getElementById('authSuccess');
+  el.textContent = msg; el.classList.add('show');
+  document.getElementById('authError').classList.remove('show');
+}
+
+function copySeed() {
+  var text = document.getElementById('seedPhrase').textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    var el = document.getElementById('seedCopied');
+    el.style.display = 'block'; el.textContent = 'Скопировано!';
+    setTimeout(function() { el.style.display = 'none'; }, 2000);
+  });
+}
+
+function enterAfterReg() {
+  if (pendingToken && pendingUser) {
+    jwtToken = pendingToken;
+    refreshToken = pendingRefresh;
+    currentUser = pendingUser;
+    localStorage.setItem('kosmos_token', jwtToken);
+    if (pendingRefresh) localStorage.setItem('kosmos_refresh', pendingRefresh);
+    localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
+    // Show onboarding for new users
+    document.getElementById('auth').classList.add('hidden');
+    document.getElementById('seedPhrase').textContent = '';
+    document.getElementById('bottomNav').style.display = 'flex';
+    applyChatBg();
+    showOnboarding();
+    initSocket();
+    loadMyChats();
+  }
+}
+
+async function submitAuth() {
+  clearAuthMessages();
+  var _lastAuthAttempt = window._lastAuthAttempt || 0;
+  if (Date.now() - _lastAuthAttempt < 2000) { showError('Подождите секунду...'); return; }
+  window._lastAuthAttempt = Date.now();
+  var btn = document.getElementById('authBtn');
+  btn.disabled = true; btn.textContent = '...';
+
+  try {
+    var url, body;
+    if (authMode === 'register') {
+      var name = document.getElementById('authName').value.trim();
+      var handle = document.getElementById('authHandle').value.trim().toLowerCase();
+      if (!name) { showError('Введи своё имя'); btn.disabled = false; btn.textContent = 'Создать аккаунт'; return; }
+      if (!handle) { showError('Введи @username'); btn.disabled = false; btn.textContent = 'Создать аккаунт'; return; }
+      if (!/^[a-z0-9_]{3,20}$/.test(handle)) { showError('@username: только a-z, 0-9 и _ (3\u201320 символов)'); btn.disabled = false; btn.textContent = 'Создать аккаунт'; return; }
+      url = API + '/register';
+      body = { username: name, handle: handle, ref: _refCode || undefined };
+    } else {
+      var seed = getSeedFromGrid();
+      if (!seed.replace(/\s/g,'')) { showError('Введите все 12 слов'); btn.disabled = false; btn.textContent = 'Войти в Космос'; return; }
+      if (seed.split(/\s+/).filter(Boolean).length < 12) { showError('Нужно 12 слов'); btn.disabled = false; btn.textContent = 'Войти в Космос'; return; }
+      url = API + '/login';
+      body = { seed: seed };
+    }
+
+    var res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    var data = await res.json();
+
+    if (!res.ok) {
+      showError(data.error || 'Ошибка сервера');
+      btn.disabled = false;
+      btn.textContent = authMode === 'register' ? 'Создать аккаунт' : 'Войти в Космос';
+      return;
+    }
+
+    if (authMode === 'register' && data.seed) {
+      pendingToken = data.token;
+      pendingUser = data.user;
+      pendingRefresh = data.refreshToken;
+      document.getElementById('seedPhrase').textContent = data.seed;
+      showSeedInGrid(data.seed);
+      document.getElementById('seedResult').style.display = 'block';
+      document.getElementById('authBtn').style.display = 'none';
+      document.getElementById('authToggleBtn').style.display = 'none';
+      document.getElementById('regFields').style.display = 'none';
+      btn.disabled = false; btn.textContent = 'Создать аккаунт';
+      return;
+    }
+
+    jwtToken = data.token;
+    refreshToken = data.refreshToken;
+    currentUser = data.user;
+    localStorage.setItem('kosmos_token', jwtToken);
+    if (data.refreshToken) localStorage.setItem('kosmos_refresh', data.refreshToken);
+    localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
+    showSuccess('Добро пожаловать, ' + data.user.username + '!');
+    setTimeout(enterApp, 700);
+  } catch (e) {
+    showError('Нет связи с сервером');
+    btn.disabled = false;
+    btn.textContent = authMode === 'register' ? 'Создать аккаунт' : 'Войти в Космос';
+  }
+}
+
+// ── App lifecycle ───────────────────────────────────────────────────────────
+function enterApp() {
+  document.getElementById('auth').classList.add('hidden');
+    document.getElementById('seedPhrase').textContent = '';
+  document.getElementById('bottomNav').style.display = 'flex';
+  applyChatBg();
+  // Check if needs onboarding
+  if (!localStorage.getItem('kosmos_onboarded') && currentUser) {
+    // Check if user has interests
+    fetch(API + '/me', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+      .then(function(r) { return r.json(); })
+      .then(function(u) {
+        if (!u.interests || !u.interests.length) {
+          showOnboarding();
+        }
+      }).catch(function() {});
+  }
+  initSocket();
+  loadMyChats().then(function() {
+    var channelSlug = new URLSearchParams(window.location.search).get('channel');
+    if (channelSlug) {
+      var ch = channels.find(function(c) { return c.slug === channelSlug; });
+      if (ch) { openChat(ch.id); }
+      else {
+        fetch(API + '/channels?search=' + encodeURIComponent(channelSlug), { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+          .then(function(r) { return r.ok ? r.json() : []; })
+          .then(function(list) {
+            var found = list.find(function(c) { return c.slug === channelSlug; });
+            if (found) joinChannel(found.id, found.name, found.slug);
+            else toast('Канал не найден', 'error');
+          }).catch(function() {});
+      }
+      history.replaceState(null, '', window.location.pathname);
+    }
+  });
+}
+
+function logout() {
+  var bn = document.getElementById('bottomNav');
+  if (bn) bn.style.display = 'none';
+  var qr = document.getElementById('qrScreen');
+  if (qr) qr.style.display = 'none';
+  var st = document.getElementById('settingsScreen');
+  if (st) st.style.display = 'none';
+  localStorage.removeItem('chatBg');
+  localStorage.removeItem('kosmos_token');
+  localStorage.removeItem('kosmos_refresh');
+  localStorage.removeItem('kosmos_user');
+  localStorage.removeItem('kosmos_onboarded');
+  localStorage.removeItem('chatBg');
+  jwtToken = null; refreshToken = null; currentUser = null;
+  if (socket) { socket.disconnect(); socket = null; }
+  cur = null; channels.length = 0; dms.length = 0;
+  document.getElementById('auth').classList.remove('hidden');
+  document.getElementById('seedResult').style.display = 'none';
+  document.getElementById('authBtn').style.display = '';
+  var bn=document.getElementById('bottomNav'); if(bn)bn.style.display='none';
+  var qr=document.getElementById('qrScreen'); if(qr)qr.style.display='none';
+  var st=document.getElementById('settingsScreen'); if(st)st.style.display='none';
+  switchTab('login');
+  document.getElementById('mainArea').innerHTML = '<div class="empty"><div class="empty-card"><div class="empty-icon">\uD83D\uDE80</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>';
+}
+
+var _splashDone = false;
+var _splashStart = Date.now();
+function closeSplash() {
+  if (_splashDone) return;
+  // Ensure minimum 1.5s display
+  var elapsed = Date.now() - _splashStart;
+  if (elapsed < 1500) {
+    setTimeout(closeSplash, 1500 - elapsed);
+    return;
+  }
+  _splashDone = true;
+  var sp = document.getElementById('splash');
+  if (sp) { sp.style.transform = 'scale(1.1)'; sp.style.opacity = '0'; setTimeout(function(){ sp.remove(); }, 800); }
+  if (jwtToken && currentUser) enterApp();
+  else {
+    var authEl = document.getElementById('auth');
+    if (authEl) authEl.classList.remove('hidden');
+  }
+}
+
+// ── Theme ────────────────────────────────────────────────────────────────────
+function applyTheme(theme) {
+  if (theme !== 'blue' && theme !== 'pink') theme = 'blue';
+  document.documentElement.setAttribute('data-theme', theme);
+}
+function toggleTheme() {
+  var cur = document.documentElement.getAttribute('data-theme') || 'blue';
+  var next = cur === 'blue' ? 'pink' : 'blue';
+  localStorage.setItem('kosmos_theme', next);
+  applyTheme(next);
+}
+
+// ── Modal ────────────────────────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('overlay').classList.add('open');
+  onChatTypeChange();
+  setTimeout(function() {
+    var isCh = document.querySelector('input[name="ct"]:checked').value === 'channel';
+    var el = isCh ? document.getElementById('ncName') : document.getElementById('userSearch');
+    if (el) el.focus();
+  }, 120);
+}
+
+function closeModal() {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('ncName').value = '';
+  document.getElementById('userSearch').value = '';
+  document.getElementById('userResults').innerHTML = '';
+}
+
+function onChatTypeChange() {
+  var isCh = document.querySelector('input[name="ct"]:checked').value === 'channel';
+  document.getElementById('userSearchWrap').style.display = isCh ? 'none' : 'block';
+  document.getElementById('channelNameWrap').style.display = isCh ? 'block' : 'none';
+  document.getElementById('chatCancelWrap').style.display = isCh ? 'none' : 'block';
+}
+
+// ── WebView / Capacitor detection ────────────────────────────────────────────
+var isWebView = /wv|WebView/i.test(navigator.userAgent) || !!window.Capacitor;
+if (isWebView) {
+  // Telegram widget iframe doesn't work in WebView — hide it, show custom button
+  var tgWidget = document.getElementById('telegramLoginWrap');
+  if (tgWidget) tgWidget.style.display = 'none';
+  var tgApkBtn = document.getElementById('telegramApkBtn');
+  if (tgApkBtn) tgApkBtn.style.display = 'block';
+}
+
+function openTelegramAuth() {
+  // Open web version in system browser where Telegram widget works
+  var url = 'https://c4v2jht698-ux.github.io/kosmos-frontend/#telegram-login';
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+    window.Capacitor.Plugins.Browser.open({ url: url });
+  } else {
+    window.open(url, '_system');
+  }
+}
+
+// ── Referral code from URL ────────────────────────────────────────────────────
+var _refCode = new URLSearchParams(window.location.search).get('ref') || '';
+
+// ── Init on load ─────────────────────────────────────────────────────────────
+applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
+buildSeedGrid();
+
+document.getElementById('overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+
+// Splash: stars + typewriter
+(function(){
+  var c = document.getElementById('starsCanvas');
+  if (!c) return;
+  var ctx = c.getContext('2d');
+  c.width = window.innerWidth; c.height = window.innerHeight;
+  var stars = [], t = 0;
+  for (var i = 0; i < 80; i++) stars.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*1.4+0.3,sp:Math.random()*0.015+0.005,ph:Math.random()*Math.PI*2});
+  function draw(){ctx.clearRect(0,0,c.width,c.height);for(var i=0;i<stars.length;i++){var s=stars[i],a=0.3+0.7*Math.abs(Math.sin(t*s.sp+s.ph));ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,'+a+')';ctx.fill();}t++;requestAnimationFrame(draw);}
+  draw();
+  var _splashText='Powered by Jesus Christ.';
+  var _splashIdx=0;
+  var _splashEl=document.getElementById('splashTyped');
+  var _splashCur=document.getElementById('splashCursor');
+  function _splashType(){
+    if(_splashIdx<_splashText.length){
+      _splashEl.textContent+=_splashText[_splashIdx++];
+      setTimeout(_splashType,28);
+    } else {
+      setTimeout(function(){_splashCur.style.display='none';},1000);
+      setTimeout(closeSplash,2800);
+    }
+  }
+  setTimeout(_splashType,900);
+})();
+
+// Auto-login
+if (jwtToken) {
+  fetch(API + '/me', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(user) {
+      if (user) {
+        currentUser = user;
+        localStorage.setItem('kosmos_user', JSON.stringify(user));
+      } else {
+        localStorage.removeItem('kosmos_token');
+        localStorage.removeItem('kosmos_user');
+        jwtToken = null;
+      }
+    })
+    .catch(function() {});
+}
+
+// ── Telegram Bot Auth ─────────────────────────────────────────────────────────
+async function startTelegramBotAuth() {
+  var btn = document.getElementById('tgAuthBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm5.53 8.16l-1.8 8.49c-.14.6-.5.75-.99.47l-2.75-2.03-1.33 1.27c-.14.15-.27.27-.56.27l.2-2.82 5.1-4.6c.22-.2-.05-.3-.34-.13l-6.3 3.97-2.72-.85c-.59-.18-.6-.59.12-.87l10.63-4.1c.49-.18.92.12.76.87z"/></svg> \u041E\u0436\u0438\u0434\u0430\u0435\u043C \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0438\u044F...'; btn.style.opacity = '0.7'; }
+  try {
+    var r = await fetch(API + '/auth/telegram/init', { method: 'POST' });
+    var data = await r.json();
+    if (!data.botUrl || !data.token) { toast('Ошибка подключения', 'error'); resetTgBtn(); return; }
+
+    window.open(data.botUrl, '_blank');
+
+    var attempts = 0;
+    var poll = setInterval(async function() {
+      attempts++;
+      if (attempts > 150) { clearInterval(poll); toast('Время вышло. Попробуйте снова.', 'error'); resetTgBtn(); return; }
+      try {
+        var cr = await fetch(API + '/auth/telegram/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: data.token })
+        });
+        var cd = await cr.json();
+        if (cd.token) {
+          clearInterval(poll);
+          jwtToken = cd.token;
+          refreshToken = cd.refreshToken;
+          currentUser = cd.user;
+          localStorage.setItem('kosmos_token', jwtToken);
+          if (cd.refreshToken) localStorage.setItem('kosmos_refresh', cd.refreshToken);
+          localStorage.setItem('kosmos_user', JSON.stringify(cd.user));
+          enterApp();
+        }
+      } catch(e) {}
+    }, 2000);
+  } catch(e) {
+    toast('Нет связи с сервером', 'error');
+    resetTgBtn();
+  }
+}
+function resetTgBtn() {
+  var btn = document.getElementById('tgAuthBtn');
+  if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm5.53 8.16l-1.8 8.49c-.14.6-.5.75-.99.47l-2.75-2.03-1.33 1.27c-.14.15-.27.27-.56.27l.2-2.82 5.1-4.6c.22-.2-.05-.3-.34-.13l-6.3 3.97-2.72-.85c-.59-.18-.6-.59.12-.87l10.63-4.1c.49-.18.92.12.76.87z"/></svg> \u0412\u043E\u0439\u0442\u0438 \u0447\u0435\u0440\u0435\u0437 Telegram'; btn.style.opacity = '1'; }
+}
+
+// ── Apple Auth ───────────────────────────────────────────────────────────────
+function onAppleAuth() {
+  if (typeof AppleID === 'undefined') {
+    toast('Apple Sign In недоступен', 'error');
+    return;
+  }
+  AppleID.auth.signIn().then(function(response) {
+    var idToken = response.authorization && response.authorization.id_token;
+    if (!idToken) { toast('Не удалось получить токен Apple', 'error'); return; }
+    fetch(API + '/auth/apple', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id_token: idToken,
+        user: response.user || null,
+      }),
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.token) {
+          jwtToken = data.token;
+          refreshToken = data.refreshToken;
+          currentUser = data.user;
+          localStorage.setItem('kosmos_token', jwtToken);
+          if (data.refreshToken) localStorage.setItem('kosmos_refresh', data.refreshToken);
+          localStorage.setItem('kosmos_user', JSON.stringify(data.user));
+          enterApp();
+        } else {
+          toast(data.error || 'Ошибка авторизации Apple', 'error');
+        }
+      })
+      .catch(function() { toast('Нет связи с сервером', 'error'); });
+  }).catch(function(err) {
+    if (err.error === 'popup_closed_by_user') return;
+    console.error('[apple] auth error:', err);
+    toast('Ошибка Apple Sign In', 'error');
+  });
+}
+window.onAppleAuth = onAppleAuth;
+
+render();
+
+// ── Backend ping (keep Render awake) ─────────────────────────────────────────
+fetch(API + '/ping').catch(function(){});
+setInterval(function() { fetch(API + '/ping').catch(function(){}); }, 9 * 60 * 1000);
+
+// ── Offline detection ────────────────────────────────────────────────────────
+var offlineBanner = null;
+window.addEventListener('offline', function() {
+  if (offlineBanner) return;
+  offlineBanner = document.createElement('div');
+  offlineBanner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:10000;background:#FF3B30;color:#fff;text-align:center;padding:6px;font-size:13px;font-weight:600';
+  offlineBanner.textContent = 'Нет соединения';
+  document.body.appendChild(offlineBanner);
+});
+window.addEventListener('online', function() {
+  if (offlineBanner) { offlineBanner.remove(); offlineBanner = null; }
+  if (socket && !socket.connected) socket.connect();
+  loadMyChats();
+});
+
+// ── Swipe back (Hammer.js) + Android back button ─────────────────────────────
+(function() {
+  if (typeof Hammer !== 'undefined') {
+    var mc = new Hammer(document.body, { recognizers: [[Hammer.Swipe, { direction: Hammer.DIRECTION_RIGHT, threshold: 50, velocity: 0.3 }]] });
+    mc.on('swiperight', function() {
+      if (document.body.classList.contains('chat-open')) goBack();
+    });
+  }
+
+  function handleBack() {
+    var qrScreen = document.getElementById('qrScreen');
+    var settingsScreen = document.getElementById('settingsScreen');
+
+    if (qrScreen && qrScreen.style.display !== 'none') {
+      showTab('chats');
+      return;
+    }
+    if (settingsScreen && settingsScreen.style.display !== 'none') {
+      showTab('chats');
+      return;
+    }
+    if (document.body.classList.contains('chat-open')) {
+      goBack();
+      return;
+    }
+    var d = document.createElement('div');
+    d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;padding:16px';
+    d.innerHTML = '<div style="background:var(--card);border-radius:16px;padding:20px;width:100%;text-align:center"><div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:8px">Выйти из Космоса?</div><div style="font-size:13px;color:var(--text2);margin-bottom:16px">Вы можете войти снова с помощью seed-фразы</div><button onclick="if(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App)window.Capacitor.Plugins.App.exitApp();this.closest(\'[data-exit]\').remove()" style="width:100%;padding:14px;background:#ff3b30;border:none;border-radius:12px;color:#fff;font-size:16px;font-weight:600;margin-bottom:8px;cursor:pointer">Выйти</button><button onclick="this.closest(\'[data-exit]\').remove()" style="width:100%;padding:14px;background:var(--bg2);border:none;border-radius:12px;color:var(--text);font-size:16px;cursor:pointer">Отмена</button></div>';
+    d.setAttribute('data-exit','');
+    d.onclick = function(e){ if(e.target===d) d.remove(); };
+    document.body.appendChild(d);
+  }
+
+  document.addEventListener('backbutton', handleBack);
+  try {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+      window.Capacitor.Plugins.App.addListener('backButton', function(e) {
+        // e.canGoBack is true if webview has history
+        handleBack();
+      });
+    }
+  } catch(e) {}
+  window.addEventListener('popstate', function() {
+    if (document.body.classList.contains('chat-open')) goBack();
+  });
+})();
+// ── API: load chats, search, create chat ────────────────────────────────────
+
+function apiFetch(url, opts, timeoutMs) {
+  timeoutMs = timeoutMs || 15000;
+  var controller = new AbortController();
+  var timer = setTimeout(function() { controller.abort(); }, timeoutMs);
+  opts = opts || {};
+  opts.signal = controller.signal;
+  if (!opts.headers) opts.headers = {};
+  if (jwtToken) opts.headers['Authorization'] = 'Bearer ' + jwtToken;
+  return fetch(url, opts).finally(function() { clearTimeout(timer); });
+}
+
+async function loadMyChats(retries) {
+  if (!jwtToken) return;
+  retries = retries || 0;
+  try {
+    const r = await fetch(`${API}/my-chats`, {
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    });
+    if (!r.ok) {
+      if (r.status === 401) logout();
+      return;
+    }
+    const data = await r.json();
+
+    channels.length = 0;
+    dms.length = 0;
+
+    var AI_SLUGS = ['crypto_pulse','cinema_club','music_wave','fitness_cosmos','tech_cosmos','gaming_zone','auto_drive','food_lab','travel_vibes','fashion_now','science_daily','health_tips','business_hub','humor_daily','nature_world','art_space','book_shelf','mindset_pro','ai_future','history_facts'];
+    (data.channels || []).forEach(ch => {
+      if (AI_SLUGS.indexOf(ch.slug) !== -1) return; // hide AI agent channels
+      channels.push({
+        id: ch.id, type: 'channel', name: ch.name, slug: ch.slug,
+        g: GS[ch.name.charCodeAt(0) % GS.length],
+        em: ch.name[0].toUpperCase(),
+        members: ch.members || 0,
+        prev: ch.last_text || '',
+        time: ch.last_time || '',
+        _ts: parseInt(ch.last_ts) || 0,
+        unread: 0, msgs: [], _loaded: false,
+        created_by: ch.created_by,
+      });
+    });
+
+    (data.dms || []).forEach(dm => {
+      const name = dm.name || 'Пользователь';
+      dms.push({
+        id: dm.chat_id, type: 'chat', name,
+        g: GS[name.charCodeAt(0) % GS.length],
+        em: name[0].toUpperCase(),
+        online: false,
+        prev: dm.last_text || '',
+        time: dm.last_time || '',
+        _ts: parseInt(dm.last_ts) || 0,
+        unread: 0, msgs: [], _loaded: false,
+      });
+    });
+
+    render();
+
+    // Переподписаться на все каналы после загрузки
+    if (socket && socket.connected) {
+      channels.forEach(c => socket.emit('join', c.id));
+      dms.forEach(d => socket.emit('join', d.id));
+    }
+  } catch(e) {
+    console.warn('[api] loadMyChats failed:', e.message);
+    if (retries < 3) {
+      console.log('[api] retry in 5s... (' + (retries+1) + '/3)');
+      setTimeout(() => loadMyChats(retries + 1), 5000);
+    }
+  }
+}
+
+let searchTimeout;
+async function sidebarSearch(q) {
+  clearTimeout(searchTimeout);
+  const sr = document.getElementById('sidebarResults');
+  if (!q.trim()) {
+    sr.style.display = 'none';
+    document.getElementById('chSection').style.display = '';
+    const dmSec = document.getElementById('dmSection');
+    if (dmSec) dmSec.style.display = 'none';
+    return;
+  }
+
+  sr.style.display = 'block';
+  document.getElementById('chSection').style.display = 'none';
+  const dmSec = document.getElementById('dmSection');
+  if (dmSec) dmSec.style.display = 'none';
+
+  searchTimeout = setTimeout(async () => {
+    try {
+      const [ur, cr] = await Promise.all([
+        fetch(`${API}/users?search=${encodeURIComponent(q)}`, {
+          headers: { 'Authorization': `Bearer ${jwtToken}` }
+        }).then(r => r.ok ? r.json() : []),
+        fetch(`${API}/channels?search=${encodeURIComponent(q)}`, {
+          headers: { 'Authorization': `Bearer ${jwtToken}` }
+        }).then(r => r.ok ? r.json() : []),
+      ]);
+
+      let html = '';
+
+      if (ur.length) {
+        html += '<div class="sec-label" style="padding:10px 11px 4px">Пользователи</div>';
+        html += ur.map(u => `
+          <div class="ci" onclick="startDM('${u.id}','${escSearch(u.username)}','${escSearch(u.handle || '')}')">
+            <div class="av ${GS[u.username.charCodeAt(0) % GS.length]}">${u.username[0].toUpperCase()}</div>
+            <div class="ci-info">
+              <div class="ci-name">${u.username}</div>
+              <div class="ci-prev">@${u.handle || ''}</div>
+            </div>
+          </div>`).join('');
+      }
+
+      if (cr.length) {
+        html += '<div class="sec-label" style="padding:10px 11px 4px">Каналы</div>';
+        html += cr.map(c => `
+          <div class="ci" onclick="joinChannel('${c.id}','${escSearch(c.name)}','${escSearch(c.slug || '')}')">
+            <div class="av ${GS[c.name.charCodeAt(0) % GS.length]} sq">${c.name[0].toUpperCase()}</div>
+            <div class="ci-info">
+              <div class="ci-name">${c.name}</div>
+              <div class="ci-prev">${c.members || 0} участников</div>
+            </div>
+          </div>`).join('');
+      }
+
+      if (!html) html = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">Ничего не найдено</div>';
+      sr.innerHTML = html;
+    } catch(e) {
+      console.error('[api] search:', e);
+    }
+  }, 300);
+}
+
+function escSearch(s) {
+  return String(s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+function startDM(userId, username, handle) {
+  // Закрываем поиск
+  document.querySelector('.search input').value = '';
+  document.getElementById('sidebarResults').style.display = 'none';
+  document.getElementById('chSection').style.display = '';
+
+  const myId = currentUser.id;
+  const ids = [myId, userId].sort();
+  const chatId = 'dm-' + ids[0] + '-' + ids[1];
+
+  let item = dms.find(d => d.id === chatId);
+  if (!item) {
+    const name = username + (handle ? ' @' + handle : '');
+    item = {
+      id: chatId, type: 'chat', name,
+      g: GS[username.charCodeAt(0) % GS.length],
+      em: username[0].toUpperCase(),
+      online: false, prev: '', time: '', _ts: 0,
+      unread: 0, msgs: [], _loaded: false,
+    };
+    dms.unshift(item);
+    render();
+  }
+
+  openChat(chatId);
+  closeModal();
+}
+
+async function joinChannel(id, name, slug) {
+  document.querySelector('.search input').value = '';
+  document.getElementById('sidebarResults').style.display = 'none';
+  document.getElementById('chSection').style.display = '';
+
+  await fetch(`${API}/channels/${id}/join`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${jwtToken}` }
+  });
+
+  let item = channels.find(c => c.id === id);
+  if (!item) {
+    item = {
+      id, type: 'channel', name, slug,
+      g: GS[name.charCodeAt(0) % GS.length],
+      em: name[0].toUpperCase(),
+      members: '?', prev: '', time: '', _ts: 0,
+      unread: 0, msgs: [], _loaded: false,
+    };
+    channels.unshift(item);
+    render();
+  }
+  openChat(id);
+}
+
+async function searchUsers(q) {
+  if (!q.trim()) { document.getElementById('userResults').innerHTML = ''; return; }
+  try {
+    const r = await fetch(`${API}/users?search=${encodeURIComponent(q)}`, {
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    });
+    const users = r.ok ? await r.json() : [];
+    document.getElementById('userResults').innerHTML = users.length
+      ? users.map(u => `
+        <div class="user-result" onclick="startDM('${u.id}','${escSearch(u.username)}','${escSearch(u.handle || '')}')">
+          <div class="ur-av ${GS[u.username.charCodeAt(0) % GS.length]}">${u.username[0].toUpperCase()}</div>
+          <div><div class="ur-name">${u.username}</div><div class="ur-email">@${u.handle || ''}</div></div>
+        </div>`).join('')
+      : '<div class="user-results-empty">Не найдено</div>';
+  } catch(e) {
+    console.error('[api] searchUsers:', e);
+  }
+}
+
+async function createChat() {
+  const isCh = document.querySelector('input[name="ct"]:checked').value === 'channel';
+  if (isCh) {
+    const name = document.getElementById('ncName').value.trim();
+    if (!name) return;
+    try {
+      const r = await fetch(`${API}/channels`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${jwtToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+      if (!r.ok) return;
+      const ch = await r.json();
+      const item = {
+        id: ch.id, type: 'channel', name: ch.name, slug: ch.slug,
+        g: GS[ch.name.charCodeAt(0) % GS.length],
+        em: ch.name[0].toUpperCase(),
+        members: 1, prev: '', time: '', _ts: Date.now() / 1000,
+        unread: 0, msgs: [], _loaded: true,
+        created_by: currentUser.id,
+      };
+      channels.unshift(item);
+      render();
+      closeModal();
+      openChat(ch.id);
+    } catch(e) {
+      console.error('[api] createChannel:', e);
+    }
+  }
+}
+// ── Socket.io: connection, message handling, typing, keepalive ──────────────
+var keepaliveInterval = null;
+
+// ── Toast Notification ──────────────────────────────────────────────────────
+function showToast(name, text) {
+  var existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  var g = GS[(name || '?').charCodeAt(0) % GS.length];
+  var toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = '<div class="toast-av ' + g + '"><span style="color:#fff;font-size:14px">\uD83D\uDC36</span></div>' +
+    '<div class="toast-body"><div class="toast-name">' + (name || '') + '</div><div class="toast-text">' + (text || '').substring(0, 60) + '</div></div>';
+  document.body.appendChild(toast);
+  setTimeout(function() { toast.classList.add('show'); }, 10);
+  setTimeout(function() { toast.classList.remove('show'); setTimeout(function() { toast.remove(); }, 300); }, 3000);
+}
+
+// ── Tab Badge ───────────────────────────────────────────────────────────────
+function updateTabBadges() {
+  var totalUnread = 0;
+  channels.concat(dms).forEach(function(c) { totalUnread += (c.unread || 0); });
+  var chatTab = document.getElementById('navChats');
+  if (chatTab) {
+    var badge = chatTab.querySelector('.tab-badge');
+    if (totalUnread > 0) {
+      if (!badge) { badge = document.createElement('span'); badge.className = 'tab-badge'; chatTab.appendChild(badge); }
+      badge.textContent = totalUnread > 99 ? '99+' : totalUnread;
+    } else if (badge) { badge.remove(); }
+  }
+}
+
+function initSocket() {
+  if (socket) socket.disconnect();
+  if (keepaliveInterval) clearInterval(keepaliveInterval);
+
+  socket = io(API, {
+    auth: { token: jwtToken },
+    transports: ['polling', 'websocket'],
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 2000,
+    reconnectionDelayMax: 30000,
+    timeout: 20000,
+  });
+
+  socket.on('connect', function() {
+    console.log('[socket] connected as', currentUser ? currentUser.username : '?');
+    if (currentUser) {
+      var sub = document.getElementById('logoSub');
+      if (sub) sub.textContent = currentUser.handle ? '@' + currentUser.handle : currentUser.username;
+    }
+    if (cur) socket.emit('join', cur);
+    channels.forEach(function(c) { socket.emit('join', c.id); });
+    dms.forEach(function(d) { socket.emit('join', d.id); });
+  });
+
+  socket.on('connect_error', function(e) {
+    console.warn('[socket] error:', e.message);
+  });
+
+  socket.on('reconnect', function(attempt) {
+    console.log('[socket] reconnected after', attempt, 'attempts');
+    if (cur) socket.emit('join', cur);
+    channels.forEach(function(c) { socket.emit('join', c.id); });
+    dms.forEach(function(d) { socket.emit('join', d.id); });
+  });
+
+  keepaliveInterval = setInterval(function() {
+    fetch(API + '/health').catch(function() {});
+  }, 14 * 60 * 1000);
+
+  socket.on('chat_msg', function(msg) {
+    var ts = new Date(msg.created_at * 1000);
+    var time = ts.getHours().toString().padStart(2, '0') + ':' + ts.getMinutes().toString().padStart(2, '0');
+    var from = currentUser && msg.sender_id === currentUser.id ? 'me' : 'them';
+    var m = { id: msg.id, from: from, text: msg.text, time: time, sender: msg.sender_username };
+
+    var item = findItem(msg.chat_id);
+
+    if (!item) {
+      var chatId = msg.chat_id;
+      if (chatId.startsWith('dm-')) {
+        var senderName = msg.sender_username || 'Пользователь';
+        item = {
+          id: chatId, type: 'chat', name: senderName,
+          g: GS[senderName.charCodeAt(0) % GS.length],
+          em: senderName[0].toUpperCase(),
+          online: true, prev: '', time: '', _ts: 0, unread: 0, msgs: [], _loaded: true,
+        };
+        dms.unshift(item);
+        socket.emit('join', chatId);
+      } else {
+        return;
+      }
+    }
+
+    item.msgs.push(m);
+    item.prev = msg.text.substring(0, 36);
+    item.time = time;
+    item._ts = msg.created_at;
+
+    if (cur === msg.chat_id) {
+      var isCh = item.type === 'channel';
+      appendMsg(m, isCh);
+    } else {
+      item.unread = (item.unread || 0) + 1;
+      // Toast notification if message is from someone else
+      if (from === 'them') {
+        showToast(msg.sender_username || item.name, msg.text);
+      }
+    }
+
+    render();
+    updateTabBadges();
+  });
+
+  socket.on('typing', function(data) {
+    if (cur === data.chatId && data.username !== (currentUser ? currentUser.username : '')) {
+      showTypingIndicator();
+    }
+  });
+
+  socket.on('error_msg', function(data) {
+    console.error('[socket] error_msg:', data.error);
+  });
+}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.socket.io https://cdnjs.cloudflare.com https://appleid.cdn-apple.com; connect-src 'self' https://kosmos-backend-1.onrender.com wss://kosmos-backend-1.onrender.com https://appleid.apple.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; frame-src https://appleid.apple.com;">
+<meta name="appleid-signin-client-id" content="com.kosmos.app">
+<meta name="appleid-signin-scope" content="name email">
+<meta name="appleid-signin-redirect-uri" content="https://c4v2jht698-ux.github.io/kosmos-frontend/">
+<meta name="appleid-signin-use-popup" content="true">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Космос</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+<script type="text/javascript" src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js"></script>
+<link rel="stylesheet" href="css/app.css?v=2">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash" style="position:fixed;inset:0;z-index:9999;background:#060a14;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:transform .8s ease,opacity .8s ease">
+  <canvas id="starsCanvas" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+  <div style="font-family:'Playfair Display',serif;font-size:52px;font-style:italic;color:#fff;position:relative;z-index:1">Космос</div>
+  <p id="splashPowered" style="font-family:'Playfair Display',serif;font-style:italic;font-size:18px;color:rgba(255,255,255,0.5);position:absolute;bottom:90px;left:50%;transform:translateX(-50%);white-space:nowrap;z-index:1">
+    <span id="splashTyped"></span><span id="splashCursor" style="display:inline-block;width:1.5px;height:18px;background:rgba(255,255,255,0.5);vertical-align:middle;margin-left:2px"></span>
+  </p>
+</div>
+
+<!-- AUTH -->
+<div class="auth" id="auth">
+  <div class="auth-card">
+    <div class="auth-constellation">
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+        <circle cx="8" cy="8" r="3" fill="#7C3AED"/>
+        <circle cx="24" cy="6" r="2" fill="#7C3AED" opacity=".6"/>
+        <circle cx="16" cy="16" r="4" fill="#7C3AED"/>
+        <circle cx="6" cy="24" r="2" fill="#7C3AED" opacity=".4"/>
+        <circle cx="26" cy="22" r="2.5" fill="#7C3AED" opacity=".7"/>
+        <line x1="8" y1="8" x2="16" y2="16" stroke="#7C3AED" stroke-width=".5" opacity=".3"/>
+        <line x1="24" y1="6" x2="16" y2="16" stroke="#7C3AED" stroke-width=".5" opacity=".3"/>
+        <line x1="16" y1="16" x2="26" y2="22" stroke="#7C3AED" stroke-width=".5" opacity=".3"/>
+        <line x1="16" y1="16" x2="6" y2="24" stroke="#7C3AED" stroke-width=".5" opacity=".3"/>
+      </svg>
+      <div class="auth-logo">Кос<em>мос</em></div>
+    </div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchTab('login')">Войти</button>
+      <button class="auth-tab" onclick="switchTab('register')">Регистрация</button>
+    </div>
+
+    <div id="authForm">
+      <div class="auth-error" id="authError"></div>
+      <div class="auth-success" id="authSuccess"></div>
+
+      <div id="regFields" style="display:none">
+        <div class="auth-welcome">Создать аккаунт</div>
+        <div class="auth-sub">// выберите имя и @username</div>
+        <div class="auth-label">Имя</div>
+        <input class="auth-input" id="authName" type="text" placeholder="Твоё имя...">
+        <div class="auth-label">@username</div>
+        <input class="auth-input" id="authHandle" type="text" placeholder="только латиница, цифры, _" autocomplete="off" autocapitalize="none">
+      </div>
+
+      <div id="loginFields">
+        <div class="auth-welcome">Добро пожаловать</div>
+        <div class="auth-sub">// введите seed-фразу для восстановления доступа</div>
+        <div class="seed-grid" id="seedGrid"></div>
+      </div>
+
+      <div id="seedResult" style="display:none">
+        <div class="auth-welcome">Ваш ключ доступа</div>
+        <div class="auth-sub" style="color:#f59e0b">// запишите и сохраните — это единственный способ войти</div>
+        <div class="seed-grid" id="seedShowGrid" style="margin-bottom:14px"></div>
+        <button onclick="copySeed()" class="auth-btn-ghost" style="margin-bottom:8px">Скопировать фразу</button>
+        <span id="seedCopied" style="font-family:'Space Mono',monospace;font-size:11px;color:#34d399;display:none;text-align:center;margin-bottom:8px">Скопировано!</span>
+        <button class="auth-btn" onclick="enterAfterReg()">Войти в Космос</button>
+      </div>
+
+      <button class="auth-btn" id="authBtn" onclick="submitAuth()">Войти в Космос</button>
+      <button class="auth-btn-ghost" id="authToggleBtn" onclick="switchTab('register')">Создать новый аккаунт</button>
+
+      <div style="display:flex;align-items:center;gap:10px;margin:16px 0 8px">
+        <div style="flex:1;height:1px;background:var(--sep)"></div>
+        <span style="font-size:12px;color:var(--text3)">или</span>
+        <div style="flex:1;height:1px;background:var(--sep)"></div>
+      </div>
+
+      <div id="telegramLoginWrap" style="text-align:center">
+        <button id="tgAuthBtn" onclick="startTelegramBotAuth()" style="display:inline-flex;align-items:center;gap:8px;background:#54A9EB;border:none;border-radius:12px;color:#fff;padding:14px 24px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;width:100%;justify-content:center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm5.53 8.16l-1.8 8.49c-.14.6-.5.75-.99.47l-2.75-2.03-1.33 1.27c-.14.15-.27.27-.56.27l.2-2.82 5.1-4.6c.22-.2-.05-.3-.34-.13l-6.3 3.97-2.72-.85c-.59-.18-.6-.59.12-.87l10.63-4.1c.49-.18.92.12.76.87z"/></svg>
+          Войти через Telegram
+        </button>
+      </div>
+
+      <div id="appleSignInBtn" style="text-align:center;margin-top:10px">
+        <button onclick="onAppleAuth()" style="display:inline-flex;align-items:center;gap:8px;background:#000;border:none;border-radius:12px;color:#fff;padding:14px 24px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;width:100%;justify-content:center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+          Sign in with Apple
+        </button>
+      </div>
+
+      <div class="auth-hint" id="authHint">
+        <span id="seedPhrase" style="display:none"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ONBOARDING -->
+<div class="onboarding hidden" id="onboarding"></div>
+
+<div class="sidebar" id="sidebar">
+  <div class="logo-wrap">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between">
+      <div>
+        <div class="logo">Кос<em>мос</em></div>
+        <div class="logo-sub" id="logoSub">мессенджер</div>
+      </div>
+      <div style="display:flex;align-items:center;background:#f8fafc;border-radius:50px;padding:6px 12px;gap:10px;border:1px solid #cbd5e1">
+        <button id="qrBtn" onclick="openQRModal()" style="display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;padding:0">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.8">
+            <rect x="2" y="2" width="8" height="8" rx="1.5"/><rect x="14" y="2" width="8" height="8" rx="1.5"/><rect x="2" y="14" width="8" height="8" rx="1.5"/>
+            <rect x="4" y="4" width="4" height="4" fill="#475569" stroke="none"/><rect x="16" y="4" width="4" height="4" fill="#475569" stroke="none"/><rect x="4" y="16" width="4" height="4" fill="#475569" stroke="none"/>
+            <rect x="14" y="14" width="3" height="3" fill="#475569" stroke="none"/><rect x="18" y="14" width="3" height="3" fill="#475569" stroke="none"/><rect x="14" y="18" width="3" height="3" fill="#475569" stroke="none"/><rect x="18" y="18" width="3" height="3" fill="#475569" stroke="none"/>
+          </svg>
+        </button>
+        <div style="width:1px;height:14px;background:#cbd5e1"></div>
+        <button onclick="openModal()" style="display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;padding:0">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.8" stroke-linecap="round">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="search-wrap">
+    <div class="search">
+      <span style="color:var(--muted);font-size:15px">&#8981;</span>
+      <input type="text" placeholder="Поиск пользователей..." oninput="debouncedSearch(this.value)">
+    </div>
+  </div>
+  <div id="sidebarResults" style="display:none;padding:0 9px"></div>
+
+  <div id="chSection">
+    <div class="sec-label">Чаты</div>
+    <div class="chat-list" id="chList"></div>
+  </div>
+  <div id="dmSection">
+    <div class="sec-label">Сообщения</div>
+    <div class="chat-list grow" id="dmList"></div>
+  </div>
+</div>
+
+<div class="main" id="mainArea">
+  <div class="empty">
+    <div class="empty-card">
+      <div class="empty-icon">&#128640;</div>
+      <h2>Добро пожаловать в Космос</h2>
+      <p>Выбери чат слева или создай новый</p>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-title">Новый чат</div>
+    <div class="rg" style="margin-bottom:18px">
+      <label><input type="radio" name="ct" value="chat" checked style="accent-color:var(--accent)" onchange="onChatTypeChange()"> Личный</label>
+      <label><input type="radio" name="ct" value="channel" style="accent-color:var(--accent)" onchange="onChatTypeChange()"> Канал</label>
+    </div>
+    <div id="userSearchWrap">
+      <input class="minp" id="userSearch" type="text" placeholder="Поиск по имени..." oninput="searchUsers(this.value)" autocomplete="off">
+      <div class="user-results" id="userResults"></div>
+    </div>
+    <div id="channelNameWrap" style="display:none">
+      <input class="minp" type="text" id="ncName" placeholder="Название канала..." maxlength="30">
+      <div class="mbtns">
+        <button class="bcnl" onclick="closeModal()">Отмена</button>
+        <button class="bcrte" onclick="createChat()">Создать</button>
+      </div>
+    </div>
+    <div id="chatCancelWrap">
+      <button class="bcnl" style="width:100%;margin-top:4px" onclick="closeModal()">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="qrOverlay" style="display:none" onclick="if(event.target===this)closeQRModal()">
+  <div class="modal" style="max-width:340px;text-align:center">
+    <div style="display:flex;margin-bottom:20px;background:var(--bg2);border-radius:10px;padding:3px">
+      <button id="qrTabMy" onclick="switchQRTab('my')" style="flex:1;padding:8px;border:none;border-radius:8px;font-family:inherit;font-size:14px;font-weight:600;background:var(--accent);color:#fff;cursor:pointer">Мой QR</button>
+      <button id="qrTabScan" onclick="switchQRTab('scan')" style="flex:1;padding:8px;border:none;border-radius:8px;font-family:inherit;font-size:14px;font-weight:600;background:none;color:var(--text2);cursor:pointer">Сканировать</button>
+    </div>
+    <div id="qrMyPanel">
+      <div id="qrcode" style="display:flex;justify-content:center;margin-bottom:12px"></div>
+      <div style="font-size:13px;color:var(--text2)" id="qrUsername"></div>
+    </div>
+    <div id="qrScanPanel" style="display:none">
+      <video id="qrVideo" style="width:100%;border-radius:12px;max-height:280px" autoplay playsinline></video>
+      <canvas id="qrCanvas" style="display:none"></canvas>
+      <div id="qrScanResult" style="margin-top:12px;font-size:14px;color:var(--accent)"></div>
+    </div>
+    <button onclick="closeQRModal()" style="margin-top:16px;width:100%;padding:12px;background:none;border:1px solid var(--sep);border-radius:10px;font-family:inherit;font-size:14px;color:var(--text2);cursor:pointer">Закрыть</button>
+  </div>
+</div>
+
+<!-- НИЖНЯЯ НАВИГАЦИЯ -->
+<div class="bottom-nav" id="bottomNav" style="display:none">
+  <div class="bn-item" id="bnQR" onclick="showTab('qr')">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="5" y="5" width="3" height="3" fill="currentColor" stroke="none" rx=".5"/><rect x="16" y="5" width="3" height="3" fill="currentColor" stroke="none" rx=".5"/><rect x="5" y="16" width="3" height="3" fill="currentColor" stroke="none" rx=".5"/><rect x="14" y="14" width="3" height="3" fill="currentColor" stroke="none" rx=".5"/><rect x="18" y="14" width="3" height="3" fill="currentColor" stroke="none" rx=".5"/><rect x="14" y="18" width="3" height="3" fill="currentColor" stroke="none" rx=".5"/><rect x="18" y="18" width="3" height="3" fill="currentColor" stroke="none" rx=".5"/></svg>
+    <span>QR-код</span>
+  </div>
+  <div class="bn-item active" id="bnChats" onclick="showTab('chats')">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    <span>Чаты</span>
+  </div>
+  <div class="bn-item" id="bnSettings" onclick="showTab('settings')">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    <span>Настройки</span>
+  </div>
+</div>
+
+<!-- QR ЭКРАН -->
+<div id="qrScreen" style="display:none;position:fixed;inset:0;bottom:72px;background:var(--bg);overflow-y:auto;z-index:99;flex-direction:column;align-items:center;padding:20px 16px;gap:16px">
+  <div style="font-size:20px;font-weight:700;color:var(--text);margin-bottom:8px">Мой QR-код</div>
+  <div style="width:100%;max-width:340px;background:var(--card);border-radius:20px;padding:28px 20px;display:flex;flex-direction:column;align-items:center;gap:14px;box-shadow:0 2px 12px rgba(0,0,0,.07)">
+    <div style="font-size:16px;font-weight:600;color:var(--text)" id="qrScreenUsername"></div>
+    <div style="position:relative;display:inline-block">
+      <div id="qrCodeDiv"></div>
+      <div id="qrAvatarCenter" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;border:3px solid #fff;z-index:2"></div>
+    </div>
+    <div style="font-size:13px;color:var(--text2)" id="qrScanLabel"></div>
+    <button onclick="shareQR()" style="width:100%;padding:14px;background:var(--accent);border:none;border-radius:13px;color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit">Поделиться ссылкой</button>
+  </div>
+</div>
+
+<!-- НАСТРОЙКИ ЭКРАН -->
+<div id="settingsScreen" style="display:none;position:fixed;inset:0;bottom:72px;background:var(--bg);overflow-y:auto;z-index:99">
+  <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+    <div style="background:var(--card);border-radius:16px;padding:16px;display:flex;align-items:center;gap:12px">
+      <div id="settingsAvatar" style="width:58px;height:58px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff;flex-shrink:0"></div>
+      <div>
+        <div id="settingsName" style="font-size:17px;font-weight:700;color:var(--text)"></div>
+        <div id="settingsHandle" style="font-size:13px;color:var(--text2);margin-top:2px"></div>
+      </div>
+    </div>
+    <div style="background:var(--card);border-radius:14px;overflow:hidden">
+      <div onclick="toggleTheme()" style="display:flex;align-items:center;gap:12px;padding:14px;border-bottom:.5px solid var(--sep);cursor:pointer">
+        <div style="width:32px;height:32px;border-radius:8px;background:#f5f0ff;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9b6ab5" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2"/></svg></div>
+        <span style="flex:1;font-size:15px;color:var(--text)">Тема оформления</span>
+        <span style="color:#c7c7cc">›</span>
+      </div>
+      <div onclick="document.getElementById('bgPicker').click()" style="display:flex;align-items:center;gap:12px;padding:14px;border-bottom:.5px solid var(--sep);cursor:pointer">
+        <div style="width:32px;height:32px;border-radius:8px;background:#f0f6ff;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5b8dd9" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
+        <span style="flex:1;font-size:15px;color:var(--text)">Фон чата</span>
+        <span id="bgPreview" style="width:28px;height:28px;border-radius:6px;background:var(--bg);border:.5px solid var(--sep);display:block"></span>
+        <span style="color:#c7c7cc">›</span>
+      </div>
+      <input type="file" id="bgPicker" accept="image/*" style="display:none" onchange="setChatBg(this)">
+      <div style="display:flex;align-items:center;gap:12px;padding:14px;border-bottom:.5px solid var(--sep)">
+        <div style="width:32px;height:32px;border-radius:8px;background:#f0fff4;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/></svg></div>
+        <span style="flex:1;font-size:15px;color:var(--text)">Уведомления</span>
+        <span style="color:#c7c7cc">›</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:14px">
+        <div style="width:32px;height:32px;border-radius:8px;background:#fff8f0;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e0844a" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <span style="flex:1;font-size:15px;color:var(--text)">Конфиденциальность</span>
+        <span style="color:#c7c7cc">›</span>
+      </div>
+    </div>
+    <div style="background:var(--card);border-radius:14px;overflow:hidden">
+      <div onclick="logout()" style="display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer">
+        <div style="width:32px;height:32px;border-radius:8px;background:#fff0f0;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div>
+        <span style="flex:1;font-size:15px;color:#e74c3c">Выйти</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/ui.js?v=2"></script>
+<script src="js/api.js?v=2"></script>
+<script src="js/socket.js?v=2"></script>
+<script src="js/app.js?v=2"></script>
+</body>
+</html>
 // ── UI: Render, chat open, message HTML, input helpers ──────────────────────
 
 function toast(msg, type) {
@@ -254,8 +1517,7 @@ async function leaveChannel(id) {
   render();
 }
 
-async function deleteDM(id) {
-  try { await apiFetch(API + '/chats/' + encodeURIComponent(id), { method: 'DELETE' }); } catch(e) {}
+function deleteDM(id) {
   var idx = dms.findIndex(function(d){return d.id===id});
   if (idx !== -1) dms.splice(idx, 1);
   if (cur === id) { cur = null; goBack(); }
@@ -2053,3 +3315,33 @@ function showConfirm(msg, onOk, onCancel) {
   overlay.onclick = function(e) { if(e.target===overlay) { document.body.removeChild(overlay); if(onCancel) onCancel(); } };
 }
 
+function sidebarSearch(q) {
+  var resultsEl = document.getElementById('sidebarResults');
+  if (!resultsEl) return;
+  q = (q || '').trim();
+  if (!q) {
+    resultsEl.style.display = 'none'; resultsEl.innerHTML = '';
+    var ch = document.getElementById('chSection'); if(ch) ch.style.display = '';
+    var dm = document.getElementById('dmSection'); if(dm) dm.style.display = '';
+    return;
+  }
+  var ch = document.getElementById('chSection'); if(ch) ch.style.display = 'none';
+  var dm = document.getElementById('dmSection'); if(dm) dm.style.display = 'none';
+  resultsEl.style.display = 'block';
+  var ql = q.toLowerCase();
+  var local = channels.concat(dms).filter(function(c) { return (c.name||'').toLowerCase().indexOf(ql) !== -1; });
+  if (local.length) { resultsEl.innerHTML = local.map(function(c){return itm(c);}).join(''); return; }
+  resultsEl.innerHTML = '<div style="padding:8px;color:var(--text3);font-size:13px">Поиск...</div>';
+  clearTimeout(sidebarSearch._t);
+  sidebarSearch._t = setTimeout(function() {
+    fetch(API + '/users/search?q=' + encodeURIComponent(q), { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+    .then(function(r){return r.json();})
+    .then(function(data){
+      var users = data.users || data || [];
+      if (!users.length) { resultsEl.innerHTML = '<div style="padding:16px;color:var(--text3);font-size:13px;text-align:center">Никого не найдено</div>'; return; }
+      resultsEl.innerHTML = users.map(function(u){
+        return '<div class="ci" onclick="openChat(\x27'+u.id+'\x27)" style="padding:10px 14px;display:flex;align-items:center;gap:10px;cursor:pointer">'+defaultAv(u.username,40)+'<div><div style="font-weight:600;font-size:14px">'+escHtml(u.username||'')+'</div><div style="color:var(--text3);font-size:12px">@'+escHtml(u.handle||'')+'</div></div></div>';
+      }).join('');
+    }).catch(function(){ resultsEl.innerHTML = '<div style="padding:16px;color:var(--text3);font-size:13px;text-align:center">Ошибка поиска</div>'; });
+  }, 300);
+}

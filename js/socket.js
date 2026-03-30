@@ -8,8 +8,21 @@ function showToast(name, text) {
   var g = GS[(name || '?').charCodeAt(0) % GS.length];
   var toast = document.createElement('div');
   toast.className = 'toast';
-  toast.innerHTML = '<div class="toast-av ' + g + '"><span style="color:#fff;font-size:14px">\uD83D\uDC36</span></div>' +
-    '<div class="toast-body"><div class="toast-name">' + (name || '') + '</div><div class="toast-text">' + (text || '').substring(0, 60) + '</div></div>';
+  var av = document.createElement('div');
+  av.className = 'toast-av ' + g;
+  av.innerHTML = '<span style="color:#fff;font-size:14px">\uD83D\uDC36</span>';
+  var body = document.createElement('div');
+  body.className = 'toast-body';
+  var nameEl = document.createElement('div');
+  nameEl.className = 'toast-name';
+  nameEl.textContent = name || '';
+  var textEl = document.createElement('div');
+  textEl.className = 'toast-text';
+  textEl.textContent = (text || '').substring(0, 60);
+  body.appendChild(nameEl);
+  body.appendChild(textEl);
+  toast.appendChild(av);
+  toast.appendChild(body);
   document.body.appendChild(toast);
   setTimeout(function() { toast.classList.add('show'); }, 10);
   setTimeout(function() { toast.classList.remove('show'); setTimeout(function() { toast.remove(); }, 300); }, 3000);

@@ -305,16 +305,12 @@ function logout() {
   localStorage.removeItem('kosmos_refresh');
   localStorage.removeItem('kosmos_user');
   localStorage.removeItem('kosmos_onboarded');
-  localStorage.removeItem('chatBg');
   jwtToken = null; refreshToken = null; currentUser = null;
   if (socket) { socket.disconnect(); socket = null; }
   cur = null; channels.length = 0; dms.length = 0;
   document.getElementById('auth').classList.remove('hidden');
   document.getElementById('seedResult').style.display = 'none';
   document.getElementById('authBtn').style.display = '';
-  var bn=document.getElementById('bottomNav'); if(bn)bn.style.display='none';
-  var qr=document.getElementById('qrScreen'); if(qr)qr.style.display='none';
-  var st=document.getElementById('settingsScreen'); if(st)st.style.display='none';
   switchTab('login');
   document.getElementById('mainArea').innerHTML = '<div class="empty"><div class="empty-card"><div class="empty-icon">\uD83D\uDE80</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>';
 }
