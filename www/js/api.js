@@ -32,8 +32,8 @@ async function loadMyChats(retries) {
       if (AI_SLUGS.indexOf(ch.slug) !== -1) return; // hide AI agent channels
       channels.push({
         id: ch.id, type: 'channel', name: ch.name, slug: ch.slug,
-        g: GS[ch.name.charCodeAt(0) % GS.length],
-        em: ch.name[0].toUpperCase(),
+        g: GS[(ch.name || '?').charCodeAt(0) % GS.length],
+        em: (ch.name || '?')[0].toUpperCase(),
         members: ch.members || 0,
         prev: ch.last_text || '',
         time: ch.last_time || '',
@@ -108,7 +108,7 @@ async function sidebarSearch(q) {
         html += ur.map(u => {
           var safe = { id: escSearch(u.id), name: escHtml(u.username || ''), handle: escHtml(u.handle || '') };
           return '<div class="ci" data-action="dm" data-uid="' + safe.id + '" data-uname="' + escSearch(u.username) + '" data-uhandle="' + escSearch(u.handle || '') + '">' +
-            '<div class="av ' + GS[(u.username||'?').charCodeAt(0) % GS.length] + '">' + safe.name[0].toUpperCase() + '</div>' +
+            '<div class="av ' + GS[(u.username||'?').charCodeAt(0) % GS.length] + '">' + (safe.name || '?')[0].toUpperCase() + '</div>' +
             '<div class="ci-info"><div class="ci-name">' + safe.name + '</div><div class="ci-prev">@' + safe.handle + '</div></div></div>';
         }).join('');
       }
@@ -118,7 +118,7 @@ async function sidebarSearch(q) {
         html += cr.map(c => {
           var safe = { id: escSearch(c.id), name: escHtml(c.name || ''), slug: escHtml(c.slug || '') };
           return '<div class="ci" data-action="join" data-cid="' + safe.id + '" data-cname="' + escSearch(c.name) + '" data-cslug="' + escSearch(c.slug || '') + '">' +
-            '<div class="av ' + GS[(c.name||'?').charCodeAt(0) % GS.length] + ' sq">' + safe.name[0].toUpperCase() + '</div>' +
+            '<div class="av ' + GS[(c.name||'?').charCodeAt(0) % GS.length] + ' sq">' + (safe.name || '?')[0].toUpperCase() + '</div>' +
             '<div class="ci-info"><div class="ci-name">' + safe.name + '</div><div class="ci-prev">' + (c.members || 0) + ' участников</div></div></div>';
         }).join('');
       }
@@ -142,23 +142,41 @@ function escSearch(s) {
   return String(s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 
-function startDM(userId, username, handle) {
+async function startDM(userId, username, handle) {
   // Закрываем поиск
-  document.querySelector('.search input').value = '';
+  var searchInput = document.querySelector('.search input');
+  if (searchInput) searchInput.value = '';
   document.getElementById('sidebarResults').style.display = 'none';
   document.getElementById('chSection').style.display = '';
 
-  const myId = currentUser.id;
-  const ids = [myId, userId].sort();
-  const chatId = 'dm-' + ids[0] + '-' + ids[1];
+  // Try to get chat ID from server (prevents IDOR)
+  var chatId;
+  try {
+    var r = await fetch(API + '/chats/dm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+      body: JSON.stringify({ targetUserId: userId })
+    });
+    if (r.ok) {
+      var d = await r.json();
+      chatId = d.chatId || d.id;
+    }
+  } catch(e) {}
 
-  let item = dms.find(d => d.id === chatId);
+  // Fallback to client-side generation if server unavailable
+  if (!chatId) {
+    var myId = currentUser.id;
+    var ids = [myId, userId].sort();
+    chatId = 'dm-' + ids[0] + '-' + ids[1];
+  }
+
+  var item = dms.find(function(d) { return d.id === chatId; });
   if (!item) {
-    const name = username + (handle ? ' @' + handle : '');
+    var name = (username || '?') + (handle ? ' @' + handle : '');
     item = {
-      id: chatId, type: 'chat', name,
-      g: GS[username.charCodeAt(0) % GS.length],
-      em: username[0].toUpperCase(),
+      id: chatId, type: 'chat', name: name,
+      g: GS[(username || '?').charCodeAt(0) % GS.length],
+      em: (username || '?')[0].toUpperCase(),
       online: false, prev: '', time: '', _ts: 0,
       unread: 0, msgs: [], _loaded: false,
     };
@@ -184,8 +202,8 @@ async function joinChannel(id, name, slug) {
   if (!item) {
     item = {
       id, type: 'channel', name, slug,
-      g: GS[name.charCodeAt(0) % GS.length],
-      em: name[0].toUpperCase(),
+      g: GS[(name || '?').charCodeAt(0) % GS.length],
+      em: (name || '?')[0].toUpperCase(),
       members: '?', prev: '', time: '', _ts: 0,
       unread: 0, msgs: [], _loaded: false,
     };
@@ -205,7 +223,7 @@ async function searchUsers(q) {
     document.getElementById('userResults').innerHTML = users.length
       ? users.map(u => `
         <div class="user-result" onclick="startDM('${u.id}','${escSearch(u.username)}','${escSearch(u.handle || '')}')">
-          <div class="ur-av ${GS[u.username.charCodeAt(0) % GS.length]}">${u.username[0].toUpperCase()}</div>
+          <div class="ur-av ${GS[(u.username||'?').charCodeAt(0) % GS.length]}">${(u.username||'?')[0].toUpperCase()}</div>
           <div><div class="ur-name">${u.username}</div><div class="ur-email">@${u.handle || ''}</div></div>
         </div>`).join('')
       : '<div class="user-results-empty">Не найдено</div>';
@@ -229,8 +247,8 @@ async function createChat() {
       const ch = await r.json();
       const item = {
         id: ch.id, type: 'channel', name: ch.name, slug: ch.slug,
-        g: GS[ch.name.charCodeAt(0) % GS.length],
-        em: ch.name[0].toUpperCase(),
+        g: GS[(ch.name || '?').charCodeAt(0) % GS.length],
+        em: (ch.name || '?')[0].toUpperCase(),
         members: 1, prev: '', time: '', _ts: Date.now() / 1000,
         unread: 0, msgs: [], _loaded: true,
         created_by: currentUser.id,

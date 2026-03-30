@@ -1977,7 +1977,7 @@ function renderQRScreen() {
   var name = u.name || username;
   document.getElementById('qrScreenUsername').textContent = '@' + username;
   document.getElementById('qrScanLabel').textContent = 'Scan to chat with @' + username;
-  document.getElementById('qrAvatarCenter').textContent = name[0].toUpperCase();
+  document.getElementById('qrAvatarCenter').textContent = (name || '?')[0].toUpperCase();
   var div = document.getElementById('qrCodeDiv');
   div.innerHTML = '<div style="width:200px;height:200px;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:13px">Генерация...</div>';
   new QRCode(div, { text: 'https://c4v2jht698-ux.github.io/kosmos-frontend/?u=' + encodeURIComponent(username), width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
@@ -1989,7 +1989,7 @@ function renderSettingsScreen() {
   var username = u.username || u.handle || '';
   document.getElementById('settingsName').textContent = name;
   document.getElementById('settingsHandle').textContent = '@' + username;
-  document.getElementById('settingsAvatar').textContent = name[0].toUpperCase();
+  document.getElementById('settingsAvatar').textContent = (name || '?')[0].toUpperCase();
 }
 
 function shareQR() {

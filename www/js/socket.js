@@ -97,7 +97,7 @@ function initSocket() {
         item = {
           id: chatId, type: 'chat', name: senderName,
           g: GS[senderName.charCodeAt(0) % GS.length],
-          em: senderName[0].toUpperCase(),
+          em: (senderName || '?')[0].toUpperCase(),
           online: true, prev: '', time: '', _ts: 0, unread: 0, msgs: [], _loaded: true,
         };
         dms.unshift(item);
