@@ -149,7 +149,7 @@ function itm(c) {
   var isCh = c.type === 'channel';
   var avHtml = isCh ? defaultAvSq(c.name) : defaultAv(c.name);
   return '<div class="ci-wrap" data-id="' + c.id + '" data-type="' + c.type + '">' +
-    '<div class="ci-leave-bg">Покинуть</div>' +
+    '<div class="ci-leave-bg">' + (isCh ? 'Покинуть' : 'Удалить') + '</div>' +
     '<div class="ci' + (cur === c.id ? ' active' : '') + '" onclick="openChat(\'' + c.id + '\')">' +
       avHtml +
       '<div class="ci-info">' +
@@ -165,7 +165,7 @@ function itm(c) {
 }
 
 function initSwipeToLeave() {
-  document.querySelectorAll('.ci-wrap[data-type="channel"]').forEach(function(wrap) {
+  document.querySelectorAll('.ci-wrap').forEach(function(wrap) {
     if (wrap._swipeInit) return; // don't double-bind
     wrap._swipeInit = true;
     var ci = wrap.querySelector('.ci');
@@ -225,12 +225,23 @@ function initSwipeToLeave() {
       e.stopPropagation();
       var wrap = btn.closest('.ci-wrap');
       var id = wrap.dataset.id;
-      showConfirm('Покинуть канал?', function() {
-        leaveChannel(id);
-      }, function() {
-        wrap.classList.remove('swiped','swiping');
-        wrap.querySelector('.ci').style.transform = '';
-      });
+      var type = wrap.dataset.type;
+      if (type === 'chat') {
+        var dm = dms.find(function(d){return d.id===id});
+        showConfirm('Удалить чат с ' + (dm ? dm.name : '?') + '?', function() {
+          deleteDM(id);
+        }, function() {
+          wrap.classList.remove('swiped','swiping');
+          wrap.querySelector('.ci').style.transform = '';
+        });
+      } else {
+        showConfirm('Покинуть канал?', function() {
+          leaveChannel(id);
+        }, function() {
+          wrap.classList.remove('swiped','swiping');
+          wrap.querySelector('.ci').style.transform = '';
+        });
+      }
     };
   });
 }
@@ -239,6 +250,13 @@ async function leaveChannel(id) {
   try { await apiFetch(API + '/channels/' + id + '/leave', { method: 'POST' }); } catch(e) {}
   var idx = channels.findIndex(function(c){return c.id===id});
   if (idx !== -1) channels.splice(idx, 1);
+  if (cur === id) { cur = null; goBack(); }
+  render();
+}
+
+function deleteDM(id) {
+  var idx = dms.findIndex(function(d){return d.id===id});
+  if (idx !== -1) dms.splice(idx, 1);
   if (cur === id) { cur = null; goBack(); }
   render();
 }
