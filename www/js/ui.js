@@ -634,19 +634,84 @@ function buildFeedView(main) {
 }
 
 // ── Build Dating View ────────────────────────────────────────────────────────
+var datingTheme = localStorage.getItem('dating_theme') || 'pink';
+
+var DT = {
+  pink: {
+    bg: 'linear-gradient(160deg,#fce4f3,#e8d5f5,#dbeafe)',
+    title: '\u0417\u043D\u0430\u043A\u043E\u043C\u0441\u0442\u0432\u0430 \uD83D\uDC95',
+    titleColor: '#1a1a2e', subColor: '#9b6ab5',
+    cardShadow: '0 4px 24px rgba(180,100,200,0.15)',
+    photoBg: 'linear-gradient(135deg,#fce4f3,#e8d5f5,#dbeafe)',
+    likeBg: 'linear-gradient(135deg,#f472b6,#ec4899)', likeShadow: '0 6px 20px rgba(236,72,153,0.45)',
+    skipBorder: '#fecdd3', superBorder: '#bfdbfe',
+    tagBg: '#fce7f3', tagColor: '#be185d',
+    commonColor: '#be185d', statNum: '#9b6ab5',
+  },
+  sky: {
+    bg: 'linear-gradient(160deg,#e0f2fe,#dbeafe,#ede9fe)',
+    title: '\u0417\u043D\u0430\u043A\u043E\u043C\u0441\u0442\u0432\u0430 \uD83C\uDF24',
+    titleColor: '#0c4a6e', subColor: '#0369a1',
+    cardShadow: '0 4px 24px rgba(3,105,161,0.12)',
+    photoBg: 'linear-gradient(135deg,#e0f2fe,#dbeafe,#ede9fe)',
+    likeBg: 'linear-gradient(135deg,#0ea5e9,#6366f1)', likeShadow: '0 6px 20px rgba(14,165,233,0.4)',
+    skipBorder: '#fecdd3', superBorder: '#7dd3fc',
+    tagBg: '#e0f2fe', tagColor: '#0369a1',
+    commonColor: '#0369a1', statNum: '#0369a1',
+  }
+};
+
+function setDatingTheme(theme) {
+  datingTheme = theme;
+  localStorage.setItem('dating_theme', theme);
+  var main = document.getElementById('mainArea');
+  if (main) buildDatingView(main);
+}
+
 function buildDatingView(main) {
-  var backBtn = currentNav === 'dating' ? '' : '<button class="back-btn" onclick="goBack()">\u2039</button>';
+  var t = DT[datingTheme] || DT.pink;
+  var backBtn = currentNav === 'dating' ? '' : '<button class="back-btn" onclick="goBack()" style="color:' + t.titleColor + '">\u2039</button>';
   main.innerHTML =
-    '<div class="chat-hdr">' +
-      backBtn +
-      '<div class="av g5 sq" style="width:36px;height:36px;font-size:16px"><span style="color:#fff">\u2665</span></div>' +
-      '<div class="hinfo"><div class="hname">Встречи</div><div class="hsub">Знакомства</div></div>' +
-      '<div class="hacts"><button class="hb" onclick="openDatingProfile()">\u2699</button></div>' +
-    '</div>' +
-    '<div id="datingArea" style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px;overflow:hidden">' +
-      '<div style="color:var(--text3)">Загрузка...</div>' +
+    '<div class="dating-wrap" style="background:' + t.bg + '">' +
+      '<div class="dating-hdr">' +
+        '<div>' +
+          backBtn +
+          '<div class="dating-title" style="color:' + t.titleColor + '">' + t.title + '</div>' +
+          '<div class="dating-sub" style="color:' + t.subColor + '">\u041D\u0430\u0439\u0434\u0438 \u0441\u0432\u043E\u0435\u0433\u043E \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u0430</div>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<div class="dt-toggle">' +
+            '<div class="dt-toggle-item' + (datingTheme === 'pink' ? ' active' : '') + '" onclick="setDatingTheme(\'pink\')">\uD83C\uDF38</div>' +
+            '<div class="dt-toggle-item' + (datingTheme === 'sky' ? ' active' : '') + '" onclick="setDatingTheme(\'sky\')">\uD83C\uDF24</div>' +
+          '</div>' +
+          '<div class="dt-toggle-item" style="width:32px;height:32px;background:rgba(255,255,255,0.6);border-radius:50%;border:1px solid rgba(255,255,255,0.9);cursor:pointer" onclick="openDatingProfile()">\u2699\uFE0F</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="dating-stats" id="datingStats">' +
+        '<div class="dating-stat"><div class="dating-stat-num" style="color:' + t.statNum + '">0</div><div class="dating-stat-lbl">\u041C\u044D\u0442\u0447\u0438</div></div>' +
+        '<div class="dating-stat"><div class="dating-stat-num" style="color:' + t.statNum + '">0</div><div class="dating-stat-lbl">\u041B\u0430\u0439\u043A\u0438</div></div>' +
+        '<div class="dating-stat"><div class="dating-stat-num" style="color:' + t.statNum + '">0</div><div class="dating-stat-lbl">\u041E\u043D\u043B\u0430\u0439\u043D</div></div>' +
+      '</div>' +
+      '<div id="datingArea" style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px;overflow:hidden">' +
+        '<div style="color:' + t.subColor + '">\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430...</div>' +
+      '</div>' +
     '</div>';
   loadDatingCards();
+  loadDatingStats();
+}
+
+async function loadDatingStats() {
+  try {
+    var res = await fetch(API + '/dating/stats', { headers: { 'Authorization': 'Bearer ' + jwtToken } });
+    if (!res.ok) return;
+    var s = await res.json();
+    var t = DT[datingTheme] || DT.pink;
+    var el = document.getElementById('datingStats');
+    if (el) el.innerHTML =
+      '<div class="dating-stat"><div class="dating-stat-num" style="color:' + t.statNum + '">' + (s.matches || 0) + '</div><div class="dating-stat-lbl">\u041C\u044D\u0442\u0447\u0438</div></div>' +
+      '<div class="dating-stat"><div class="dating-stat-num" style="color:' + t.statNum + '">' + (s.likes || 0) + '</div><div class="dating-stat-lbl">\u041B\u0430\u0439\u043A\u0438</div></div>' +
+      '<div class="dating-stat"><div class="dating-stat-num" style="color:' + t.statNum + '">' + (s.online || 0) + '</div><div class="dating-stat-lbl">\u041E\u043D\u043B\u0430\u0439\u043D</div></div>';
+  } catch(e) {}
 }
 
 function saveNote() {
@@ -1140,7 +1205,8 @@ async function loadDatingCards() {
     datingCards = await res.json();
     datingIdx = 0;
     if (!datingCards.length) {
-      area.innerHTML = '<div class="empty-card" style="text-align:center"><div style="font-size:48px;margin-bottom:12px">\uD83D\uDC9C</div><h2>Свайпай больше!</h2><p>Новые люди появляются каждый день.<br>Заполните профиль (\u2699) чтобы вас находили</p></div>';
+      var t = DT[datingTheme] || DT.pink;
+      area.innerHTML = '<div style="text-align:center"><div style="font-size:48px;margin-bottom:12px">\uD83D\uDC9C</div><div style="font-size:18px;font-weight:700;color:' + t.titleColor + '">\u0421\u0432\u0430\u0439\u043F\u0430\u0439 \u0431\u043E\u043B\u044C\u0448\u0435!</div><div style="font-size:14px;color:' + t.subColor + ';margin-top:6px">\u041D\u043E\u0432\u044B\u0435 \u043B\u044E\u0434\u0438 \u043F\u043E\u044F\u0432\u043B\u044F\u044E\u0442\u0441\u044F \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C.<br>\u0417\u0430\u043F\u043E\u043B\u043D\u0438\u0442\u0435 \u043F\u0440\u043E\u0444\u0438\u043B\u044C (\u2699) \u0447\u0442\u043E\u0431\u044B \u0432\u0430\u0441 \u043D\u0430\u0445\u043E\u0434\u0438\u043B\u0438</div></div>';
       return;
     }
     showDatingCard();
@@ -1151,8 +1217,9 @@ async function loadDatingCards() {
 
 function showDatingCard() {
   var area = document.getElementById('datingArea');
+  var t = DT[datingTheme] || DT.pink;
   if (!area || datingIdx >= datingCards.length) {
-    if (area) area.innerHTML = '<div class="empty-card" style="text-align:center"><div style="font-size:48px;margin-bottom:12px">\u2728</div><h2>Анкеты закончились</h2><p>Загляните позже</p></div>';
+    if (area) area.innerHTML = '<div style="text-align:center"><div style="font-size:48px;margin-bottom:12px">\u2728</div><div style="font-size:18px;font-weight:700;color:' + t.titleColor + '">\u0410\u043D\u043A\u0435\u0442\u044B \u0437\u0430\u043A\u043E\u043D\u0447\u0438\u043B\u0438\u0441\u044C</div><div style="font-size:14px;color:' + t.subColor + ';margin-top:6px">\u0417\u0430\u0433\u043B\u044F\u043D\u0438\u0442\u0435 \u043F\u043E\u0437\u0436\u0435</div></div>';
     return;
   }
   var u = datingCards[datingIdx];
@@ -1161,14 +1228,23 @@ function showDatingCard() {
   var interestTags = theirInterests.map(function(i) {
     var found = INTERESTS.find(function(x){return x.id === i});
     var isCommon = common.indexOf(i) !== -1;
-    return '<span class="interest-tag" style="' + (isCommon ? 'background:rgba(124,58,237,0.25);border-color:var(--accent)' : '') + '">' +
+    return '<span style="display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500;background:' + (isCommon ? 'rgba(124,58,237,0.2)' : t.tagBg) + ';color:' + t.tagColor + '">' +
       (found ? found.emoji + ' ' : '') + i + '</span>';
   }).join('');
 
+  // Dots for card index
+  var total = Math.min(datingCards.length, 6);
+  var dots = '<div class="dating-dots">';
+  for (var d = 0; d < total; d++) {
+    dots += '<div class="dating-dot' + (d === datingIdx % total ? ' active' : '') + '"></div>';
+  }
+  dots += '</div>';
+
   area.innerHTML =
     '<div class="dating-card" id="datingCardEl">' +
-      '<div class="dating-card-inner">' +
-        '<div class="dating-photo ' + GS[(u.username || '?').charCodeAt(0) % GS.length] + '">' +
+      '<div class="dating-card-inner" style="box-shadow:' + t.cardShadow + '">' +
+        '<div class="dating-photo" style="background:' + t.photoBg + '">' +
+          dots +
           (u.photo ? '<img src="' + escHtml(u.photo) + '">' : '<span style="font-size:80px">\uD83D\uDC36</span>') +
         '</div>' +
         '<div class="dating-info">' +
@@ -1177,20 +1253,30 @@ function showDatingCard() {
           (u.city ? '<div class="dating-city">\uD83D\uDCCD ' + escHtml(u.city) + '</div>' : '') +
           (u.bio ? '<div class="dating-bio">' + escHtml(u.bio) + '</div>' : '') +
           (interestTags ? '<div class="dating-interests">' + interestTags + '</div>' : '') +
-          (common.length ? '<div class="dating-common">\u2728 Общих интересов: ' + common.length + '</div>' : '') +
+          (common.length ? '<div class="dating-common" style="color:' + t.commonColor + '">\u2728 \u041E\u0431\u0449\u0438\u0445 \u0438\u043D\u0442\u0435\u0440\u0435\u0441\u043E\u0432: ' + common.length + '</div>' : '') +
         '</div>' +
       '</div>' +
       '<div class="dating-actions">' +
-        '<button class="dating-btn dating-skip" onclick="datingAction(\'' + u.id + '\',\'skip\')">&#10005;</button>' +
-        '<button class="dating-btn dating-like" onclick="datingAction(\'' + u.id + '\',\'like\')">\u2764\uFE0F</button>' +
+        '<div style="text-align:center">' +
+          '<button class="dating-btn dating-btn-sm" style="border:2px solid ' + t.skipBorder + '" onclick="datingAction(\'' + u.id + '\',\'skip\')">&#10005;</button>' +
+          '<div class="dating-btn-label">\u041F\u0440\u043E\u043F\u0443\u0441\u043A</div>' +
+        '</div>' +
+        '<div style="text-align:center">' +
+          '<button class="dating-btn dating-btn-lg" style="background:' + t.likeBg + ';box-shadow:' + t.likeShadow + '" onclick="datingAction(\'' + u.id + '\',\'like\')">\u2764\uFE0F</button>' +
+          '<div class="dating-btn-label">\u041D\u0440\u0430\u0432\u0438\u0442\u0441\u044F</div>' +
+        '</div>' +
+        '<div style="text-align:center">' +
+          '<button class="dating-btn dating-btn-sm" style="border:2px solid ' + t.superBorder + '" onclick="datingAction(\'' + u.id + '\',\'super\')">\u2B50</button>' +
+          '<div class="dating-btn-label">\u0421\u0443\u043F\u0435\u0440</div>' +
+        '</div>' +
       '</div>' +
     '</div>';
 }
 
 async function datingAction(targetId, action) {
-  // Animate swipe
   var card = document.getElementById('datingCardEl');
-  if (card) card.classList.add(action === 'like' ? 'swipe-right' : 'swipe-left');
+  if (card) card.classList.add(action === 'like' || action === 'super' ? 'swipe-right' : 'swipe-left');
+  var t = DT[datingTheme] || DT.pink;
 
   try {
     var res = await fetch(API + '/dating/like', {
@@ -1205,12 +1291,12 @@ async function datingAction(targetId, action) {
         var area = document.getElementById('datingArea');
         if (area) {
           area.innerHTML =
-            '<div class="match-screen">' +
+            '<div style="text-align:center">' +
               '<div style="font-size:72px;margin-bottom:16px">\uD83C\uDF89</div>' +
-              '<div style="font-size:26px;font-weight:700;color:var(--text);margin-bottom:8px">Это мэтч!</div>' +
-              '<div style="font-size:14px;color:var(--text3);margin-bottom:24px">Вы понравились друг другу</div>' +
-              '<button onclick="openMatchChat(\'' + targetId + '\')" style="background:var(--accent);border:none;border-radius:14px;color:#fff;padding:14px 32px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(124,58,237,0.3)">Написать \u2192</button>' +
-              '<br><button onclick="datingIdx++;showDatingCard()" style="background:none;border:none;color:var(--text3);margin-top:12px;cursor:pointer;font-size:13px">Продолжить просмотр</button>' +
+              '<div style="font-size:26px;font-weight:700;color:' + t.titleColor + ';margin-bottom:8px">\u042D\u0442\u043E \u043C\u044D\u0442\u0447!</div>' +
+              '<div style="font-size:14px;color:' + t.subColor + ';margin-bottom:24px">\u0412\u044B \u043F\u043E\u043D\u0440\u0430\u0432\u0438\u043B\u0438\u0441\u044C \u0434\u0440\u0443\u0433 \u0434\u0440\u0443\u0433\u0443</div>' +
+              '<button onclick="openMatchChat(\'' + targetId + '\')" style="background:' + t.likeBg + ';border:none;border-radius:14px;color:#fff;padding:14px 32px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;box-shadow:' + t.likeShadow + '">\u041D\u0430\u043F\u0438\u0441\u0430\u0442\u044C \u2192</button>' +
+              '<br><button onclick="datingIdx++;showDatingCard()" style="background:none;border:none;color:' + t.subColor + ';margin-top:12px;cursor:pointer;font-size:13px">\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440</button>' +
             '</div>';
         }
       } else {
