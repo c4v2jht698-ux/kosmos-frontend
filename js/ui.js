@@ -676,16 +676,23 @@ function setDatingTheme(theme) {
   if (main) buildDatingView(main);
 }
 
+function goBackFromDating() {
+  document.body.classList.remove('dating-open');
+  navTo('chats');
+}
+
 function buildDatingView(main) {
+  document.body.classList.add('dating-open');
   var t = DT[datingTheme] || DT.pink;
-  var backBtn = currentNav === 'dating' ? '' : '<button class="back-btn" onclick="goBack()" style="color:' + t.titleColor + '">\u2039</button>';
   main.innerHTML =
     '<div class="dating-wrap" style="background:' + t.bg + '">' +
       '<div class="dating-hdr">' +
-        '<div>' +
-          backBtn +
-          '<div class="dating-title" style="color:' + t.titleColor + '">' + t.title + '</div>' +
-          '<div class="dating-sub" style="color:' + t.subColor + '">\u041D\u0430\u0439\u0434\u0438 \u0441\u0432\u043E\u0435\u0433\u043E \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u0430</div>' +
+        '<div style="display:flex;align-items:center;gap:10px">' +
+          '<button onclick="goBackFromDating()" style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.6);border:none;font-size:20px;cursor:pointer">\u2039</button>' +
+          '<div>' +
+            '<div class="dating-title" style="color:' + t.titleColor + '">' + t.title + '</div>' +
+            '<div class="dating-sub" style="color:' + t.subColor + '">\u041D\u0430\u0439\u0434\u0438 \u0441\u0432\u043E\u0435\u0433\u043E \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u0430</div>' +
+          '</div>' +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:8px">' +
           '<div class="dt-toggle">' +
@@ -1279,6 +1286,30 @@ function showDatingCard() {
         '</div>' +
       '</div>' +
     '</div>';
+  // Hammer.js swipe on card
+  setTimeout(function() {
+    var cardEl = document.querySelector('.dating-card-inner');
+    if (cardEl && typeof Hammer !== 'undefined') {
+      var hm = new Hammer(cardEl, { recognizers: [[Hammer.Pan, { direction: Hammer.DIRECTION_HORIZONTAL, threshold: 10 }]] });
+      var uid = datingCards[datingIdx] ? datingCards[datingIdx].id : null;
+      hm.on('pan', function(ev) {
+        var r = Math.min(Math.max(ev.deltaX / 12, -15), 15);
+        cardEl.style.transform = 'translateX(' + ev.deltaX + 'px) rotate(' + r + 'deg)';
+        cardEl.style.transition = 'none';
+      });
+      hm.on('panend', function(ev) {
+        if (Math.abs(ev.deltaX) > 100 && uid) {
+          var act = ev.deltaX > 0 ? 'like' : 'skip';
+          cardEl.style.transition = 'transform .3s ease';
+          cardEl.style.transform = 'translateX(' + (ev.deltaX > 0 ? 500 : -500) + 'px) rotate(' + (ev.deltaX > 0 ? 30 : -30) + 'deg)';
+          setTimeout(function() { datingAction(uid, act); }, 250);
+        } else {
+          cardEl.style.transition = 'transform .25s ease';
+          cardEl.style.transform = '';
+        }
+      });
+    }
+  }, 50);
 }
 
 async function datingAction(targetId, action) {
@@ -1307,6 +1338,8 @@ async function datingAction(targetId, action) {
               '<br><button onclick="datingIdx++;showDatingCard()" style="background:none;border:none;color:' + t.subColor + ';margin-top:12px;cursor:pointer;font-size:13px">\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440</button>' +
             '</div>';
         }
+        // Auto-open chat after 2s
+        setTimeout(function() { openMatchChat(targetId); }, 2000);
       } else {
         datingIdx++;
         showDatingCard();
@@ -1435,6 +1468,7 @@ function showChatView() {
 }
 function goBack() {
   document.body.classList.remove('chat-open');
+  document.body.classList.remove('dating-open');
   cur = null;
   render();
   var bn = document.getElementById('bottomNav');
