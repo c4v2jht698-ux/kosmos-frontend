@@ -515,6 +515,10 @@ window.onAppleAuth = onAppleAuth;
 
 render();
 
+// ── Backend ping (keep Render awake) ─────────────────────────────────────────
+fetch(API + '/ping').catch(function(){});
+setInterval(function() { fetch(API + '/ping').catch(function(){}); }, 9 * 60 * 1000);
+
 // ── Offline detection ────────────────────────────────────────────────────────
 var offlineBanner = null;
 window.addEventListener('offline', function() {

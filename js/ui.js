@@ -121,7 +121,15 @@ function render() {
       '<div class="ci" onclick="navTo(\'dating\')">' +
         '<div class="av g5 sq" style="width:48px;height:48px;font-size:20px"><span style="color:#fff">\uD83D\uDC95</span></div>' +
         '<div class="ci-info"><div class="ci-name">Знакомства</div><div class="ci-prev">Свайпай и общайся</div></div></div>';
-    chList.innerHTML = pinned + all.map(function(c){return itm(c)}).join('');
+    if (!all.length && jwtToken) {
+      var skelHtml = '';
+      for (var sk = 0; sk < 6; sk++) {
+        skelHtml += '<div class="ci" style="pointer-events:none"><div class="skel" style="width:52px;height:52px;border-radius:50%;background:#e5e7eb;flex-shrink:0"></div><div style="flex:1;min-width:0"><div class="skel" style="height:14px;width:60%;background:#e5e7eb;border-radius:6px;margin-bottom:8px"></div><div class="skel" style="height:11px;width:40%;background:#f3f4f6;border-radius:6px"></div></div></div>';
+      }
+      chList.innerHTML = pinned + skelHtml;
+    } else {
+      chList.innerHTML = pinned + all.map(function(c){return itm(c)}).join('');
+    }
   }
 
   var dmSec = document.getElementById('dmSection');

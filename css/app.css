@@ -327,6 +327,10 @@ body{
 .dt-toggle-item{width:32px;height:32px;border-radius:50px;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;transition:all .2s}
 .dt-toggle-item.active{background:#fff;box-shadow:0 1px 6px rgba(0,0,0,0.12)}
 
+/* ── SKELETON ── */
+@keyframes skeleton-pulse{0%,100%{opacity:.4}50%{opacity:.8}}
+.skel{animation:skeleton-pulse 1.4s infinite}
+
 /* ── SWIPE ANIMATION ── */
 .swipe-left{animation:swipeL .35s ease forwards}
 .swipe-right{animation:swipeR .35s ease forwards}
