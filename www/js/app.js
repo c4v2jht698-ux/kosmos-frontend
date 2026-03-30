@@ -448,30 +448,43 @@ if (jwtToken) {
     .catch(function() {});
 }
 
-// ── Telegram Auth ────────────────────────────────────────────────────────────
-function onTelegramAuth(user) {
-  fetch(API + '/auth/telegram', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(user),
-  })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (data.token) {
-        jwtToken = data.token;
-        refreshToken = data.refreshToken;
-        currentUser = data.user;
-        localStorage.setItem('kosmos_token', jwtToken);
-        if (data.refreshToken) localStorage.setItem('kosmos_refresh', data.refreshToken);
-        localStorage.setItem('kosmos_user', JSON.stringify(data.user));
-        enterApp();
-      } else {
-        toast(data.error || 'Ошибка авторизации', 'error');
-      }
-    })
-    .catch(function() { toast('Нет связи с сервером', 'error'); });
+// ── Telegram Bot Auth ─────────────────────────────────────────────────────────
+async function startTelegramBotAuth() {
+  try {
+    var r = await fetch(API + '/auth/telegram/init', { method: 'POST' });
+    var data = await r.json();
+    if (!data.botUrl) { toast('Ошибка подключения', 'error'); return; }
+
+    window.open(data.botUrl, '_blank');
+    toast('Откройте бота и нажмите START');
+
+    var attempts = 0;
+    var poll = setInterval(async function() {
+      attempts++;
+      if (attempts > 150) { clearInterval(poll); toast('Время вышло. Попробуйте снова.', 'error'); return; }
+      try {
+        var cr = await fetch(API + '/auth/telegram/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: data.token })
+        });
+        var cd = await cr.json();
+        if (cd.token) {
+          clearInterval(poll);
+          jwtToken = cd.token;
+          refreshToken = cd.refreshToken;
+          currentUser = cd.user;
+          localStorage.setItem('kosmos_token', jwtToken);
+          if (cd.refreshToken) localStorage.setItem('kosmos_refresh', cd.refreshToken);
+          localStorage.setItem('kosmos_user', JSON.stringify(cd.user));
+          enterApp();
+        }
+      } catch(e) {}
+    }, 2000);
+  } catch(e) {
+    toast('Нет связи с сервером', 'error');
+  }
 }
-window.onTelegramAuth = onTelegramAuth;
 
 // ── Apple Auth ───────────────────────────────────────────────────────────────
 function onAppleAuth() {
