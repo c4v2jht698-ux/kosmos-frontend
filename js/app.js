@@ -449,41 +449,64 @@ if (jwtToken) {
 }
 
 // ── Telegram Bot Auth ─────────────────────────────────────────────────────────
-async function startTelegramBotAuth() {
+var _tgAuthToken = null;
+
+async function initTelegramAuth() {
+  var btn = document.getElementById('tgAuthBtn');
+  if (btn) btn.style.opacity = '0.6';
   try {
     var r = await fetch(API + '/auth/telegram/init', { method: 'POST' });
     var data = await r.json();
-    if (!data.botUrl) { toast('Ошибка подключения', 'error'); return; }
-
-    window.open(data.botUrl, '_blank');
-    toast('Откройте бота и нажмите START');
-
-    var attempts = 0;
-    var poll = setInterval(async function() {
-      attempts++;
-      if (attempts > 150) { clearInterval(poll); toast('Время вышло. Попробуйте снова.', 'error'); return; }
-      try {
-        var cr = await fetch(API + '/auth/telegram/check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: data.token })
-        });
-        var cd = await cr.json();
-        if (cd.token) {
-          clearInterval(poll);
-          jwtToken = cd.token;
-          refreshToken = cd.refreshToken;
-          currentUser = cd.user;
-          localStorage.setItem('kosmos_token', jwtToken);
-          if (cd.refreshToken) localStorage.setItem('kosmos_refresh', cd.refreshToken);
-          localStorage.setItem('kosmos_user', JSON.stringify(cd.user));
-          enterApp();
-        }
-      } catch(e) {}
-    }, 2000);
+    if (!data.botUrl || !data.token) { toast('Ошибка подключения', 'error'); if (btn) btn.style.opacity = '1'; return; }
+    _tgAuthToken = data.token;
+    // Show the direct link button, hide the init button
+    if (btn) btn.style.display = 'none';
+    var link = document.getElementById('tgBotLink');
+    if (link) { link.href = data.botUrl; link.style.display = 'inline-flex'; }
+    toast('Нажмите кнопку чтобы открыть бота');
   } catch(e) {
     toast('Нет связи с сервером', 'error');
+    if (btn) btn.style.opacity = '1';
   }
+}
+
+function startTelegramPolling() {
+  var status = document.getElementById('tgAuthStatus');
+  if (status) status.style.display = 'block';
+  if (!_tgAuthToken) return;
+  var attempts = 0;
+  var poll = setInterval(async function() {
+    attempts++;
+    if (attempts > 150) {
+      clearInterval(poll);
+      if (status) status.textContent = 'Время вышло. Попробуйте снова.';
+      // Reset to initial state
+      var btn = document.getElementById('tgAuthBtn');
+      var link = document.getElementById('tgBotLink');
+      if (btn) btn.style.display = 'inline-flex';
+      if (link) link.style.display = 'none';
+      if (btn) btn.style.opacity = '1';
+      return;
+    }
+    try {
+      var cr = await fetch(API + '/auth/telegram/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: _tgAuthToken })
+      });
+      var cd = await cr.json();
+      if (cd.token) {
+        clearInterval(poll);
+        jwtToken = cd.token;
+        refreshToken = cd.refreshToken;
+        currentUser = cd.user;
+        localStorage.setItem('kosmos_token', jwtToken);
+        if (cd.refreshToken) localStorage.setItem('kosmos_refresh', cd.refreshToken);
+        localStorage.setItem('kosmos_user', JSON.stringify(cd.user));
+        enterApp();
+      }
+    } catch(e) {}
+  }, 2000);
 }
 
 // ── Apple Auth ───────────────────────────────────────────────────────────────
