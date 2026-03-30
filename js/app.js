@@ -317,6 +317,10 @@ function closeSplash() {
   var sp = document.getElementById('splash');
   if (sp) { sp.style.transform = 'scale(1.1)'; sp.style.opacity = '0'; setTimeout(function(){ sp.remove(); }, 800); }
   if (jwtToken && currentUser) enterApp();
+  else {
+    var authEl = document.getElementById('auth');
+    if (authEl) authEl.classList.remove('hidden');
+  }
 }
 
 // ── Theme ────────────────────────────────────────────────────────────────────

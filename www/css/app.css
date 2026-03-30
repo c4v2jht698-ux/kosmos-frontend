@@ -432,6 +432,7 @@ body{
   .chat-hdr{padding:0 8px}
   .msg-area{padding:8px 12px;padding-bottom:160px}
   .inp-zone{position:fixed;bottom:72px;left:0;right:0;z-index:50;padding:6px 8px 10px}
+  body.chat-open .inp-zone{bottom:0}
   .auth-card{width:calc(100vw - 24px);padding:24px 16px}
   .modal{width:calc(100vw - 24px);padding:20px}
   .bottom-nav{display:flex}

@@ -1313,8 +1313,19 @@ async function submitChannel() {
 // ── Utilities ───────────────────────────────────────────────────────────────
 function insE(e) { var i = document.getElementById('mi'); if (i) { i.value += e; i.focus(); } var ep = document.getElementById('ep'); if (ep) ep.classList.remove('open'); }
 function scrollBot() { var a = document.getElementById('msgArea'); if (a) a.scrollTop = a.scrollHeight; }
-function showChatView() { document.body.classList.add('chat-open'); history.pushState({ chat: true }, ''); }
-function goBack() { document.body.classList.remove('chat-open'); cur = null; render(); }
+function showChatView() {
+  document.body.classList.add('chat-open');
+  history.pushState({ chat: true }, '');
+  var bn = document.getElementById('bottomNav');
+  if (bn) bn.style.display = 'none';
+}
+function goBack() {
+  document.body.classList.remove('chat-open');
+  cur = null;
+  render();
+  var bn = document.getElementById('bottomNav');
+  if (bn) bn.style.display = 'flex';
+}
 
 // ── Context Menu (long press on message) ────────────────────────────────────
 var _longPressTimer = null;
