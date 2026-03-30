@@ -247,7 +247,10 @@ function initSwipeToLeave() {
 }
 
 async function leaveChannel(id) {
-  try { await apiFetch(API + '/channels/' + id + '/leave', { method: 'POST' }); } catch(e) {}
+  try {
+    var r = await apiFetch(API + '/channels/' + id + '/leave', { method: 'POST' });
+    if (!r || !r.ok) { toast('Ошибка выхода из канала', 'error'); return; }
+  } catch(e) { toast('Нет связи с сервером', 'error'); return; }
   var idx = channels.findIndex(function(c){return c.id===id});
   if (idx !== -1) channels.splice(idx, 1);
   if (cur === id) { cur = null; goBack(); }
@@ -324,7 +327,7 @@ function openChat(id) {
       '<div class="datediv"><span>Сегодня</span></div>' +
       item.msgs.map(function(m){return mHTML(m, isCh)}).join('') +
     '</div>' +
-    (isCh && item.created_by !== currentUser.id ? '<div class="ro-bar">Канал только для чтения</div>' : inpHTML());
+    (isCh && String(item.created_by) !== String(currentUser && currentUser.id) ? '<div class="ro-bar">Канал только для чтения</div>' : inpHTML());
   scrollBot();
   applyChatBg();
   showChatView();
@@ -332,7 +335,7 @@ function openChat(id) {
 
 function mHTML(m, isCh) {
   if (isCh) {
-    return '<div class="msg ch"><div class="bbl">' + escHtml(m.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>') +
+    return '<div class="msg ch"><div class="bbl"><span style="white-space:pre-wrap">' + escHtml(m.text) + '</span>' +
       '<div class="bf"><span class="mt">' + m.time + '</span></div></div></div>';
   }
   var me = m.from === 'me';
@@ -348,6 +351,13 @@ function escHtml(s) {
   s = String(s || '');
   if (typeof DOMPurify !== 'undefined') return DOMPurify.sanitize(s, { ALLOWED_TAGS: [] });
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function safePhotoUrl(url) {
+  if (!url) return '';
+  url = String(url).trim();
+  if (!/^https?:\/\//i.test(url)) return '';
+  return escHtml(url);
 }
 
 function inpHTML() {
@@ -1279,7 +1289,7 @@ function showDatingCard() {
       '<div class="dating-card-inner" style="box-shadow:' + t.cardShadow + '">' +
         '<div class="dating-photo" style="background:' + t.photoBg + '">' +
           dots +
-          (u.photo ? '<img src="' + escHtml(u.photo) + '">' : '<span style="font-size:80px">\uD83D\uDC36</span>') +
+          (safePhotoUrl(u.photo) ? '<img src="' + safePhotoUrl(u.photo) + '">' : '<span style="font-size:80px">\uD83D\uDC36</span>') +
         '</div>' +
         '<div class="dating-info">' +
           '<div class="dating-name">' + escHtml(u.username) + (u.age ? ', ' + u.age : '') + '</div>' +
@@ -1461,7 +1471,7 @@ async function submitChannel() {
 }
 
 function copyChannelLink(slug) {
-  var url = 'https://c4v2jht698-ux.github.io/kosmos-frontend/?channel=' + slug;
+  var url = 'https://c4v2jht698-ux.github.io/kosmos-frontend/?channel=' + encodeURIComponent(slug);
   if (navigator.clipboard) {
     navigator.clipboard.writeText(url).then(function() { toast('Ссылка скопирована'); }).catch(function() { fallbackCopy(url); });
   } else { fallbackCopy(url); }
@@ -1877,7 +1887,7 @@ function generateMyQR() {
   el.innerHTML = '';
   var me = currentUser || {};
   var username = me.username || me.handle || 'unknown';
-  var url = 'https://c4v2jht698-ux.github.io/kosmos-frontend/?u=' + username;
+  var url = 'https://c4v2jht698-ux.github.io/kosmos-frontend/?u=' + encodeURIComponent(username);
   document.getElementById('qrUsername').textContent = '@' + username;
   new QRCode(el, {
     text: url,
@@ -1970,7 +1980,7 @@ function renderQRScreen() {
   document.getElementById('qrAvatarCenter').textContent = name[0].toUpperCase();
   var div = document.getElementById('qrCodeDiv');
   div.innerHTML = '<div style="width:200px;height:200px;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:13px">Генерация...</div>';
-  new QRCode(div, { text: 'https://c4v2jht698-ux.github.io/kosmos-frontend/?u=' + username, width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
+  new QRCode(div, { text: 'https://c4v2jht698-ux.github.io/kosmos-frontend/?u=' + encodeURIComponent(username), width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
 }
 
 function renderSettingsScreen() {
@@ -1985,7 +1995,7 @@ function renderSettingsScreen() {
 function shareQR() {
   var u = currentUser || {};
   var username = u.username || u.handle || 'unknown';
-  var url = 'https://c4v2jht698-ux.github.io/kosmos-frontend/?u=' + username;
+  var url = 'https://c4v2jht698-ux.github.io/kosmos-frontend/?u=' + encodeURIComponent(username);
   if (navigator.share) { navigator.share({ title: 'Космос', text: 'Напиши мне в Космос!', url: url }); }
   else { navigator.clipboard.writeText(url); toast('Ссылка скопирована!', 'success'); }
 }
@@ -2042,7 +2052,7 @@ function showConfirm(msg, onOk, onCancel) {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
   overlay.innerHTML = '<div style="background:var(--bg,#1e1e2e);border-radius:16px;padding:24px;max-width:280px;width:90%;text-align:center">'
-    + '<p style="margin:0 0 20px;font-size:16px;color:var(--text,#fff)">' + msg + '</p>'
+    + '<p style="margin:0 0 20px;font-size:16px;color:var(--text,#fff)">' + escHtml(msg) + '</p>'
     + '<div style="display:flex;gap:12px;justify-content:center">'
     + '<button id="sc-cancel" style="flex:1;padding:10px;border:none;border-radius:10px;background:rgba(255,255,255,0.1);color:var(--text,#fff);font-size:15px;cursor:pointer">Отмена</button>'
     + '<button id="sc-ok" style="flex:1;padding:10px;border:none;border-radius:10px;background:#e53935;color:#fff;font-size:15px;font-weight:500;cursor:pointer">Покинуть</button>'

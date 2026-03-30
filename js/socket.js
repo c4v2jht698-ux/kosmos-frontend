@@ -32,7 +32,7 @@ function showToast(name, text) {
 function updateTabBadges() {
   var totalUnread = 0;
   channels.concat(dms).forEach(function(c) { totalUnread += (c.unread || 0); });
-  var chatTab = document.getElementById('navChats');
+  var chatTab = document.getElementById('bnChats');
   if (chatTab) {
     var badge = chatTab.querySelector('.tab-badge');
     if (totalUnread > 0) {
@@ -107,6 +107,7 @@ function initSocket() {
       }
     }
 
+    if (item.msgs.find(function(x){ return x.id === msg.id; })) return;
     item.msgs.push(m);
     item.prev = msg.text.substring(0, 36);
     item.time = time;
