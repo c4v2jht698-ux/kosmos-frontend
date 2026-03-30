@@ -1316,8 +1316,10 @@ function scrollBot() { var a = document.getElementById('msgArea'); if (a) a.scro
 function showChatView() {
   document.body.classList.add('chat-open');
   history.pushState({ chat: true }, '');
-  var bn = document.getElementById('bottomNav');
-  if (bn) bn.style.display = 'none';
+  if (window.innerWidth < 769) {
+    var bn = document.getElementById('bottomNav');
+    if (bn) bn.style.display = 'none';
+  }
 }
 function goBack() {
   document.body.classList.remove('chat-open');
