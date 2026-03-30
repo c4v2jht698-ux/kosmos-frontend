@@ -274,7 +274,23 @@ function enterApp() {
       }).catch(function() {});
   }
   initSocket();
-  loadMyChats();
+  loadMyChats().then(function() {
+    var channelSlug = new URLSearchParams(window.location.search).get('channel');
+    if (channelSlug) {
+      var ch = channels.find(function(c) { return c.slug === channelSlug; });
+      if (ch) { openChat(ch.id); }
+      else {
+        fetch(API + '/channels?search=' + encodeURIComponent(channelSlug), { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+          .then(function(r) { return r.ok ? r.json() : []; })
+          .then(function(list) {
+            var found = list.find(function(c) { return c.slug === channelSlug; });
+            if (found) joinChannel(found.id, found.name, found.slug);
+            else toast('Канал не найден', 'error');
+          }).catch(function() {});
+      }
+      history.replaceState(null, '', window.location.pathname);
+    }
+  });
 }
 
 function logout() {

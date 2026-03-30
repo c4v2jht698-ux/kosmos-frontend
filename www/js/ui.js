@@ -289,6 +289,10 @@ function openChat(id) {
       '<div class="hinfo"><div class="hname">' + escHtml(item.name) + '</div><div class="hsub">' + sub + '</div></div>' +
       '<div class="hacts"><button class="hb">\uD83D\uDD0D</button></div>' +
     '</div>' +
+    (isCh && item.slug ? '<div style="display:flex;align-items:center;gap:8px;padding:6px 16px;background:var(--bg2);font-size:13px;border-bottom:0.5px solid var(--sep)">' +
+      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--accent)">https://c4v2jht698-ux.github.io/kosmos-frontend/?channel=' + escHtml(item.slug) + '</span>' +
+      '<button onclick="copyChannelLink(\'' + escHtml(item.slug) + '\')" style="background:var(--accent);border:none;border-radius:8px;color:#fff;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Скопировать</button>' +
+    '</div>' : '') +
     '<div class="msg-area" id="msgArea">' +
       '<div class="datediv"><span>Сегодня</span></div>' +
       item.msgs.map(function(m){return mHTML(m, isCh)}).join('') +
@@ -1308,6 +1312,20 @@ async function submitChannel() {
   });
   if (r.ok) { goBack(); loadMyChats(); }
   else { var d = await r.json(); toast(d.error || 'Ошибка', 'error'); }
+}
+
+function copyChannelLink(slug) {
+  var url = 'https://c4v2jht698-ux.github.io/kosmos-frontend/?channel=' + slug;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(function() { toast('Ссылка скопирована'); }).catch(function() { fallbackCopy(url); });
+  } else { fallbackCopy(url); }
+}
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); toast('Ссылка скопирована'); } catch(e) { toast('Не удалось скопировать', 'error'); }
+  document.body.removeChild(ta);
 }
 
 // ── Utilities ───────────────────────────────────────────────────────────────
