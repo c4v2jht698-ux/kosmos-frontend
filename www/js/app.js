@@ -449,64 +449,47 @@ if (jwtToken) {
 }
 
 // ── Telegram Bot Auth ─────────────────────────────────────────────────────────
-var _tgAuthToken = null;
-
-async function initTelegramAuth() {
+async function startTelegramBotAuth() {
   var btn = document.getElementById('tgAuthBtn');
-  if (btn) btn.style.opacity = '0.6';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm5.53 8.16l-1.8 8.49c-.14.6-.5.75-.99.47l-2.75-2.03-1.33 1.27c-.14.15-.27.27-.56.27l.2-2.82 5.1-4.6c.22-.2-.05-.3-.34-.13l-6.3 3.97-2.72-.85c-.59-.18-.6-.59.12-.87l10.63-4.1c.49-.18.92.12.76.87z"/></svg> \u041E\u0436\u0438\u0434\u0430\u0435\u043C \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0438\u044F...'; btn.style.opacity = '0.7'; }
   try {
     var r = await fetch(API + '/auth/telegram/init', { method: 'POST' });
     var data = await r.json();
-    if (!data.botUrl || !data.token) { toast('Ошибка подключения', 'error'); if (btn) btn.style.opacity = '1'; return; }
-    _tgAuthToken = data.token;
-    // Show the direct link button, hide the init button
-    if (btn) btn.style.display = 'none';
-    var link = document.getElementById('tgBotLink');
-    if (link) { link.href = data.botUrl; link.style.display = 'inline-flex'; }
-    toast('Нажмите кнопку чтобы открыть бота');
+    if (!data.botUrl || !data.token) { toast('Ошибка подключения', 'error'); resetTgBtn(); return; }
+
+    window.open(data.botUrl, '_blank');
+
+    var attempts = 0;
+    var poll = setInterval(async function() {
+      attempts++;
+      if (attempts > 150) { clearInterval(poll); toast('Время вышло. Попробуйте снова.', 'error'); resetTgBtn(); return; }
+      try {
+        var cr = await fetch(API + '/auth/telegram/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: data.token })
+        });
+        var cd = await cr.json();
+        if (cd.token) {
+          clearInterval(poll);
+          jwtToken = cd.token;
+          refreshToken = cd.refreshToken;
+          currentUser = cd.user;
+          localStorage.setItem('kosmos_token', jwtToken);
+          if (cd.refreshToken) localStorage.setItem('kosmos_refresh', cd.refreshToken);
+          localStorage.setItem('kosmos_user', JSON.stringify(cd.user));
+          enterApp();
+        }
+      } catch(e) {}
+    }, 2000);
   } catch(e) {
     toast('Нет связи с сервером', 'error');
-    if (btn) btn.style.opacity = '1';
+    resetTgBtn();
   }
 }
-
-function startTelegramPolling() {
-  var status = document.getElementById('tgAuthStatus');
-  if (status) status.style.display = 'block';
-  if (!_tgAuthToken) return;
-  var attempts = 0;
-  var poll = setInterval(async function() {
-    attempts++;
-    if (attempts > 150) {
-      clearInterval(poll);
-      if (status) status.textContent = 'Время вышло. Попробуйте снова.';
-      // Reset to initial state
-      var btn = document.getElementById('tgAuthBtn');
-      var link = document.getElementById('tgBotLink');
-      if (btn) btn.style.display = 'inline-flex';
-      if (link) link.style.display = 'none';
-      if (btn) btn.style.opacity = '1';
-      return;
-    }
-    try {
-      var cr = await fetch(API + '/auth/telegram/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: _tgAuthToken })
-      });
-      var cd = await cr.json();
-      if (cd.token) {
-        clearInterval(poll);
-        jwtToken = cd.token;
-        refreshToken = cd.refreshToken;
-        currentUser = cd.user;
-        localStorage.setItem('kosmos_token', jwtToken);
-        if (cd.refreshToken) localStorage.setItem('kosmos_refresh', cd.refreshToken);
-        localStorage.setItem('kosmos_user', JSON.stringify(cd.user));
-        enterApp();
-      }
-    } catch(e) {}
-  }, 2000);
+function resetTgBtn() {
+  var btn = document.getElementById('tgAuthBtn');
+  if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm5.53 8.16l-1.8 8.49c-.14.6-.5.75-.99.47l-2.75-2.03-1.33 1.27c-.14.15-.27.27-.56.27l.2-2.82 5.1-4.6c.22-.2-.05-.3-.34-.13l-6.3 3.97-2.72-.85c-.59-.18-.6-.59.12-.87l10.63-4.1c.49-.18.92.12.76.87z"/></svg> \u0412\u043E\u0439\u0442\u0438 \u0447\u0435\u0440\u0435\u0437 Telegram'; btn.style.opacity = '1'; }
 }
 
 // ── Apple Auth ───────────────────────────────────────────────────────────────
