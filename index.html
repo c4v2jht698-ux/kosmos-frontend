@@ -20,11 +20,12 @@
 <body>
 
 <!-- SPLASH -->
-<div id="splash" style="position:fixed;inset:0;z-index:9999;background:#0F0B1E;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:transform .8s ease,opacity .8s ease">
+<div id="splash" style="position:fixed;inset:0;z-index:9999;background:#060a14;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:transform .8s ease,opacity .8s ease">
   <canvas id="starsCanvas" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
-  <div style="position:absolute;top:40px;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;letter-spacing:8px;color:rgba(255,255,255,0.2);text-transform:uppercase">KOSMOS</div>
-  <div id="typewriter" style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:28px;color:rgba(255,255,255,0.85);position:relative;z-index:1;text-align:center;padding:0 24px"></div>
-  <div id="splashLine" style="width:0;height:1px;background:rgba(124,58,237,0.4);margin-top:28px;transition:width 1s ease;z-index:1"></div>
+  <div style="font-family:'Playfair Display',serif;font-size:52px;font-style:italic;color:#fff;position:relative;z-index:1">Космос</div>
+  <p id="splashPowered" style="font-family:'Playfair Display',serif;font-style:italic;font-size:18px;color:rgba(255,255,255,0.5);position:absolute;bottom:90px;left:50%;transform:translateX(-50%);white-space:nowrap;z-index:1">
+    <span id="splashTyped"></span><span id="splashCursor" style="display:inline-block;width:1.5px;height:18px;background:rgba(255,255,255,0.5);vertical-align:middle;margin-left:2px"></span>
+  </p>
 </div>
 
 <!-- AUTH -->

@@ -385,25 +385,30 @@ buildSeedGrid();
 
 document.getElementById('overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
 
-// Splash: canvas stars + typewriter
+// Splash: stars + typewriter
 (function(){
   var c = document.getElementById('starsCanvas');
   if (!c) return;
   var ctx = c.getContext('2d');
   c.width = window.innerWidth; c.height = window.innerHeight;
   var stars = [], t = 0;
-  for (var i = 0; i < 120; i++) stars.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*1.4+0.3,sp:Math.random()*0.015+0.005,ph:Math.random()*Math.PI*2});
+  for (var i = 0; i < 80; i++) stars.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*1.4+0.3,sp:Math.random()*0.015+0.005,ph:Math.random()*Math.PI*2});
   function draw(){ctx.clearRect(0,0,c.width,c.height);for(var i=0;i<stars.length;i++){var s=stars[i],a=0.3+0.7*Math.abs(Math.sin(t*s.sp+s.ph));ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,'+a+')';ctx.fill();}t++;requestAnimationFrame(draw);}
   draw();
-  var text='Powered by Jesus Christ.', el=document.getElementById('typewriter');
-  if(!el)return;
-  var ts=document.createElement('span'), cr=document.createElement('span');
-  cr.textContent='|'; cr.style.cssText='animation:kblink .6s infinite;font-weight:300;color:rgba(255,255,255,0.4)';
-  el.appendChild(ts); el.appendChild(cr);
-  var st=document.createElement('style'); st.textContent='@keyframes kblink{0%,100%{opacity:1}50%{opacity:0}}'; document.head.appendChild(st);
-  var idx=0;
-  function tp(){if(idx<text.length){ts.textContent+=text[idx];idx++;setTimeout(tp,25);}else{setTimeout(function(){var ln=document.getElementById('splashLine');if(ln)ln.style.width='60px';},300);setTimeout(function(){cr.remove();},1500);setTimeout(closeSplash,2800);}}
-  setTimeout(tp,300);
+  var _splashText='Powered by Jesus Christ.';
+  var _splashIdx=0;
+  var _splashEl=document.getElementById('splashTyped');
+  var _splashCur=document.getElementById('splashCursor');
+  function _splashType(){
+    if(_splashIdx<_splashText.length){
+      _splashEl.textContent+=_splashText[_splashIdx++];
+      setTimeout(_splashType,28);
+    } else {
+      setTimeout(function(){_splashCur.style.display='none';},1000);
+      setTimeout(closeSplash,2800);
+    }
+  }
+  setTimeout(_splashType,900);
 })();
 
 // Auto-login
