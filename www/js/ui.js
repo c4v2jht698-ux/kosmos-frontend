@@ -293,7 +293,7 @@ function openChat(id) {
       '<div class="datediv"><span>Сегодня</span></div>' +
       item.msgs.map(function(m){return mHTML(m, isCh)}).join('') +
     '</div>' +
-    (isCh ? '<div class="ro-bar">Канал только для чтения</div>' : inpHTML());
+    (isCh && item.created_by !== currentUser.id ? '<div class="ro-bar">Канал только для чтения</div>' : inpHTML());
   scrollBot();
   applyChatBg();
   showChatView();
