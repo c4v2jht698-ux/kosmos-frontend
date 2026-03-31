@@ -178,17 +178,18 @@ body{
 .msg.me{align-self:flex-end;align-items:flex-end}
 .msg.them{align-self:flex-start;align-items:flex-start}
 .msg.ch{align-self:stretch;max-width:100%}
-.bbl{padding:10px 14px;border-radius:20px;line-height:1.4;font-size:16px;font-weight:400;word-break:break-word;position:relative;box-shadow:0 1px 2px rgba(0,0,0,0.2)}
-.me .bbl,.bbl.my{background:var(--msg-my-bg);color:var(--msg-my-text);border-bottom-right-radius:4px}
-.them .bbl,.bbl:not(.my){background:var(--msg-other-bg);color:var(--msg-other-text);border-bottom-left-radius:4px}
-.ch .bbl{background:var(--msg-other);color:var(--text);border-radius:20px;border-left:3px solid var(--accent)}
+.bbl{max-width:75%;padding:10px 14px;border-radius:20px;font-size:16px;line-height:1.4;position:relative;word-wrap:break-word;box-shadow:0 4px 15px rgba(0,0,0,0.2);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.bbl.my,.me .bbl{background:var(--msg-my-bg);color:var(--msg-my-text);border-bottom-right-radius:4px;margin-left:auto;border:none}
+.bbl:not(.my),.them .bbl{background:var(--msg-other-bg);color:var(--msg-other-text);border:1px solid var(--glass-border);border-bottom-left-radius:4px}
+.ch .bbl{background:var(--msg-other-bg);color:var(--msg-other-text);border-radius:20px;border-left:3px solid var(--accent)}
+.msg-meta{font-size:11px;opacity:0.6}
+.bbl.my .msg-meta{color:rgba(0,0,0,0.6)}
+.bbl.my .msg-status.read{color:#000;font-weight:bold}
+.bbl:not(.my) .msg-meta{color:rgba(255,255,255,0.5)}
 .bf{display:flex;align-items:center;gap:4px;margin-top:3px;justify-content:flex-end}
 .mt{font-size:11px;font-weight:400;opacity:.5}
-.me .mt{color:#fff}
-.them .mt,.ch .mt{color:var(--text3)}
 .ms{font-size:11px;color:rgba(255,255,255,0.7)}
 .msg-status{font-size:12px;font-weight:bold}
-.msg-status.read{color:#5ac8fa}
 .sender-name{font-size:13px;font-weight:600;color:var(--accent);margin-bottom:2px;margin-left:4px}
 .typing{align-self:flex-start;background:var(--msg-other);border-radius:20px;border-bottom-left-radius:4px;padding:10px 16px;animation:slideUp .2s ease}
 .tdots{display:flex;gap:4px}
