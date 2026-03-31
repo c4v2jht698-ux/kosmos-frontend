@@ -489,3 +489,12 @@ body.dating-open .bottom-nav{display:none!important}
 @media(min-width:769px){
   .bottom-nav{position:fixed;bottom:0;left:0;width:320px;height:56px;border-top:1px solid var(--glass-border);border-right:1px solid var(--glass-border);padding-top:8px;padding-bottom:8px}
 }
+
+/* ── Typing Indicator ── */
+.typing-wrap{display:flex;align-items:center;gap:6px;padding:4px 16px;margin-bottom:8px;font-size:13px;color:var(--accent);opacity:0;transform:translateY(10px);transition:opacity .3s,transform .3s;height:0;overflow:hidden;pointer-events:none}
+.typing-wrap.active{opacity:1;transform:translateY(0);height:24px}
+.typing-dots{display:flex;gap:3px;align-items:center;margin-top:4px}
+.typing-dots span{display:block;width:4px;height:4px;background:var(--accent);border-radius:50%;animation:typing-bounce 1.4s infinite ease-in-out both}
+.typing-dots span:nth-child(1){animation-delay:-.32s}
+.typing-dots span:nth-child(2){animation-delay:-.16s}
+@keyframes typing-bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}
