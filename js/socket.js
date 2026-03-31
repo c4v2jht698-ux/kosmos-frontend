@@ -146,50 +146,40 @@ function initSocket() {
   });
 
   socket.on('msg_deleted', function(data) {
-    var bbl = document.getElementById('msg-' + data.messageId);
-    if (bbl) {
-      var row = bbl.closest('.msg-row') || bbl;
-      row.style.transition = 'opacity 0.3s, transform 0.3s';
-      row.style.opacity = '0';
-      row.style.transform = 'scale(0.9)';
-      setTimeout(function() { row.remove(); }, 300);
-    }
     var item = findItem(data.chatId);
-    if (item) {
-      item.msgs = item.msgs.filter(function(m) { return m.id !== data.messageId; });
-      var last = item.msgs[item.msgs.length - 1];
-      if (last) { item.prev = last.text ? last.text.substring(0, 36) : '\uD83D\uDCF7 Фото'; item.time = last.time; }
-      else { item.prev = ''; item.time = ''; }
-      render();
-    }
+    if (!item) return;
+    item.msgs = item.msgs.filter(function(m) { return m.id !== data.msgId; });
+    var el = document.getElementById('msg-' + data.msgId);
+    if (el) { el.style.transition = 'opacity .2s'; el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 200); }
+    // Update sidebar preview
+    var last = item.msgs[item.msgs.length - 1];
+    if (last) { item.prev = last.text ? last.text.substring(0, 36) : '\uD83D\uDCF7 Фото'; item.time = last.time; }
+    else { item.prev = ''; item.time = ''; }
+    render();
   });
 
   socket.on('msg_edited', function(data) {
-    var bbl = document.getElementById('msg-' + data.messageId);
-    if (bbl) {
-      var span = bbl.querySelector('span[style*="white-space"]');
+    var item = findItem(data.chatId);
+    if (!item) return;
+    var m = item.msgs.find(function(m) { return m.id === data.msgId; });
+    if (m) { m.text = data.text; m.edited = true; }
+    var el = document.getElementById('msg-' + data.msgId);
+    if (el) {
+      var span = el.querySelector('span[style*="white-space"]');
       if (span) span.textContent = data.text;
-      var bf = bbl.querySelector('.bf');
+      var bf = el.querySelector('.bf');
       if (bf && !bf.querySelector('.edited')) {
         var ed = document.createElement('span');
         ed.className = 'edited';
-        ed.textContent = ' (изменено)';
+        ed.textContent = ' (ред.)';
         ed.style.cssText = 'font-size:10px;color:var(--text3);font-style:italic';
         bf.insertBefore(ed, bf.firstChild);
       }
-      bbl.style.transition = 'background-color 0.5s';
-      var oldBg = bbl.style.backgroundColor;
-      bbl.style.backgroundColor = 'rgba(124,58,237,0.15)';
-      setTimeout(function() { bbl.style.backgroundColor = oldBg; }, 500);
     }
-    var item = findItem(data.chatId);
-    if (item) {
-      var m = item.msgs.find(function(m) { return m.id === data.messageId; });
-      if (m) { m.text = data.text; m.edited = true; }
-      var last = item.msgs[item.msgs.length - 1];
-      if (last && last.id === data.messageId) { item.prev = data.text.substring(0, 36); }
-      render();
-    }
+    // Update sidebar if last message was edited
+    var last = item.msgs[item.msgs.length - 1];
+    if (last && last.id === data.msgId) { item.prev = data.text.substring(0, 36); }
+    render();
   });
 
   socket.on('error_msg', function(data) {
