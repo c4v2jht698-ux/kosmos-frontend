@@ -537,7 +537,7 @@ function mHTML(m) {
   var bblClass = isMy ? 'bbl my' : 'bbl';
   return '<div class="msg-row" style="display:flex;margin-bottom:12px;width:100%;justify-content:' + (isMy ? 'flex-end' : 'flex-start') + '">' +
     '<div class="' + bblClass + '" id="msg-' + escAttr(m.id || Date.now()) + '">' +
-      nameHtml + photoHtml + audioHtml + escHtml(m.text || '') + metaHtml +
+      nameHtml + photoHtml + audioHtml + '<span style="white-space:pre-wrap">' + escHtml(m.text || '') + '</span> ' + metaHtml +
     '</div></div>';
 }
 
