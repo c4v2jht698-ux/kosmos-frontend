@@ -470,7 +470,7 @@ function openChat(id) {
           var ts = new Date(m.created_at * 1000);
           var time = ts.getHours().toString().padStart(2,'0') + ':' + ts.getMinutes().toString().padStart(2,'0');
           var from = currentUser && m.sender_id === currentUser.id ? 'me' : 'them';
-          return { id: m.id, from: from, text: m.text, time: time, sender: m.sender_username };
+          return { id: m.id, from: from, text: m.text, time: time, sender: m.sender_username, image: m.image || null };
         });
         if (cur === id) {
           var area = document.getElementById('msgArea');

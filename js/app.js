@@ -458,17 +458,20 @@ async function startTelegramBotAuth() {
   var btn = document.getElementById('tgAuthBtn');
   if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; }
 
+  // Open window synchronously in click handler to avoid popup blocker
+  var win = window.open('about:blank', '_blank');
+
   try {
     var r = await fetch(API + '/auth/telegram/init', { method: 'POST' });
     var data = await r.json();
-    if (!data.botUrl || !data.token) { toast('Ошибка подключения', 'error'); resetTgBtn(); return; }
+    if (!data.botUrl || !data.token) { if (win) win.close(); toast('Ошибка подключения', 'error'); resetTgBtn(); return; }
 
     try {
       var botHost = new URL(data.botUrl).hostname;
-      if (['t.me','telegram.me','telegram.org'].indexOf(botHost) === -1) { toast('Недопустимый URL бота', 'error'); resetTgBtn(); return; }
-    } catch(e) { toast('Ошибка URL', 'error'); resetTgBtn(); return; }
+      if (['t.me','telegram.me','telegram.org'].indexOf(botHost) === -1) { if (win) win.close(); toast('Недопустимый URL бота', 'error'); resetTgBtn(); return; }
+    } catch(e) { if (win) win.close(); toast('Ошибка URL', 'error'); resetTgBtn(); return; }
 
-    window.open(data.botUrl, '_blank');
+    if (win) win.location.href = data.botUrl; else window.open(data.botUrl, '_blank');
 
     // Countdown polling: 30 attempts × 2s = 60s
     var remaining = 60;
