@@ -1,16 +1,30 @@
-// ── CSRF Protection: intercept all fetch() to API and add X-Requested-With ──
+// ── CSRF Protection: sync token + X-Requested-With on all API requests ──
 (function() {
+  // Generate CSRF token once per session
+  if (!sessionStorage.getItem('csrf_token')) {
+    sessionStorage.setItem('csrf_token', crypto.randomUUID());
+  }
   var _origFetch = window.fetch;
   window.fetch = function(url, opts) {
-    // Only add CSRF header for requests to our API
     if (typeof url === 'string' && typeof API !== 'undefined' && url.indexOf(API) === 0) {
       opts = opts || {};
       if (!opts.headers) opts.headers = {};
-      // Support both Headers object and plain object
-      if (opts.headers instanceof Headers) {
+      var method = (opts.method || 'GET').toUpperCase();
+      var isHeaders = opts.headers instanceof Headers;
+      // Always add X-Requested-With
+      if (isHeaders) {
         if (!opts.headers.has('X-Requested-With')) opts.headers.set('X-Requested-With', 'XMLHttpRequest');
       } else {
         if (!opts.headers['X-Requested-With']) opts.headers['X-Requested-With'] = 'XMLHttpRequest';
+      }
+      // Add CSRF token to all state-changing requests
+      if (method === 'POST' || method === 'PUT' || method === 'DELETE' || method === 'PATCH') {
+        var token = sessionStorage.getItem('csrf_token') || '';
+        if (isHeaders) {
+          opts.headers.set('X-CSRF-Token', token);
+        } else {
+          opts.headers['X-CSRF-Token'] = token;
+        }
       }
     }
     return _origFetch.apply(this, arguments);
@@ -531,9 +545,11 @@ function escSearch(s) {
 
 function safePhotoUrl(url) {
   if (!url) return '';
-  url = String(url).trim();
-  if (!/^https?:\/\//i.test(url)) return '';
-  return escHtml(url);
+  try {
+    var parsed = new URL(String(url).trim());
+    if (parsed.protocol !== 'https:') return '';
+    return escAttr(parsed.href);
+  } catch(e) { return ''; }
 }
 
 function inpHTML() {
