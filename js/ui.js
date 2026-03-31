@@ -1,3 +1,22 @@
+// ── CSRF Protection: intercept all fetch() to API and add X-Requested-With ──
+(function() {
+  var _origFetch = window.fetch;
+  window.fetch = function(url, opts) {
+    // Only add CSRF header for requests to our API
+    if (typeof url === 'string' && typeof API !== 'undefined' && url.indexOf(API) === 0) {
+      opts = opts || {};
+      if (!opts.headers) opts.headers = {};
+      // Support both Headers object and plain object
+      if (opts.headers instanceof Headers) {
+        if (!opts.headers.has('X-Requested-With')) opts.headers.set('X-Requested-With', 'XMLHttpRequest');
+      } else {
+        if (!opts.headers['X-Requested-With']) opts.headers['X-Requested-With'] = 'XMLHttpRequest';
+      }
+    }
+    return _origFetch.apply(this, arguments);
+  };
+})();
+
 // ── UI: Render, chat open, message HTML, input helpers ──────────────────────
 
 function toast(msg, type) {
@@ -47,7 +66,156 @@ var INTERESTS = [
   { id: 'юмор', emoji: '\uD83D\uDE02', label: 'Юмор' },
 ];
 
-// ── Onboarding ──────────────────────────────────────────────────────────────
+// ── Onboarding Tour (4-screen intro) ────────────────────────────────────────
+var _onbSlide = 0;
+var _onbStars = [];
+var _onbAnimId = null;
+
+function showOnbTour() {
+  if (localStorage.getItem('kosmos_onb_tour_done')) return;
+  var el = document.getElementById('onbTour');
+  el.classList.remove('gone');
+  // Force reflow before removing hidden
+  void el.offsetWidth;
+  el.classList.remove('hidden');
+  _onbSlide = 0;
+  updateOnbDots();
+  updateOnbTrack();
+  initOnbStars();
+  initOnbSwipe();
+}
+
+function initOnbStars() {
+  var canvas = document.getElementById('onbCanvas');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var dpr = window.devicePixelRatio || 1;
+
+  function resize() {
+    canvas.width = canvas.offsetWidth * dpr;
+    canvas.height = canvas.offsetHeight * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  _onbStars = [];
+  var count = Math.min(200, Math.floor(canvas.offsetWidth * canvas.offsetHeight / 3000));
+  for (var i = 0; i < count; i++) {
+    _onbStars.push({
+      x: Math.random() * canvas.offsetWidth,
+      y: Math.random() * canvas.offsetHeight,
+      r: Math.random() * 1.8 + 0.3,
+      a: Math.random(),
+      speed: Math.random() * 0.008 + 0.003,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+
+  var t = 0;
+  function draw() {
+    t++;
+    ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+    for (var i = 0; i < _onbStars.length; i++) {
+      var s = _onbStars[i];
+      var alpha = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(t * s.speed + s.phase));
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,' + alpha + ')';
+      ctx.fill();
+    }
+    _onbAnimId = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+function initOnbSwipe() {
+  var track = document.getElementById('onbTrack');
+  var startX = 0, dx = 0, swiping = false;
+
+  track.addEventListener('touchstart', function(e) {
+    startX = e.touches[0].clientX;
+    dx = 0;
+    swiping = true;
+    track.style.transition = 'none';
+  }, { passive: true });
+
+  track.addEventListener('touchmove', function(e) {
+    if (!swiping) return;
+    dx = e.touches[0].clientX - startX;
+    var offset = -_onbSlide * 25 + (dx / window.innerWidth) * 25;
+    track.style.transform = 'translateX(' + offset + '%)';
+  }, { passive: true });
+
+  track.addEventListener('touchend', function() {
+    if (!swiping) return;
+    swiping = false;
+    track.style.transition = '';
+    if (dx < -50 && _onbSlide < 3) {
+      _onbSlide++;
+    } else if (dx > 50 && _onbSlide > 0) {
+      _onbSlide--;
+    }
+    updateOnbTrack();
+    updateOnbDots();
+  });
+}
+
+function updateOnbTrack() {
+  var track = document.getElementById('onbTrack');
+  if (track) track.style.transform = 'translateX(' + (-_onbSlide * 25) + '%)';
+  var btn = document.getElementById('onbNext');
+  if (btn) btn.textContent = _onbSlide === 3 ? 'Начать' : 'Далее';
+}
+
+function updateOnbDots() {
+  var dots = document.querySelectorAll('#onbDots .onb-dot');
+  for (var i = 0; i < dots.length; i++) {
+    dots[i].classList.toggle('active', i === _onbSlide);
+  }
+}
+
+function nextOnbSlide() {
+  if (_onbSlide < 3) {
+    _onbSlide++;
+    updateOnbTrack();
+    updateOnbDots();
+  } else {
+    finishOnbTour();
+  }
+}
+
+function finishOnbTour() {
+  localStorage.setItem('kosmos_onb_tour_done', '1');
+  var el = document.getElementById('onbTour');
+  el.classList.add('hidden');
+  if (_onbAnimId) cancelAnimationFrame(_onbAnimId);
+  setTimeout(function() {
+    el.classList.add('gone');
+  }, 700);
+}
+
+function requestNotifPermission() {
+  if ('Notification' in window) {
+    Notification.requestPermission().then(function(p) {
+      var btn = document.querySelector('.onb-allow-btn');
+      if (btn) {
+        if (p === 'granted') {
+          btn.textContent = '✅ Уведомления включены';
+          btn.style.borderColor = '#34d399';
+          btn.style.color = '#34d399';
+        } else {
+          btn.textContent = 'Уведомления отклонены';
+          btn.style.borderColor = '#f87171';
+          btn.style.color = '#f87171';
+        }
+        btn.disabled = true;
+      }
+    });
+  }
+}
+
+// ── Onboarding Interests ────────────────────────────────────────────────────
 function showOnboarding() {
   var el = document.getElementById('onboarding');
   el.classList.remove('hidden');
@@ -148,9 +316,9 @@ function render() {
 function itm(c) {
   var isCh = c.type === 'channel';
   var avHtml = isCh ? defaultAvSq(c.name) : defaultAv(c.name);
-  return '<div class="ci-wrap" data-id="' + c.id + '" data-type="' + c.type + '">' +
+  return '<div class="ci-wrap" data-id="' + escAttr(c.id) + '" data-type="' + escAttr(c.type) + '">' +
     '<div class="ci-leave-bg">' + (isCh ? 'Покинуть' : 'Удалить') + '</div>' +
-    '<div class="ci' + (cur === c.id ? ' active' : '') + '" onclick="openChat(\'' + c.id + '\')">' +
+    '<div class="ci' + (cur === c.id ? ' active' : '') + '" onclick="openChat(\'' + escSearch(c.id) + '\')">' +
       avHtml +
       '<div class="ci-info">' +
         '<div class="ci-name">' + escHtml(c.name || '') + '</div>' +
@@ -353,6 +521,14 @@ function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function escAttr(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#x27;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function escSearch(s) {
+  return String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
 function safePhotoUrl(url) {
   if (!url) return '';
   url = String(url).trim();
@@ -521,13 +697,13 @@ function openEditProfile() {
         '<div style="padding:20px;max-width:400px;margin:0 auto;overflow-y:auto;flex:1">' +
           '<div style="text-align:center;margin-bottom:20px">' + defaultAv(u.username, 80) + '</div>' +
           '<div class="auth-label">Имя</div>' +
-          '<input class="minp" id="epName" value="' + escHtml(u.username || '') + '">' +
+          '<input class="minp" id="epName" value="' + escAttr(u.username || '') + '">' +
           '<div class="auth-label">О себе</div>' +
           '<textarea class="minp" id="epBio" rows="3" placeholder="Расскажи о себе...">' + escHtml(u.bio || '') + '</textarea>' +
           '<div class="auth-label">Возраст</div>' +
-          '<input class="minp" id="epAge" type="number" value="' + (u.age || '') + '" placeholder="25">' +
+          '<input class="minp" id="epAge" type="number" value="' + escAttr(u.age || '') + '" placeholder="25">' +
           '<div class="auth-label">Город</div>' +
-          '<input class="minp" id="epCity" value="' + escHtml(u.city || '') + '" placeholder="Москва">' +
+          '<input class="minp" id="epCity" value="' + escAttr(u.city || '') + '" placeholder="Москва">' +
           '<button class="bcrte" style="width:100%;margin-top:12px" onclick="saveEditProfile()">Сохранить</button>' +
         '</div>';
     });
@@ -900,7 +1076,7 @@ function postCard(p) {
   var slug = p.channel_slug || '';
   var time = relTime(p.created_at);
   var subBtn = p.channel_id && !p.subscribed
-    ? '<button onclick="toggleSub(\'' + p.channel_id + '\',this);event.stopPropagation()" style="background:var(--accent);border:none;border-radius:20px;color:#fff;font-size:12px;font-weight:600;padding:4px 14px;cursor:pointer;margin-left:auto">Подписаться</button>'
+    ? '<button onclick="toggleSub(\'' + escSearch(p.channel_id) + '\',this);event.stopPropagation()" style="background:var(--accent);border:none;border-radius:20px;color:#fff;font-size:12px;font-weight:600;padding:4px 14px;cursor:pointer;margin-left:auto">Подписаться</button>'
     : '';
 
   // Reactions display
@@ -913,9 +1089,9 @@ function postCard(p) {
   }
 
   var authorId = p.author_id || '';
-  var nameClick = authorId ? ' onclick="openPublicProfile(\'' + authorId + '\')"' : '';
+  var nameClick = authorId ? ' onclick="openPublicProfile(\'' + escSearch(authorId) + '\')"' : '';
 
-  return '<div data-pid="' + p.id + '" style="display:flex;gap:12px;padding:12px 16px;border-bottom:0.5px solid var(--sep);background:var(--card)">' +
+  return '<div data-pid="' + escAttr(p.id) + '" style="display:flex;gap:12px;padding:12px 16px;border-bottom:0.5px solid var(--sep);background:var(--card)">' +
     '<div style="cursor:pointer"' + nameClick + '>' + defaultAvSq(name, 44) + '</div>' +
     '<div style="flex:1;min-width:0">' +
       '<div style="display:flex;align-items:center;gap:4px;margin-bottom:2px">' +
@@ -929,14 +1105,14 @@ function postCard(p) {
       '<div style="display:flex;gap:2px;margin-bottom:8px">' +
         ['fire','heart','laugh','wow'].map(function(r) {
           var active = p.myReaction === r;
-          return '<button onclick="postReact(this,\'' + p.id + '\',\'' + r + '\')" style="background:' + (active?'rgba(124,58,237,0.15)':'var(--bg)') + ';border:1px solid ' + (active?'var(--accent)':'var(--sep)') + ';border-radius:20px;padding:3px 8px;cursor:pointer;font-size:14px;transition:all .15s">' + REACTION_MAP[r] + '</button>';
+          return '<button onclick="postReact(this,\'' + escSearch(p.id) + '\',\'' + r + '\')" style="background:' + (active?'rgba(124,58,237,0.15)':'var(--bg)') + ';border:1px solid ' + (active?'var(--accent)':'var(--sep)') + ';border-radius:20px;padding:3px 8px;cursor:pointer;font-size:14px;transition:all .15s">' + REACTION_MAP[r] + '</button>';
         }).join('') +
         (reactHtml ? '<span style="margin-left:6px;color:var(--text3);font-size:12px;display:flex;align-items:center;gap:4px">' + reactHtml + '</span>' : '') +
       '</div>' +
       // Action bar
       '<div style="display:flex;gap:16px">' +
-        '<button onclick="openComments(\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;display:flex;align-items:center;gap:4px;padding:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>' + (p.commentCount||'') + '</button>' +
-        '<button onclick="feedShare(\'' + p.id + '\')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;display:flex;align-items:center;gap:4px;padding:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>' +
+        '<button onclick="openComments(\'' + escSearch(p.id) + '\')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;display:flex;align-items:center;gap:4px;padding:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>' + (p.commentCount||'') + '</button>' +
+        '<button onclick="feedShare(\'' + escSearch(p.id) + '\')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;display:flex;align-items:center;gap:4px;padding:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>' +
       '</div>' +
     '</div></div>';
 }
@@ -1015,7 +1191,7 @@ async function openComments(postId) {
       '<div id="commentsList" style="flex:1;overflow-y:auto;padding:12px 16px"><div style="text-align:center;color:var(--text3);padding:20px">Загрузка...</div></div>' +
       '<div style="display:flex;gap:8px;padding:10px 12px;border-top:0.5px solid var(--sep);background:var(--card)">' +
         '<input class="minp" id="commentInput" placeholder="Написать комментарий..." style="margin:0;flex:1">' +
-        '<button class="sbtn" onclick="submitComment(\'' + postId + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9H4l4 4-2 7 6-4 6 4-2-7 4-4h-5z"/></svg></button>' +
+        '<button class="sbtn" onclick="submitComment(\'' + escSearch(postId) + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9H4l4 4-2 7 6-4 6 4-2-7 4-4h-5z"/></svg></button>' +
       '</div>' +
     '</div>';
   document.body.appendChild(sheet);
@@ -1159,10 +1335,10 @@ function doGlobalSearch(q) {
         var users = await r.json();
         if (!users.length) { res.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3)">Никого не найдено</div>'; return; }
         res.innerHTML = users.map(function(u) {
-          return '<div class="ci" onclick="openPublicProfile(\'' + u.id + '\')">' +
+          return '<div class="ci" onclick="openPublicProfile(\'' + escSearch(u.id) + '\')">' +
             defaultAv(u.username) +
             '<div class="ci-info"><div class="ci-name">' + escHtml(u.username) + '</div><div class="ci-prev">@' + escHtml(u.handle||'') + '</div></div>' +
-            '<button onclick="event.stopPropagation();startDM(\'' + u.id + '\',\'' + escSearch(u.username) + '\',\'' + escSearch(u.handle||'') + '\')" style="background:var(--accent);border:none;border-radius:20px;color:#fff;font-size:12px;padding:5px 14px;cursor:pointer;font-weight:600">Написать</button>' +
+            '<button onclick="event.stopPropagation();startDM(\'' + escSearch(u.id) + '\',\'' + escSearch(u.username) + '\',\'' + escSearch(u.handle||'') + '\')" style="background:var(--accent);border:none;border-radius:20px;color:#fff;font-size:12px;padding:5px 14px;cursor:pointer;font-weight:600">Написать</button>' +
           '</div>';
         }).join('');
       } else {
@@ -1170,10 +1346,10 @@ function doGlobalSearch(q) {
         var chs = await r.json();
         if (!chs.length) { res.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3)">Каналов не найдено</div>'; return; }
         res.innerHTML = chs.map(function(c) {
-          return '<div class="ci" onclick="joinChannel(\'' + c.id + '\',\'' + escSearch(c.name) + '\',\'' + escSearch(c.slug||'') + '\')">' +
+          return '<div class="ci" onclick="joinChannel(\'' + escSearch(c.id) + '\',\'' + escSearch(c.name) + '\',\'' + escSearch(c.slug||'') + '\')">' +
             defaultAvSq(c.name) +
             '<div class="ci-info"><div class="ci-name">' + escHtml(c.name) + '</div><div class="ci-prev">' + (c.members||0) + ' участников</div></div>' +
-            '<button onclick="event.stopPropagation();joinChannel(\'' + c.id + '\',\'' + escSearch(c.name) + '\',\'' + escSearch(c.slug||'') + '\')" style="background:var(--accent);border:none;border-radius:20px;color:#fff;font-size:12px;padding:5px 14px;cursor:pointer;font-weight:600">Подписаться</button>' +
+            '<button onclick="event.stopPropagation();joinChannel(\'' + escSearch(c.id) + '\',\'' + escSearch(c.name) + '\',\'' + escSearch(c.slug||'') + '\')" style="background:var(--accent);border:none;border-radius:20px;color:#fff;font-size:12px;padding:5px 14px;cursor:pointer;font-weight:600">Подписаться</button>' +
           '</div>';
         }).join('');
       }
@@ -1302,15 +1478,15 @@ function showDatingCard() {
       '</div>' +
       '<div class="dating-actions">' +
         '<div style="text-align:center">' +
-          '<button class="dating-btn dating-btn-sm" style="border:2px solid ' + t.skipBorder + '" onclick="datingAction(\'' + u.id + '\',\'skip\')">&#10005;</button>' +
+          '<button class="dating-btn dating-btn-sm" style="border:2px solid ' + t.skipBorder + '" onclick="datingAction(\'' + escSearch(u.id) + '\',\'skip\')">&#10005;</button>' +
           '<div class="dating-btn-label">\u041F\u0440\u043E\u043F\u0443\u0441\u043A</div>' +
         '</div>' +
         '<div style="text-align:center">' +
-          '<button class="dating-btn dating-btn-lg" style="background:' + t.likeBg + ';box-shadow:' + t.likeShadow + '" onclick="datingAction(\'' + u.id + '\',\'like\')">\u2764\uFE0F</button>' +
+          '<button class="dating-btn dating-btn-lg" style="background:' + t.likeBg + ';box-shadow:' + t.likeShadow + '" onclick="datingAction(\'' + escSearch(u.id) + '\',\'like\')">\u2764\uFE0F</button>' +
           '<div class="dating-btn-label">\u041D\u0440\u0430\u0432\u0438\u0442\u0441\u044F</div>' +
         '</div>' +
         '<div style="text-align:center">' +
-          '<button class="dating-btn dating-btn-sm" style="border:2px solid ' + t.superBorder + '" onclick="datingAction(\'' + u.id + '\',\'super\')">\u2B50</button>' +
+          '<button class="dating-btn dating-btn-sm" style="border:2px solid ' + t.superBorder + '" onclick="datingAction(\'' + escSearch(u.id) + '\',\'super\')">\u2B50</button>' +
           '<div class="dating-btn-label">\u0421\u0443\u043F\u0435\u0440</div>' +
         '</div>' +
       '</div>' +
@@ -1363,7 +1539,7 @@ async function datingAction(targetId, action) {
               '<div style="font-size:72px;margin-bottom:16px">\uD83C\uDF89</div>' +
               '<div style="font-size:26px;font-weight:700;color:' + t.titleColor + ';margin-bottom:8px">\u042D\u0442\u043E \u043C\u044D\u0442\u0447!</div>' +
               '<div style="font-size:14px;color:' + t.subColor + ';margin-bottom:24px">\u0412\u044B \u043F\u043E\u043D\u0440\u0430\u0432\u0438\u043B\u0438\u0441\u044C \u0434\u0440\u0443\u0433 \u0434\u0440\u0443\u0433\u0443</div>' +
-              '<button onclick="openMatchChat(\'' + targetId + '\')" style="background:' + t.likeBg + ';border:none;border-radius:14px;color:#fff;padding:14px 32px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;box-shadow:' + t.likeShadow + '">\u041D\u0430\u043F\u0438\u0441\u0430\u0442\u044C \u2192</button>' +
+              '<button onclick="openMatchChat(\'' + escSearch(targetId) + '\')" style="background:' + t.likeBg + ';border:none;border-radius:14px;color:#fff;padding:14px 32px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;box-shadow:' + t.likeShadow + '">\u041D\u0430\u043F\u0438\u0441\u0430\u0442\u044C \u2192</button>' +
               '<br><button onclick="datingIdx++;showDatingCard()" style="background:none;border:none;color:' + t.subColor + ';margin-top:12px;cursor:pointer;font-size:13px">\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440</button>' +
             '</div>';
         }
@@ -1395,11 +1571,11 @@ function openDatingProfile() {
         '<div style="padding:24px;max-width:400px;margin:0 auto">' +
           '<div style="font-size:20px;font-weight:600;margin-bottom:16px;color:var(--text)">Мой профиль</div>' +
           '<div class="auth-label">Возраст</div>' +
-          '<input class="minp" id="dpAge" type="number" placeholder="25" value="' + (p.age || '') + '">' +
+          '<input class="minp" id="dpAge" type="number" placeholder="25" value="' + escAttr(p.age || '') + '">' +
           '<div class="auth-label">Город</div>' +
-          '<input class="minp" id="dpCity" placeholder="Москва" value="' + escHtml(p.city || '') + '">' +
+          '<input class="minp" id="dpCity" placeholder="Москва" value="' + escAttr(p.city || '') + '">' +
           '<div class="auth-label">Фото (URL)</div>' +
-          '<input class="minp" id="dpPhoto" placeholder="https://..." value="' + escHtml(p.photo || '') + '">' +
+          '<input class="minp" id="dpPhoto" placeholder="https://..." value="' + escAttr(p.photo || '') + '">' +
           '<div class="auth-label">О себе</div>' +
           '<textarea class="minp" id="dpBio" rows="3" placeholder="Расскажи о себе...">' + escHtml(p.bio || '') + '</textarea>' +
           '<div style="display:flex;gap:10px;margin-top:8px">' +
@@ -1602,7 +1778,7 @@ async function loadStories(container) {
     var groups = await r.json();
     var html = '';
     groups.forEach(function(g) {
-      html += '<div class="story-item" onclick="viewStory(\'' + g.user_id + '\')">' +
+      html += '<div class="story-item" onclick="viewStory(\'' + escSearch(g.user_id) + '\')">' +
         '<div class="story-ring"><div class="story-ring-inner ' + GS[(g.username||'?').charCodeAt(0)%GS.length] + '">\uD83D\uDC36</div></div>' +
         '<div class="story-name">' + escHtml(g.username || '') + '</div></div>';
     });
@@ -1738,7 +1914,7 @@ function openStatusEditor() {
         }).join('') +
       '</div>' +
       '<div class="auth-label">Статус</div>' +
-      '<input class="minp" id="statusInput" maxlength="60" placeholder="Что делаешь?" value="' + escHtml((currentUser && currentUser.status) || '') + '">' +
+      '<input class="minp" id="statusInput" maxlength="60" placeholder="Что делаешь?" value="' + escAttr((currentUser && currentUser.status) || '') + '">' +
       '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">' +
         STATUS_PRESETS.map(function(s) {
           return '<button onclick="document.getElementById(\'statusInput\').value=\'' + s + '\'" style="padding:6px 12px;border-radius:20px;border:1px solid var(--sep);background:none;color:var(--text2);font-size:12px;cursor:pointer">' + s + '</button>';

@@ -140,7 +140,7 @@ function showSeedInGrid(phrase) {
   var grid = document.getElementById('seedShowGrid');
   var words = phrase.split(/\s+/);
   grid.innerHTML = words.map(function(w, i) {
-    return '<div class="seed-cell" style="cursor:default"><span class="seed-num">' + String(i+1).padStart(2,'0') + '</span><span style="font-family:\'Space Mono\',monospace;font-size:13px;color:var(--text);user-select:all">' + w + '</span></div>';
+    return '<div class="seed-cell" style="cursor:default"><span class="seed-num">' + String(i+1).padStart(2,'0') + '</span><span style="font-family:\'Space Mono\',monospace;font-size:13px;color:var(--text);user-select:all">' + escHtml(w) + '</span></div>';
   }).join('');
 }
 
@@ -176,12 +176,12 @@ function enterAfterReg() {
     localStorage.setItem('kosmos_token', jwtToken);
     if (pendingRefresh) localStorage.setItem('kosmos_refresh', pendingRefresh);
     localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
-    // Show onboarding for new users
+    // Show onboarding tour + interests for new users
     document.getElementById('auth').classList.add('hidden');
     document.getElementById('seedPhrase').textContent = '';
     document.getElementById('bottomNav').style.display = 'flex';
     applyChatBg();
-    showOnboarding();
+    showOnbTour();
     initSocket();
     loadMyChats();
     pendingToken = null; pendingUser = null; pendingRefresh = null;
@@ -263,9 +263,12 @@ function enterApp() {
     document.getElementById('seedPhrase').textContent = '';
   document.getElementById('bottomNav').style.display = 'flex';
   applyChatBg();
-  // Check if needs onboarding
+  // Show tour for users who haven't seen it
+  if (!localStorage.getItem('kosmos_onb_tour_done') && currentUser) {
+    showOnbTour();
+  }
+  // Check if needs interest onboarding
   if (!localStorage.getItem('kosmos_onboarded') && currentUser) {
-    // Check if user has interests
     fetch(API + '/me', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
       .then(function(r) { return r.json(); })
       .then(function(u) {

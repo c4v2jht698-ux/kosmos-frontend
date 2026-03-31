@@ -114,7 +114,60 @@
   </div>
 </div>
 
-<!-- ONBOARDING -->
+<!-- ONBOARDING TOUR (4 screens) -->
+<div class="onb-tour gone" id="onbTour">
+  <canvas id="onbCanvas"></canvas>
+  <button class="onb-skip" onclick="finishOnbTour()">Пропустить</button>
+  <div class="onb-track" id="onbTrack">
+    <div class="onb-slide">
+      <div class="onb-emoji">🚀</div>
+      <div class="onb-title">Добро пожаловать<br>в Космос</div>
+      <div class="onb-sub">Мессенджер нового поколения.<br>Приватный. Свободный. Твой.</div>
+    </div>
+    <div class="onb-slide">
+      <div class="onb-emoji">🔑</div>
+      <div class="onb-title">Твой ключ —<br>твоя свобода</div>
+      <div class="onb-sub">Никаких паролей и номеров телефона. Только seed-фраза, которую знаешь только ты.</div>
+      <div class="onb-highlight">12 слов = твой аккаунт.<br>Никто кроме тебя.</div>
+    </div>
+    <div class="onb-slide">
+      <div class="onb-emoji">💫</div>
+      <div class="onb-title">Найди своих</div>
+      <div class="onb-sub">Каналы, знакомства и лента —<br>всё в одном месте</div>
+      <div class="onb-features">
+        <div class="onb-feat">
+          <div class="onb-feat-icon"><svg width="24" height="24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+          <div class="onb-feat-label">Чаты</div>
+        </div>
+        <div class="onb-feat">
+          <div class="onb-feat-icon"><svg width="24" height="24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
+          <div class="onb-feat-label">Знакомства</div>
+        </div>
+        <div class="onb-feat">
+          <div class="onb-feat-icon"><svg width="24" height="24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg></div>
+          <div class="onb-feat-label">Каналы</div>
+        </div>
+      </div>
+    </div>
+    <div class="onb-slide">
+      <div class="onb-emoji">🔔</div>
+      <div class="onb-title">Разреши<br>уведомления</div>
+      <div class="onb-sub">Не пропусти сообщения от друзей и важные события в каналах</div>
+      <button class="onb-allow-btn" onclick="requestNotifPermission()">🔔 Разрешить уведомления</button>
+    </div>
+  </div>
+  <div class="onb-bottom">
+    <div class="onb-dots" id="onbDots">
+      <div class="onb-dot active"></div>
+      <div class="onb-dot"></div>
+      <div class="onb-dot"></div>
+      <div class="onb-dot"></div>
+    </div>
+    <button class="onb-next" id="onbNext" onclick="nextOnbSlide()">Далее</button>
+  </div>
+</div>
+
+<!-- ONBOARDING INTERESTS -->
 <div class="onboarding hidden" id="onboarding"></div>
 
 <div class="sidebar" id="sidebar">
