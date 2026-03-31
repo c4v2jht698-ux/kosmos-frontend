@@ -114,7 +114,10 @@ function initSocket() {
       for (var li = item.msgs.length - 1; li >= 0; li--) {
         if (item.msgs[li].id && item.msgs[li].id.indexOf('local-') === 0 && item.msgs[li].from === 'me') { localIdx = li; break; }
       }
-      if (localIdx !== -1) { item.msgs[localIdx] = m; render(); return; }
+      if (localIdx !== -1) {
+        if (item.msgs[localIdx].image && !m.image) m.image = item.msgs[localIdx].image;
+        item.msgs[localIdx] = m; render(); return;
+      }
     }
     item.msgs.push(m);
     item.prev = msg.image ? '\uD83D\uDCF7 Фото' + (msg.text ? ' · ' + msg.text.substring(0, 24) : '') : msg.text.substring(0, 36);

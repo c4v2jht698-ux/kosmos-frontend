@@ -60,6 +60,7 @@ function switchTab(mode) {
   document.getElementById('authToggleBtn').onclick = function() { switchTab(mode === 'register' ? 'login' : 'register'); };
   document.getElementById('authToggleBtn').style.display = '';
   clearAuthMessages();
+  applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
 }
 
 function buildSeedGrid() {
@@ -474,8 +475,8 @@ async function startTelegramBotAuth() {
 
     if (win) win.location.href = data.botUrl; else window.open(data.botUrl, '_blank');
 
-    // Countdown polling: 30 attempts × 2s = 60s
-    var remaining = 60;
+    // Countdown polling: 60 attempts × 2s = 120s
+    var remaining = 120;
     updateTgBtn(remaining);
     window._tgCountdown = setInterval(function() {
       remaining--;
@@ -486,7 +487,7 @@ async function startTelegramBotAuth() {
     var attempts = 0;
     window._tgPoll = setInterval(async function() {
       attempts++;
-      if (attempts > 30) { stopTgPoll(); toast('Время вышло. Попробуйте снова.', 'error'); resetTgBtn(); return; }
+      if (attempts > 60) { stopTgPoll(); toast('Время вышло. Попробуйте снова.', 'error'); resetTgBtn(); return; }
       try {
         var cr = await fetch(API + '/auth/telegram/check', {
           method: 'POST',
