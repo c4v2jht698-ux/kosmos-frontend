@@ -1884,8 +1884,7 @@ function setReply(el) {
 
 function cancelReply() {
   _replyTo = null;
-  var q = document.querySelector('.reply-quote');
-  if (q) q.remove();
+  renderAttachZone();
 }
 
 // ── Photo Sharing ───────────────────────────────────────────────────────────
@@ -2439,5 +2438,119 @@ function showConfirm(msg, onOk, onCancel) {
   overlay.querySelector('#sc-ok').onclick = function() { document.body.removeChild(overlay); if(onOk) onOk(); };
   overlay.querySelector('#sc-cancel').onclick = function() { document.body.removeChild(overlay); if(onCancel) onCancel(); };
   overlay.onclick = function(e) { if(e.target===overlay) { document.body.removeChild(overlay); if(onCancel) onCancel(); } };
+}
+
+// ── Attach Zone (unified photo preview + reply quote) ────────────────────────
+var _attachedPhoto = null;
+
+function triggerAttach() {
+  var inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = function(e) {
+    var f = e.target.files[0];
+    if (!f) return;
+    if (f.size > 8 * 1024 * 1024) { toast('Максимум 8 МБ', 'error'); return; }
+    var r = new FileReader();
+    r.onload = function(ev) {
+      var img = new Image();
+      img.onload = function() {
+        var canvas = document.createElement('canvas');
+        var max = 1200, w = img.width, h = img.height;
+        if (w > max || h > max) {
+          if (w > h) { h = Math.round(h * max / w); w = max; }
+          else { w = Math.round(w * max / h); h = max; }
+        }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        _attachedPhoto = canvas.toDataURL('image/jpeg', 0.8);
+        _pendingImage = _attachedPhoto;
+        renderAttachZone();
+      };
+      img.src = ev.target.result;
+    };
+    r.readAsDataURL(f);
+  };
+  inp.click();
+}
+
+function renderAttachZone() {
+  var z = document.getElementById('attachZone');
+  if (!z) return;
+  var html = '';
+  if (typeof _replyTo !== 'undefined' && _replyTo && _replyTo.text) {
+    html += '<div class="reply-quote glass-panel" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-left:3px solid var(--accent);border-radius:6px;margin-top:8px;font-size:14px"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:12px">\u21A9 ' + escHtml(_replyTo.text) + '</span><button onclick="cancelReply()" class="action-btn" style="padding:0;font-size:16px">\u2716</button></div>';
+  }
+  if (_attachedPhoto) {
+    html += '<div style="position:relative;display:inline-block;margin-top:8px"><img src="' + _attachedPhoto + '" style="max-height:100px;border-radius:8px;border:1px solid var(--glass-border)"><button onclick="cancelAttach()" style="position:absolute;top:-8px;right:-8px;background:#ff3b30;color:#fff;border-radius:50%;border:none;width:24px;height:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.2)">\u2715</button></div>';
+  }
+  z.innerHTML = html;
+}
+
+function cancelAttach() {
+  _attachedPhoto = null;
+  _pendingImage = null;
+  renderAttachZone();
+}
+
+// ── Voice Recording (Microphone) ─────────────────────────────────────────────
+var _mediaRecorder = null, _audioChunks = [], _isRecording = false;
+
+async function startVoice() {
+  if (_isRecording) return;
+  try {
+    var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    _mediaRecorder = new MediaRecorder(stream);
+    _audioChunks = [];
+    _mediaRecorder.ondataavailable = function(e) { _audioChunks.push(e.data); };
+    _mediaRecorder.onstop = function() {
+      var reader = new FileReader();
+      reader.onloadend = function() {
+        if (socket && socket.connected && cur) {
+          socket.emit('chat_msg', { chatId: cur, audio: reader.result, text: '' });
+        }
+      };
+      reader.readAsDataURL(new Blob(_audioChunks, { type: 'audio/webm' }));
+      stream.getTracks().forEach(function(t) { t.stop(); });
+    };
+    _mediaRecorder.start();
+    _isRecording = true;
+    var btn = document.getElementById('micBtn');
+    if (btn) { btn.classList.add('recording'); btn.innerHTML = '\u23F9'; }
+  } catch(e) {
+    toast('Нет доступа к микрофону', 'error');
+  }
+}
+
+function stopVoice() {
+  if (!_isRecording || !_mediaRecorder) return;
+  _mediaRecorder.stop();
+  _isRecording = false;
+  var btn = document.getElementById('micBtn');
+  if (btn) { btn.classList.remove('recording'); btn.innerHTML = '\uD83C\uDFA4'; }
+}
+
+// ── Custom Audio Player ──────────────────────────────────────────────────────
+var _currentAudio = null, _currentPlayBtn = null;
+
+function togglePlay(el, src) {
+  var btn = el.querySelector('.voice-play-btn');
+  if (_currentAudio && _currentPlayBtn === btn) {
+    _currentAudio.pause();
+    btn.innerHTML = '\u25B6';
+    _currentAudio = null; _currentPlayBtn = null;
+    return;
+  }
+  if (_currentAudio) {
+    _currentAudio.pause();
+    if (_currentPlayBtn) _currentPlayBtn.innerHTML = '\u25B6';
+  }
+  _currentAudio = new Audio(src);
+  _currentPlayBtn = btn;
+  btn.innerHTML = '\u23F8';
+  _currentAudio.play();
+  _currentAudio.onended = function() {
+    btn.innerHTML = '\u25B6';
+    _currentAudio = null; _currentPlayBtn = null;
+  };
 }
 
