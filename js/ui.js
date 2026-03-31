@@ -516,17 +516,27 @@ function openChat(id) {
 }
 
 function mHTML(m, isCh) {
+  var imgHtml = m.image ? '<img class="msg-img" src="' + escAttr(m.image) + '" onclick="openImgFull(this.src)">' : '';
+  var textHtml = m.text ? '<span style="white-space:pre-wrap">' + escHtml(m.text) + '</span>' : '';
   if (isCh) {
-    return '<div class="msg ch"><div class="bbl"><span style="white-space:pre-wrap">' + escHtml(m.text) + '</span>' +
+    return '<div class="msg ch"><div class="bbl">' + imgHtml + textHtml +
       '<div class="bf"><span class="mt">' + m.time + '</span></div></div></div>';
   }
   var me = m.from === 'me';
   return '<div class="msg ' + (me ? 'me' : 'them') + '">' +
     (!me && m.sender ? '<div class="sender-name">' + escHtml(m.sender) + '</div>' : '') +
-    '<div class="bbl">' + escHtml(m.text) +
+    '<div class="bbl">' + imgHtml + textHtml +
       '<div class="bf"><span class="mt">' + m.time + '</span>' +
         (me ? '<span class="ms">\u2713\u2713</span>' : '') +
       '</div></div></div>';
+}
+
+function openImgFull(src) {
+  var ov = document.createElement('div');
+  ov.className = 'img-fullscreen';
+  ov.onclick = function() { ov.remove(); };
+  ov.innerHTML = '<img src="' + escAttr(src) + '">';
+  document.body.appendChild(ov);
 }
 
 function escHtml(s) {
@@ -555,10 +565,13 @@ function safePhotoUrl(url) {
 function inpHTML() {
   return '<div class="inp-zone" style="position:relative">' +
     '<div class="epanel" id="ep">' + EMOJIS.map(function(e){return '<span class="ep" onclick="insE(\'' + e + '\')">' + e + '</span>'}).join('') + '</div>' +
+    '<div class="img-preview" id="imgPreview" style="display:none"><img id="imgPreviewImg"><button class="img-preview-cancel" onclick="cancelImgPreview()">\u2715</button></div>' +
     '<div class="inp-box">' +
+      '<button class="ib" onclick="document.getElementById(\'photoInput\').click()" title="Отправить фото" style="font-size:18px">\uD83D\uDCCE</button>' +
       '<textarea class="minput" id="mi" placeholder="Написать сообщение..." rows="1" maxlength="500" onkeydown="hKey(event)" oninput="onInput(this)"></textarea>' +
       '<button class="ib" onclick="togE()">\uD83D\uDE0A</button>' +
     '</div>' +
+    '<input type="file" id="photoInput" accept="image/*" style="display:none" onchange="handlePhotoSelect(this)">' +
     '<span class="char-counter" id="charCount"></span>' +
     '<button class="sbtn" onclick="send()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9H4l4 4-2 7 6-4 6 4-2-7 4-4h-5z"/></svg></button>' +
   '</div>';
@@ -1770,17 +1783,62 @@ function cancelReply() {
   if (q) q.remove();
 }
 
+// ── Photo Sharing ───────────────────────────────────────────────────────────
+var _pendingImage = null;
+
+function handlePhotoSelect(input) {
+  var file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { toast('Только изображения', 'error'); return; }
+  if (file.size > 10 * 1024 * 1024) { toast('Максимум 10 МБ', 'error'); return; }
+  compressImage(file, function(base64) {
+    _pendingImage = base64;
+    var preview = document.getElementById('imgPreview');
+    var img = document.getElementById('imgPreviewImg');
+    if (preview && img) { img.src = base64; preview.style.display = 'flex'; }
+  });
+}
+
+function compressImage(file, cb) {
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var maxW = 1200, w = img.width, h = img.height;
+      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      cb(canvas.toDataURL('image/jpeg', 0.8));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function cancelImgPreview() {
+  _pendingImage = null;
+  var preview = document.getElementById('imgPreview');
+  if (preview) preview.style.display = 'none';
+}
+
 function send() {
   var inp = document.getElementById('mi');
   if (!inp) return;
   var text = inp.value.trim();
-  if (!text) return;
+  var image = _pendingImage;
+  if (!text && !image) return;
   inp.value = ''; inp.style.height = 'auto';
   if (socket && socket.connected && cur) {
-    socket.emit('chat_msg', { chatId: cur, text: text, replyTo: _replyTo ? _replyTo.text : undefined });
+    var payload = { chatId: cur, text: text || '', replyTo: _replyTo ? _replyTo.text : undefined };
+    if (image) payload.image = image;
+    socket.emit('chat_msg', payload);
   }
+  _pendingImage = null;
+  var preview = document.getElementById('imgPreview');
+  if (preview) preview.style.display = 'none';
   cancelReply();
-  // Update char counter
   var cc = document.getElementById('charCount');
   if (cc) { cc.textContent = ''; cc.className = 'char-counter'; }
 };

@@ -247,6 +247,16 @@ body{
 .sbtn svg,.theme-btn svg{width:14px;height:14px}
 .epanel{position:absolute;bottom:64px;right:60px;background:var(--card);border:0.5px solid var(--sep);border-radius:14px;padding:10px 12px;display:none;z-index:100;box-shadow:var(--shadow);gap:4px}
 .epanel.open{display:flex}
+
+/* ── Photo messages ── */
+.msg-img{max-width:100%;max-height:300px;border-radius:12px;margin-bottom:4px;cursor:pointer;display:block;object-fit:cover}
+.img-preview{display:none;align-items:center;gap:8px;padding:8px 12px;background:var(--bg);border-radius:12px;margin-bottom:4px;position:relative}
+.img-preview img{width:60px;height:60px;object-fit:cover;border-radius:8px}
+.img-preview-cancel{position:absolute;top:2px;right:2px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.5);border:none;color:#fff;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+.img-preview-cancel:hover{background:rgba(0,0,0,0.7)}
+.img-fullscreen{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;cursor:zoom-out;animation:fadeIn .2s ease}
+.img-fullscreen img{max-width:95vw;max-height:95vh;object-fit:contain;border-radius:4px}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .ep{font-size:24px;cursor:pointer;padding:4px;border-radius:8px;transition:background .15s}
 .ep:hover{background:var(--hover)}
 

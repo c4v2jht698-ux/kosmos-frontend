@@ -86,7 +86,7 @@ function initSocket() {
     var ts = new Date(msg.created_at * 1000);
     var time = ts.getHours().toString().padStart(2, '0') + ':' + ts.getMinutes().toString().padStart(2, '0');
     var from = currentUser && msg.sender_id === currentUser.id ? 'me' : 'them';
-    var m = { id: msg.id, from: from, text: msg.text, time: time, sender: msg.sender_username };
+    var m = { id: msg.id, from: from, text: msg.text, time: time, sender: msg.sender_username, image: msg.image || null };
 
     var item = findItem(msg.chat_id);
 
@@ -109,7 +109,7 @@ function initSocket() {
 
     if (item.msgs.find(function(x){ return x.id === msg.id; })) return;
     item.msgs.push(m);
-    item.prev = msg.text.substring(0, 36);
+    item.prev = msg.image ? '\uD83D\uDCF7 Фото' + (msg.text ? ' · ' + msg.text.substring(0, 24) : '') : msg.text.substring(0, 36);
     item.time = time;
     item._ts = msg.created_at;
 
