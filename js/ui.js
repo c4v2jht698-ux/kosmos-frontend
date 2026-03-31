@@ -1731,80 +1731,56 @@ document.addEventListener('click', function() { var m = document.querySelector('
 function showContextMenu(bbl, x, y) {
   var old = document.querySelector('.ctx-menu');
   if (old) old.remove();
-  var text = bbl.textContent || '';
-  var timeEl = bbl.querySelector('.mt');
-  if (timeEl) text = text.replace(timeEl.textContent, '').trim();
-  var checkEl = bbl.querySelector('.ms');
-  if (checkEl) text = text.replace(checkEl.textContent, '').trim();
-
-  // Find message ID and whether it's mine
-  var msgEl = bbl.closest('.msg');
-  var msgId = msgEl ? (msgEl.id || '').replace('msg-', '') : '';
-  var isMe = msgEl && msgEl.classList.contains('me');
-
+  var msgId = bbl.id ? bbl.id.replace('msg-', '') : null;
+  var isMine = bbl.classList.contains('me');
   var menu = document.createElement('div');
   menu.className = 'ctx-menu';
-  menu.style.left = Math.min(x, window.innerWidth - 180) + 'px';
-  menu.style.top = Math.min(y, window.innerHeight - 120) + 'px';
-  var html =
-    '<div class="ctx-item" onclick="setReply(this)">\u21A9 Ответить</div>' +
-    '<div class="ctx-item" onclick="copyMsgText(this)">\uD83D\uDCCB Копировать</div>';
-  if (isMe && msgId) {
-    html += '<div class="ctx-item" onclick="editMessage(\'' + escSearch(msgId) + '\',this)">\u270F\uFE0F Редактировать</div>';
-    html += '<div class="ctx-item danger" onclick="deleteMessage(\'' + escSearch(msgId) + '\',this)">\uD83D\uDDD1 Удалить</div>';
+  menu.style.cssText = 'position:fixed;top:'+y+'px;left:'+x+'px;background:var(--card);border:1px solid var(--sep);border-radius:12px;padding:6px 0;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.15);display:flex;flex-direction:column;min-width:140px;overflow:hidden;';
+  var html = '<button style="padding:12px 16px;background:none;border:none;color:var(--text);text-align:left;font-size:15px;cursor:pointer;width:100%" onclick="navigator.clipboard.writeText(\'' + escSearch(bbl.innerText) + '\');toast(\'Скопировано\',\'success\');this.closest(\'.ctx-menu\').remove()">Копировать</button>';
+  if (isMine && msgId) {
+    html += '<hr style="margin:0;border:none;border-top:1px solid var(--sep)">';
+    html += '<button style="padding:12px 16px;background:none;border:none;color:var(--text);text-align:left;font-size:15px;cursor:pointer;width:100%" onclick="editMessage(\'' + escSearch(msgId) + '\')">Изменить</button>';
+    html += '<button style="padding:12px 16px;background:none;border:none;color:#ff3b30;text-align:left;font-size:15px;cursor:pointer;width:100%" onclick="deleteMessage(\'' + escSearch(msgId) + '\')">Удалить</button>';
   }
-  html += '<div class="ctx-item" style="color:var(--text3)" onclick="this.parentElement.remove()">\u2716 Закрыть</div>';
   menu.innerHTML = html;
-  menu.dataset.text = text;
-  menu.dataset.msgId = msgId;
   document.body.appendChild(menu);
-  var rect = menu.getBoundingClientRect();
-  if (rect.bottom > window.innerHeight) menu.style.top = (y - rect.height) + 'px';
+  // Close on click outside
+  setTimeout(function() { document.addEventListener('click', function _close(e) { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', _close); } }); }, 10);
 }
 
-function deleteMessage(msgId, el) {
-  var menu = el.closest('.ctx-menu');
+function deleteMessage(msgId) {
+  var menu = document.querySelector('.ctx-menu');
   if (menu) menu.remove();
-  if (!msgId || !socket || !socket.connected || !cur) return;
-  socket.emit('delete_msg', { chatId: cur, msgId: msgId });
-  // Optimistic: remove from DOM immediately
-  var msgEl = document.getElementById('msg-' + msgId);
-  if (msgEl) { msgEl.style.transition = 'opacity .2s'; msgEl.style.opacity = '0'; setTimeout(function() { msgEl.remove(); }, 200); }
-  // Remove from local msgs array
-  var item = findItem(cur);
-  if (item) item.msgs = item.msgs.filter(function(m) { return m.id !== msgId; });
+  if (confirm('Удалить сообщение у всех?')) {
+    socket.emit('delete_msg', { messageId: msgId, chatId: cur });
+    var msgEl = document.getElementById('msg-' + msgId);
+    if (msgEl) { msgEl.style.transition = 'opacity .3s,transform .3s'; msgEl.style.opacity = '0'; msgEl.style.transform = 'scale(0.9)'; setTimeout(function() { msgEl.remove(); }, 300); }
+    var item = findItem(cur);
+    if (item) item.msgs = item.msgs.filter(function(m) { return m.id !== msgId; });
+  }
 }
 
-function editMessage(msgId, el) {
-  var menu = el.closest('.ctx-menu');
-  var oldText = menu ? menu.dataset.text : '';
+function editMessage(msgId) {
+  var menu = document.querySelector('.ctx-menu');
   if (menu) menu.remove();
-  if (!msgId || !socket || !socket.connected || !cur) return;
+  var bbl = document.getElementById('msg-' + msgId);
+  if (!bbl) return;
+  var oldText = bbl.innerText.replace('(изменено)', '').trim();
   var newText = prompt('Редактировать сообщение:', oldText);
-  if (newText === null || newText.trim() === oldText) return;
-  newText = newText.trim();
-  if (!newText) return;
-  socket.emit('edit_msg', { chatId: cur, msgId: msgId, text: newText });
-  // Optimistic: update DOM immediately
-  var msgEl = document.getElementById('msg-' + msgId);
-  if (msgEl) {
-    var span = msgEl.querySelector('span[style*="white-space"]');
-    if (span) span.textContent = newText;
-    // Add edited indicator
-    var bf = msgEl.querySelector('.bf');
+  if (newText !== null && newText.trim() !== '' && newText !== oldText) {
+    socket.emit('edit_msg', { messageId: msgId, chatId: cur, newText: newText.trim() });
+    var span = bbl.querySelector('span[style*="white-space"]');
+    if (span) span.textContent = newText.trim();
+    var bf = bbl.querySelector('.bf');
     if (bf && !bf.querySelector('.edited')) {
       var ed = document.createElement('span');
       ed.className = 'edited';
-      ed.textContent = ' (ред.)';
+      ed.textContent = ' (изменено)';
       ed.style.cssText = 'font-size:10px;color:var(--text3);font-style:italic';
       bf.insertBefore(ed, bf.firstChild);
     }
-  }
-  // Update local msgs
-  var item = findItem(cur);
-  if (item) {
-    var m = item.msgs.find(function(m) { return m.id === msgId; });
-    if (m) { m.text = newText; m.edited = true; }
+    var item = findItem(cur);
+    if (item) { var m = item.msgs.find(function(m) { return m.id === msgId; }); if (m) { m.text = newText.trim(); m.edited = true; } }
   }
 }
 
