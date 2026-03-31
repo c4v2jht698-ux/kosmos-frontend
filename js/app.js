@@ -319,6 +319,7 @@ function logout() {
   document.getElementById('authBtn').style.display = '';
   switchTab('login');
   document.getElementById('mainArea').innerHTML = '<div class="empty"><div class="empty-card"><div class="empty-icon">\uD83D\uDE80</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>';
+  applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
 }
 
 var _splashDone = false;
