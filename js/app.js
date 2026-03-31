@@ -460,6 +460,10 @@ async function startTelegramBotAuth() {
     var data = await r.json();
     if (!data.botUrl || !data.token) { toast('Ошибка подключения', 'error'); resetTgBtn(); return; }
 
+    try {
+      var botHost = new URL(data.botUrl).hostname;
+      if (['t.me','telegram.me','telegram.org'].indexOf(botHost) === -1) { toast('Недопустимый URL бота', 'error'); resetTgBtn(); return; }
+    } catch(e) { toast('Ошибка URL', 'error'); resetTgBtn(); return; }
     window.open(data.botUrl, '_blank');
 
     var attempts = 0;

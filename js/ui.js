@@ -502,8 +502,8 @@ function openChat(id) {
       '<div class="hacts"><button class="hb">\uD83D\uDD0D</button></div>' +
     '</div>' +
     (isCh && item.slug ? '<div style="display:flex;align-items:center;gap:8px;padding:6px 16px;background:var(--bg2);font-size:13px;border-bottom:0.5px solid var(--sep)">' +
-      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--accent)">https://c4v2jht698-ux.github.io/kosmos-frontend/?channel=' + escHtml(item.slug) + '</span>' +
-      '<button onclick="copyChannelLink(\'' + escHtml(item.slug) + '\')" style="background:var(--accent);border:none;border-radius:8px;color:#fff;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Скопировать</button>' +
+      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--accent)">https://c4v2jht698-ux.github.io/kosmos-frontend/?channel=' + encodeURIComponent(item.slug) + '</span>' +
+      '<button onclick="copyChannelLink(\'' + escSearch(item.slug) + '\')" style="background:var(--accent);border:none;border-radius:8px;color:#fff;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Скопировать</button>' +
     '</div>' : '') +
     '<div class="msg-area" id="msgArea">' +
       '<div class="datediv"><span>Сегодня</span></div>' +
@@ -1850,7 +1850,7 @@ async function viewStory(userId) {
     viewer.className = 'story-viewer';
     viewer.onclick = function(e) { if (e.target === viewer) viewer.remove(); };
     viewer.innerHTML =
-      '<div class="story-content" style="background:' + (s.bg_color || '#7C3AED') + '">' +
+      '<div class="story-content" style="background:' + (/^#[0-9a-fA-F]{3,8}$/.test(s.bg_color) ? s.bg_color : '#7C3AED') + '">' +
         '<div class="story-progress"><div class="story-progress-fill"></div></div>' +
         '<div class="story-meta"><span style="color:#fff;font-size:14px;font-weight:600">' + escHtml(group.username) + '</span></div>' +
         '<button class="story-close" onclick="this.closest(\'.story-viewer\').remove()">\u2716</button>' +
