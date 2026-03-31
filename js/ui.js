@@ -1716,16 +1716,31 @@ function goBack() {
 
 // ── Context Menu (long press on message) ────────────────────────────────────
 var _longPressTimer = null;
-document.addEventListener('touchstart', function(e) {
+var _mainAreaNode = document.getElementById('mainArea');
+if (_mainAreaNode) {
+  _mainAreaNode.addEventListener('touchstart', startPress, { passive: true });
+  _mainAreaNode.addEventListener('touchend', cancelPress);
+  _mainAreaNode.addEventListener('touchmove', cancelPress);
+  _mainAreaNode.addEventListener('mousedown', startPress);
+  _mainAreaNode.addEventListener('mouseup', cancelPress);
+  _mainAreaNode.addEventListener('mousemove', cancelPress);
+  _mainAreaNode.addEventListener('contextmenu', function(e) {
+    if (e.target.closest('.bbl')) e.preventDefault();
+  });
+}
+function startPress(e) {
   var bbl = e.target.closest('.bbl');
   if (!bbl) return;
+  var x = e.touches ? e.touches[0].clientX : e.clientX;
+  var y = e.touches ? e.touches[0].clientY : e.clientY;
   _longPressTimer = setTimeout(function() {
     _longPressTimer = null;
-    showContextMenu(bbl, e.touches[0].clientX, e.touches[0].clientY);
+    showContextMenu(bbl, x, y);
   }, 500);
-}, { passive: true });
-document.addEventListener('touchend', function() { if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; } });
-document.addEventListener('touchmove', function() { if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; } });
+}
+function cancelPress() {
+  if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
+}
 document.addEventListener('click', function() { var m = document.querySelector('.ctx-menu'); if (m) m.remove(); });
 
 function showContextMenu(bbl, x, y) {
