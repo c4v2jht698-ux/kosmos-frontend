@@ -568,17 +568,22 @@ function safePhotoUrl(url) {
 }
 
 function inpHTML() {
-  return '<div class="inp-zone" style="position:relative">' +
-    '<div class="epanel" id="ep">' + EMOJIS.map(function(e){return '<span class="ep" onclick="insE(\'' + e + '\')">' + e + '</span>'}).join('') + '</div>' +
+  return '<div class="inp-wrap" style="display:flex;flex-direction:column;background:var(--bg);border-top:0.5px solid var(--sep);position:relative;z-index:100">' +
+    '<div id="attachZone" style="display:flex;flex-direction:column;gap:8px;padding:0 12px"></div>' +
     '<div class="img-preview" id="imgPreview" style="display:none"><img id="imgPreviewImg"><button class="img-preview-cancel" onclick="cancelImgPreview()">\u2715</button></div>' +
-    '<div class="inp-box">' +
-      '<button class="ib" onclick="document.getElementById(\'photoInput\').click()" title="Отправить фото" style="font-size:18px">\uD83D\uDCCE</button>' +
-      '<textarea class="minput" id="mi" placeholder="Написать сообщение..." rows="1" maxlength="500" onkeydown="hKey(event)" oninput="onInput(this)"></textarea>' +
-      '<button class="ib" onclick="togE()">\uD83D\uDE0A</button>' +
+    '<div class="epanel" id="ep">' + EMOJIS.map(function(e){return '<span class="ep" onclick="insE(\'' + e + '\')">' + e + '</span>'}).join('') + '</div>' +
+    '<div class="inp-zone" style="display:flex;align-items:flex-end;gap:8px;padding:8px 12px">' +
+      '<button class="attach-btn" onclick="document.getElementById(\'photoInput\').click()" style="background:none;border:none;padding:8px 4px;color:var(--text3);font-size:20px;cursor:pointer">\uD83D\uDCCE</button>' +
+      '<div class="inp-box" style="flex:1;background:var(--bg2);border-radius:20px;display:flex;align-items:flex-end;padding:4px 12px;min-height:40px">' +
+        '<textarea class="minput" id="mi" placeholder="Написать сообщение..." rows="1" maxlength="500" onkeydown="hKey(event)" oninput="onInput(this)" style="flex:1;border:none;background:transparent;resize:none;font-family:inherit;font-size:16px;color:var(--text);padding:8px 0;max-height:120px;outline:none"></textarea>' +
+        '<button class="ib" onclick="togE()" style="background:none;border:none;padding:6px;font-size:20px;color:var(--text3);cursor:pointer">\uD83D\uDE42</button>' +
+      '</div>' +
+      '<button class="sbtn" onclick="send()" style="background:var(--accent);border:none;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:#fff;cursor:pointer;flex-shrink:0">' +
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>' +
+      '</button>' +
     '</div>' +
     '<input type="file" id="photoInput" accept="image/*" style="display:none" onchange="handlePhotoSelect(this)">' +
-    '<span class="char-counter" id="charCount"></span>' +
-    '<button class="sbtn" onclick="send()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9H4l4 4-2 7 6-4 6 4-2-7 4-4h-5z"/></svg></button>' +
+    '<span class="char-counter" id="charCount" style="position:absolute;right:60px;bottom:48px;font-size:11px"></span>' +
   '</div>';
 }
 
@@ -1839,15 +1844,20 @@ function setReply(el) {
   var text = menu ? menu.dataset.text : '';
   if (menu) menu.remove();
   _replyTo = { text: text.substring(0, 80) };
-  // Show reply quote above input
-  var zone = document.querySelector('.inp-zone');
+
+  var zone = document.getElementById('attachZone');
   if (!zone) return;
+
   var existing = zone.querySelector('.reply-quote');
   if (existing) existing.remove();
+
   var q = document.createElement('div');
   q.className = 'reply-quote';
-  q.innerHTML = '<span>\u21A9 ' + escHtml(_replyTo.text) + '</span><button class="reply-quote-close" onclick="cancelReply()">\u2716</button>';
-  zone.insertBefore(q, zone.firstChild);
+  q.style.cssText = 'display:flex;justify-content:space-between;align-items:center;background:var(--bg2);padding:8px 12px;border-left:3px solid var(--accent);border-radius:6px;margin-top:8px;font-size:14px;color:var(--text)';
+  q.innerHTML = '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:12px">\u21A9 ' + escHtml(_replyTo.text) + '</span><button class="reply-quote-close" onclick="cancelReply()" style="background:none;border:none;color:var(--text3);font-size:16px;padding:0;cursor:pointer">\u2716</button>';
+
+  zone.appendChild(q);
+
   var inp = document.getElementById('mi');
   if (inp) inp.focus();
 }
