@@ -3,18 +3,20 @@
 html{position:fixed;width:100%;height:100dvh;overflow:hidden;overscroll-behavior:none}
 @supports not (height:100dvh){html{height:100%}}
 
-/* ── Цветовая палитра (Apple / Telegram Dark Style) ── */
+/* ── Цветовая палитра (Gold & Black Premium) ── */
 :root{
-  --bg:#000000;--bg2:#1c1c1e;--card:rgba(28,28,30,0.7);
-  --accent:#0a84ff;--accent2:#0070e0;--accent-hover:#0070e0;--green:#34C759;--pink:#F43F5E;
-  --text:#ffffff;--text2:#ebebf5;--text3:rgba(235,235,245,0.6);--muted:rgba(235,235,245,0.6);
-  --sep:rgba(84,84,88,0.3);
-  --bubble-them:#2c2c2e;--bubble-me:#0a84ff;
-  --search-bg:rgba(118,118,128,0.24);
-  --hover:rgba(255,255,255,0.06);--shadow:0 8px 32px rgba(0,0,0,0.4);
-  --online:#0a84ff;--tab-bg:#1c1c1e;--nav-bg:rgba(25,25,30,0.92);
-  --glass-bg:rgba(25,25,30,0.75);--glass-border:rgba(255,255,255,0.08);
-  --msg-my:#0a84ff;--msg-other:#2c2c2e;
+  --bg:#050505;--bg2:#121212;--card:rgba(18,18,18,0.85);
+  --accent:#D4AF37;--accent2:#B8962D;--accent-hover:#B8962D;--green:#34C759;--pink:#F43F5E;
+  --accent-gradient:linear-gradient(135deg,#F9D976 0%,#E1B24B 50%,#B8962D 100%);
+  --text:#ffffff;--text2:#cccccc;--text3:rgba(255,255,255,0.5);--muted:rgba(255,255,255,0.5);
+  --sep:rgba(212,175,55,0.15);
+  --bubble-them:rgba(30,30,32,0.85);--bubble-me:#E6C27A;
+  --msg-my-bg:#E6C27A;--msg-my-text:#1A1A1A;--msg-other-bg:rgba(30,30,32,0.85);--msg-other-text:#EBEBF5;
+  --search-bg:rgba(212,175,55,0.08);
+  --hover:rgba(212,175,55,0.06);--shadow:0 8px 32px rgba(0,0,0,0.5);
+  --online:#D4AF37;--tab-bg:#121212;--nav-bg:rgba(10,10,10,0.92);
+  --glass-bg:rgba(10,10,10,0.75);--glass-border:rgba(212,175,55,0.2);
+  --msg-my:#E6C27A;--msg-other:rgba(30,30,32,0.85);
 }
 
 /* ── Glassmorphism ── */
@@ -177,8 +179,8 @@ body{
 .msg.them{align-self:flex-start;align-items:flex-start}
 .msg.ch{align-self:stretch;max-width:100%}
 .bbl{padding:10px 14px;border-radius:20px;line-height:1.4;font-size:16px;font-weight:400;word-break:break-word;position:relative;box-shadow:0 1px 2px rgba(0,0,0,0.2)}
-.me .bbl{background:var(--msg-my);color:#fff;border-bottom-right-radius:4px}
-.them .bbl{background:var(--msg-other);color:var(--text);border-bottom-left-radius:4px}
+.me .bbl,.bbl.my{background:var(--msg-my-bg);color:var(--msg-my-text);border-bottom-right-radius:4px}
+.them .bbl,.bbl:not(.my){background:var(--msg-other-bg);color:var(--msg-other-text);border-bottom-left-radius:4px}
 .ch .bbl{background:var(--msg-other);color:var(--text);border-radius:20px;border-left:3px solid var(--accent)}
 .bf{display:flex;align-items:center;gap:4px;margin-top:3px;justify-content:flex-end}
 .mt{font-size:11px;font-weight:400;opacity:.5}
