@@ -516,20 +516,35 @@ function openChat(id) {
 }
 
 function mHTML(m, isCh) {
-  var mid = ' id="msg-' + escAttr(m.id) + '"';
-  var imgHtml = m.image ? '<img class="msg-img" src="' + escAttr(m.image) + '" onclick="openImgFull(this.src)">' : '';
-  var textHtml = m.text ? '<span style="white-space:pre-wrap">' + escHtml(m.text) + '</span>' : '';
-  if (isCh) {
-    return '<div class="msg ch"' + mid + '><div class="bbl">' + imgHtml + textHtml +
-      '<div class="bf"><span class="mt">' + m.time + '</span></div></div></div>';
-  }
   var me = m.from === 'me';
-  return '<div class="msg ' + (me ? 'me' : 'them') + '"' + mid + '>' +
+  var photoHtml = m.image ? '<img class="chat-photo msg-img" src="' + escAttr(m.image) + '" onclick="openImgFull(this.src)">' : '';
+  var audioHtml = '';
+  if (m.audio) {
+    audioHtml =
+      '<div class="voice-player" onclick="togglePlay(this,\'' + escAttr(m.audio) + '\')">' +
+        '<button class="voice-play-btn">\u25B6</button>' +
+        '<div class="voice-waveform"></div>' +
+      '</div>';
+  }
+  var tickMark = m.read ? '\u2713\u2713' : '\u2713';
+  var tickClass = m.read ? 'msg-status read' : 'msg-status';
+  var metaHtml = '<span class="msg-meta">' + escHtml(m.time) + (me ? ' <span class="' + tickClass + '">' + tickMark + '</span>' : '') + '</span>';
+  var replyHtml = '';
+  if (m.replyText) {
+    replyHtml = '<div style="border-left:2px solid rgba(255,255,255,0.5);padding-left:6px;margin-bottom:4px;font-size:12px;opacity:0.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(m.replyText) + '</div>';
+  }
+  var bblClass = me ? 'bbl my' : 'bbl';
+  if (isCh) {
+    return '<div class="msg-row" style="justify-content:flex-start">' +
+      '<div class="' + bblClass + '" id="msg-' + escAttr(m.id) + '" style="border-left:3px solid var(--accent)">' +
+        replyHtml + photoHtml + audioHtml + escHtml(m.text || '') + metaHtml +
+      '</div></div>';
+  }
+  return '<div class="msg-row" style="justify-content:' + (me ? 'flex-end' : 'flex-start') + '">' +
     (!me && m.sender ? '<div class="sender-name">' + escHtml(m.sender) + '</div>' : '') +
-    '<div class="bbl">' + imgHtml + textHtml +
-      '<div class="bf"><span class="mt">' + m.time + '</span>' +
-        (me ? '<span class="ms">\u2713\u2713</span>' : '') +
-      '</div></div></div>';
+    '<div class="' + bblClass + '" id="msg-' + escAttr(m.id) + '">' +
+      replyHtml + photoHtml + audioHtml + escHtml(m.text || '') + metaHtml +
+    '</div></div>';
 }
 
 function openImgFull(src) {
@@ -568,22 +583,25 @@ function safePhotoUrl(url) {
 }
 
 function inpHTML() {
-  return '<div class="inp-wrap" style="display:flex;flex-direction:column;background:var(--bg);border-top:0.5px solid var(--sep);position:relative;z-index:100">' +
-    '<div id="attachZone" style="display:flex;flex-direction:column;gap:8px;padding:0 12px"></div>' +
+  return '<div class="inp-wrap">' +
+    '<div id="attachZone" style="display:flex;flex-direction:column;gap:8px;padding:0 4px"></div>' +
     '<div class="img-preview" id="imgPreview" style="display:none"><img id="imgPreviewImg"><button class="img-preview-cancel" onclick="cancelImgPreview()">\u2715</button></div>' +
-    '<div class="epanel" id="ep">' + EMOJIS.map(function(e){return '<span class="ep" onclick="insE(\'' + e + '\')">' + e + '</span>'}).join('') + '</div>' +
-    '<div class="inp-zone" style="display:flex;align-items:flex-end;gap:8px;padding:8px 12px">' +
-      '<button class="attach-btn" onclick="document.getElementById(\'photoInput\').click()" style="background:none;border:none;padding:8px 4px;color:var(--text3);font-size:20px;cursor:pointer">\uD83D\uDCCE</button>' +
-      '<div class="inp-box" style="flex:1;background:var(--bg2);border-radius:20px;display:flex;align-items:flex-end;padding:4px 12px;min-height:40px">' +
-        '<textarea class="minput" id="mi" placeholder="Написать сообщение..." rows="1" maxlength="500" onkeydown="hKey(event)" oninput="onInput(this)" style="flex:1;border:none;background:transparent;resize:none;font-family:inherit;font-size:16px;color:var(--text);padding:8px 0;max-height:120px;outline:none"></textarea>' +
-        '<button class="ib" onclick="togE()" style="background:none;border:none;padding:6px;font-size:20px;color:var(--text3);cursor:pointer">\uD83D\uDE42</button>' +
+    '<div class="epanel glass-panel" id="ep" style="bottom:70px;border-radius:16px">' + EMOJIS.map(function(e){return '<span class="ep" onclick="insE(\'' + e + '\')">' + e + '</span>'}).join('') + '</div>' +
+    '<div style="display:flex;align-items:flex-end;gap:8px">' +
+      '<button class="action-btn" onclick="document.getElementById(\'photoInput\').click()">\uD83D\uDCCE</button>' +
+      '<div class="inp-box">' +
+        '<textarea class="minput" id="mi" placeholder="Сообщение..." rows="1" maxlength="500" onkeydown="hKey(event)" oninput="onInput(this)" style="flex:1;border:none;background:transparent;resize:none;font-family:inherit;outline:none"></textarea>' +
+        '<button class="action-btn" onclick="togE()" style="padding:4px;font-size:20px">\uD83D\uDE42</button>' +
       '</div>' +
-      '<button class="sbtn" onclick="send()" style="background:var(--accent);border:none;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:#fff;cursor:pointer;flex-shrink:0">' +
-        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>' +
-      '</button>' +
+      '<div style="display:flex;gap:6px;align-items:flex-end;padding-bottom:4px">' +
+        '<button id="micBtn" class="action-btn" style="background:rgba(255,255,255,0.1);border-radius:50%;width:40px;height:40px">\uD83C\uDFA4</button>' +
+        '<button class="sbtn" onclick="send()">' +
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>' +
+        '</button>' +
+      '</div>' +
     '</div>' +
     '<input type="file" id="photoInput" accept="image/*" style="display:none" onchange="handlePhotoSelect(this)">' +
-    '<span class="char-counter" id="charCount" style="position:absolute;right:60px;bottom:48px;font-size:11px"></span>' +
+    '<span class="char-counter" id="charCount"></span>' +
   '</div>';
 }
 
@@ -1751,32 +1769,34 @@ document.addEventListener('click', function() { var m = document.querySelector('
 function showContextMenu(bbl, x, y) {
   var old = document.querySelector('.ctx-menu');
   if (old) old.remove();
-  var text = bbl.textContent || '';
-  var timeEl = bbl.querySelector('.mt');
-  if (timeEl) text = text.replace(timeEl.textContent, '').trim();
-  var checkEl = bbl.querySelector('.ms');
-  if (checkEl) text = text.replace(checkEl.textContent, '').trim();
 
-  // Find message ID and whether it's mine
-  var msgEl = bbl.closest('.msg');
-  var msgId = msgEl ? (msgEl.id || '').replace('msg-', '') : '';
-  var isMe = msgEl && msgEl.classList.contains('me');
+  // Find msg ID — bbl itself has id="msg-..." in new layout, or check parent
+  var msgId = bbl.id ? bbl.id.replace('msg-', '') : null;
+  if (!msgId) { var msgEl = bbl.closest('[id^="msg-"]'); if (msgEl) msgId = msgEl.id.replace('msg-', ''); }
+  var isMine = bbl.classList.contains('my');
+  if (!isMine) { var p = bbl.closest('.msg-row,.msg'); if (p) isMine = p.style.justifyContent === 'flex-end' || p.classList.contains('me'); }
+
+  // Extract clean text
+  var clone = bbl.cloneNode(true);
+  var meta = clone.querySelector('.msg-meta');
+  if (meta) meta.remove();
+  var txt = clone.innerText.trim();
 
   var menu = document.createElement('div');
-  menu.className = 'ctx-menu';
-  menu.style.left = Math.min(x, window.innerWidth - 180) + 'px';
-  menu.style.top = Math.min(y, window.innerHeight - 120) + 'px';
-  var html =
-    '<div class="ctx-item" onclick="setReply(this)">\u21A9 Ответить</div>' +
-    '<div class="ctx-item" onclick="copyMsgText(this)">\uD83D\uDCCB Копировать</div>';
-  if (isMe && msgId) {
-    html += '<div class="ctx-item" onclick="editMessage(\'' + escSearch(msgId) + '\',this)">\u270F\uFE0F Редактировать</div>';
-    html += '<div class="ctx-item danger" onclick="deleteMessage(\'' + escSearch(msgId) + '\',this)">\uD83D\uDDD1 Удалить</div>';
+  menu.className = 'ctx-menu glass-panel';
+  var menuX = x > window.innerWidth - 180 ? window.innerWidth - 180 : x;
+  menu.style.cssText = 'position:fixed;top:' + y + 'px;left:' + menuX + 'px;z-index:9999;display:flex;flex-direction:column;min-width:170px';
+  menu.dataset.text = txt;
+  menu.dataset.msgId = msgId || '';
+
+  var html = '<button class="ctx-btn" onclick="setReply(this)"><span>\u21A9</span> Ответить</button>';
+  html += '<button class="ctx-btn" onclick="copyMsgText(this)"><span>\uD83D\uDCCB</span> Копировать</button>';
+  if (isMine && msgId) {
+    html += '<hr style="margin:0;border:none;border-top:1px solid var(--glass-border)">';
+    html += '<button class="ctx-btn" onclick="editMessage(\'' + escSearch(msgId) + '\',this)"><span>\u270F\uFE0F</span> Изменить</button>';
+    html += '<button class="ctx-btn danger" onclick="deleteMessage(\'' + escSearch(msgId) + '\',this)"><span>\uD83D\uDDD1</span> Удалить</button>';
   }
-  html += '<div class="ctx-item" style="color:var(--text3)" onclick="this.parentElement.remove()">\u2716 Закрыть</div>';
   menu.innerHTML = html;
-  menu.dataset.text = text;
-  menu.dataset.msgId = msgId;
   document.body.appendChild(menu);
   var rect = menu.getBoundingClientRect();
   if (rect.bottom > window.innerHeight) menu.style.top = (y - rect.height) + 'px';
