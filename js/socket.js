@@ -140,9 +140,24 @@ function initSocket() {
   });
 
   socket.on('typing', function(data) {
-    if (cur === data.chatId && data.username !== (currentUser ? currentUser.username : '')) {
-      showTypingIndicator();
+    if (data.chatId !== cur) return;
+    if (data.senderId === (currentUser ? currentUser.id : '')) return;
+    var ind = document.getElementById('typingIndicator');
+    if (!ind) {
+      ind = document.createElement('div');
+      ind.id = 'typingIndicator';
+      ind.className = 'typing-wrap';
+      ind.innerHTML = '<span id="typingName"></span><div class="typing-dots"><span></span><span></span><span></span></div>';
+      var az = document.getElementById('attachZone');
+      if (az && az.parentElement) az.parentElement.insertBefore(ind, az);
     }
+    if (data.isTyping) {
+      var name = (data.senderName || data.username || '').split(' ')[0];
+      document.getElementById('typingName').innerText = name + ' печатает';
+      ind.classList.add('active');
+    } else { ind.classList.remove('active'); }
+    clearTimeout(window._typingClearTimer);
+    if (data.isTyping) window._typingClearTimer = setTimeout(function() { if (ind) ind.classList.remove('active'); }, 3500);
   });
 
   socket.on('msg_deleted', function(data) {

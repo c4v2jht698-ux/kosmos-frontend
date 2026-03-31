@@ -2615,3 +2615,14 @@ function endCall(emitSignal) {
   _callChatId = null; _pendingOffer = null;
 }
 
+// ── Typing Indicator ─────────────────────────────────────────────────────────
+var _typingTimer = null, _isTypingNow = false, _typingClearTimer = null;
+
+document.addEventListener('input', function(e) {
+  if (e.target.id !== 'mi') return;
+  if (!cur || typeof socket === 'undefined') return;
+  if (!_isTypingNow) { _isTypingNow = true; socket.emit('typing', { chatId: cur, isTyping: true }); }
+  clearTimeout(_typingTimer);
+  _typingTimer = setTimeout(function() { _isTypingNow = false; socket.emit('typing', { chatId: cur, isTyping: false }); }, 2000);
+});
+
