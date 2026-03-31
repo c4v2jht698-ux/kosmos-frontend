@@ -185,4 +185,19 @@ function initSocket() {
   socket.on('error_msg', function(data) {
     console.error('[socket] error_msg:', data.error);
   });
+
+  socket.on('webrtc_signal', async function(data) {
+    if (currentUser && data.senderId === currentUser.id) return;
+    if (data.type === 'offer') {
+      _callChatId = data.chatId;
+      _pendingOffer = data.payload;
+      buildCallUI(data.callerName, true);
+    } else if (data.type === 'answer' && _peerConn) {
+      await _peerConn.setRemoteDescription(new RTCSessionDescription(data.payload));
+    } else if (data.type === 'ice' && _peerConn) {
+      try { await _peerConn.addIceCandidate(new RTCIceCandidate(data.payload)); } catch(e) {}
+    } else if (data.type === 'end') {
+      endCall(false);
+    }
+  });
 }

@@ -499,7 +499,7 @@ function openChat(id) {
       '<button class="back-btn" onclick="goBack()">\u2039</button>' +
       avHtml +
       '<div class="hinfo"><div class="hname">' + escHtml(item.name) + '</div><div class="hsub">' + sub + '</div></div>' +
-      '<div class="hacts"><button class="hb">\uD83D\uDD0D</button></div>' +
+      '<div class="hacts"><button onclick="startVideoCall()" style="background:none;border:none;color:var(--accent);font-size:24px;cursor:pointer">\uD83D\uDCDE</button><button class="hb">\uD83D\uDD0D</button></div>' +
     '</div>' +
     (isCh && item.slug ? '<div style="display:flex;align-items:center;gap:8px;padding:6px 16px;background:var(--bg2);font-size:13px;border-bottom:0.5px solid var(--sep)">' +
       '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--accent)">https://c4v2jht698-ux.github.io/kosmos-frontend/?channel=' + encodeURIComponent(item.slug) + '</span>' +
@@ -2546,5 +2546,72 @@ function togglePlay(el, src) {
     btn.innerHTML = '\u25B6';
     _currentAudio = null; _currentPlayBtn = null;
   };
+}
+
+// ── WebRTC Video Calls ───────────────────────────────────────────────────────
+var _peerConn = null, _localStream = null, _callChatId = null, _pendingOffer = null;
+var rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+function buildCallUI(callerName, isIncoming) {
+  if (document.getElementById('callOverlay')) return;
+  var div = document.createElement('div');
+  div.id = 'callOverlay';
+  div.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--glass-bg);backdrop-filter:blur(25px)';
+  var buttonsHtml = isIncoming
+    ? '<div style="display:flex;gap:40px;position:absolute;bottom:60px"><button class="sbtn" style="width:64px;height:64px;background:#ff3b30" onclick="endCall(true)">\u260E</button><button class="sbtn" style="width:64px;height:64px;background:#34c759" onclick="answerCall()">\uD83D\uDCDE</button></div>'
+    : '<button class="sbtn" style="width:64px;height:64px;background:#ff3b30;position:absolute;bottom:60px" onclick="endCall(true)">\u260E</button>';
+  div.innerHTML =
+    '<video id="remoteVideo" autoplay playsinline style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;z-index:1"></video>' +
+    '<video id="localVideo" autoplay playsinline muted style="width:110px;height:160px;object-fit:cover;position:absolute;top:60px;right:20px;border-radius:16px;border:2px solid rgba(255,255,255,0.2);z-index:3"></video>' +
+    '<div style="position:absolute;top:60px;left:20px;z-index:3;color:#fff">' +
+      '<div style="font-size:28px;font-weight:700">' + escHtml(callerName || 'Собеседник') + '</div>' +
+      '<div id="callStatus" style="font-size:16px;opacity:0.8;margin-top:4px">Подключение...</div>' +
+    '</div>' + buttonsHtml;
+  document.body.appendChild(div);
+}
+
+async function startVideoCall() {
+  if (!cur) { toast('Откройте чат для звонка', 'error'); return; }
+  _callChatId = cur;
+  buildCallUI('Вызов...', false);
+  try {
+    _localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    document.getElementById('localVideo').srcObject = _localStream;
+    _peerConn = new RTCPeerConnection(rtcConfig);
+    _localStream.getTracks().forEach(function(track) { _peerConn.addTrack(track, _localStream); });
+    _peerConn.ontrack = function(e) { document.getElementById('remoteVideo').srcObject = e.streams[0]; var s = document.getElementById('callStatus'); if (s) s.innerText = 'На связи'; };
+    _peerConn.onicecandidate = function(e) { if (e.candidate) socket.emit('webrtc_signal', { chatId: _callChatId, type: 'ice', payload: e.candidate }); };
+    var offer = await _peerConn.createOffer();
+    await _peerConn.setLocalDescription(offer);
+    var cName = currentUser ? currentUser.username : 'Пользователь';
+    socket.emit('webrtc_signal', { chatId: _callChatId, type: 'offer', payload: offer, callerName: cName });
+  } catch(e) { toast('Ошибка камеры/микрофона', 'error'); endCall(true); }
+}
+
+async function answerCall() {
+  if (!_pendingOffer) return;
+  var s = document.getElementById('callStatus'); if (s) s.innerText = 'Соединение...';
+  try {
+    _localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    document.getElementById('localVideo').srcObject = _localStream;
+    _peerConn = new RTCPeerConnection(rtcConfig);
+    _localStream.getTracks().forEach(function(track) { _peerConn.addTrack(track, _localStream); });
+    _peerConn.ontrack = function(e) { document.getElementById('remoteVideo').srcObject = e.streams[0]; var st = document.getElementById('callStatus'); if (st) st.innerText = 'На связи'; };
+    _peerConn.onicecandidate = function(e) { if (e.candidate) socket.emit('webrtc_signal', { chatId: _callChatId, type: 'ice', payload: e.candidate }); };
+    await _peerConn.setRemoteDescription(new RTCSessionDescription(_pendingOffer));
+    var answer = await _peerConn.createAnswer();
+    await _peerConn.setLocalDescription(answer);
+    socket.emit('webrtc_signal', { chatId: _callChatId, type: 'answer', payload: answer });
+    _pendingOffer = null;
+  } catch(e) { toast('Ошибка ответа', 'error'); endCall(true); }
+}
+
+function endCall(emitSignal) {
+  if (emitSignal && _callChatId) socket.emit('webrtc_signal', { chatId: _callChatId, type: 'end' });
+  if (_peerConn) { _peerConn.close(); _peerConn = null; }
+  if (_localStream) { _localStream.getTracks().forEach(function(t) { t.stop(); }); _localStream = null; }
+  var overlay = document.getElementById('callOverlay');
+  if (overlay) overlay.remove();
+  _callChatId = null; _pendingOffer = null;
 }
 
