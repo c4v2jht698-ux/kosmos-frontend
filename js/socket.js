@@ -108,6 +108,14 @@ function initSocket() {
     }
 
     if (item.msgs.find(function(x){ return x.id === msg.id; })) return;
+    // Replace local echo with server message (avoid duplicate)
+    if (from === 'me') {
+      var localIdx = -1;
+      for (var li = item.msgs.length - 1; li >= 0; li--) {
+        if (item.msgs[li].id && item.msgs[li].id.indexOf('local-') === 0 && item.msgs[li].from === 'me') { localIdx = li; break; }
+      }
+      if (localIdx !== -1) { item.msgs[localIdx] = m; render(); return; }
+    }
     item.msgs.push(m);
     item.prev = msg.image ? '\uD83D\uDCF7 Фото' + (msg.text ? ' · ' + msg.text.substring(0, 24) : '') : msg.text.substring(0, 36);
     item.time = time;

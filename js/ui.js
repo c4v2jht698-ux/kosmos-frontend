@@ -1830,6 +1830,29 @@ function send() {
   var image = _pendingImage;
   if (!text && !image) return;
   inp.value = ''; inp.style.height = 'auto';
+
+  // Local echo — show message immediately without waiting for server
+  var now = new Date();
+  var time = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+  var localMsg = {
+    id: 'local-' + Date.now(),
+    from: 'me',
+    text: text || '',
+    time: time,
+    sender: currentUser ? currentUser.username : '',
+    image: image || null
+  };
+  var item = findItem(cur);
+  if (item) {
+    var isCh = item.type === 'channel';
+    item.msgs.push(localMsg);
+    item.prev = image ? '\uD83D\uDCF7 Фото' + (text ? ' \u00B7 ' + text.substring(0, 24) : '') : text.substring(0, 36);
+    item.time = time;
+    item._ts = Math.floor(now.getTime() / 1000);
+    appendMsg(localMsg, isCh);
+    render();
+  }
+
   if (socket && socket.connected && cur) {
     var payload = { chatId: cur, text: text || '', replyTo: _replyTo ? _replyTo.text : undefined };
     if (image) payload.image = image;
