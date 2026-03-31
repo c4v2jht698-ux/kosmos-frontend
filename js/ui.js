@@ -540,26 +540,30 @@ function openImgFull(src) {
 }
 
 function escHtml(s) {
-  s = String(s || '');
-  if (typeof DOMPurify !== 'undefined') return DOMPurify.sanitize(s, { ALLOWED_TAGS: [] });
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
-
 function escAttr(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#x27;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return escHtml(s);
 }
-
 function escSearch(s) {
-  return String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
-
 function safePhotoUrl(url) {
   if (!url) return '';
-  try {
-    var parsed = new URL(String(url).trim());
-    if (parsed.protocol !== 'https:') return '';
-    return escAttr(parsed.href);
-  } catch(e) { return ''; }
+  url = String(url).trim();
+  if (!/^https?:\/\//i.test(url)) return '';
+  return escAttr(url);
 }
 
 function inpHTML() {
