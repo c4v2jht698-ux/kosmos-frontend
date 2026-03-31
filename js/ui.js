@@ -476,7 +476,7 @@ function openChat(id) {
           var area = document.getElementById('msgArea');
           if (area) {
             area.innerHTML = '<div class="datediv"><span>Сегодня</span></div>' +
-              item.msgs.map(function(m){return mHTML(m, isCh2)}).join('');
+              item.msgs.map(function(m){return mHTML(m)}).join('');
             scrollBot();
           }
         }
@@ -507,7 +507,7 @@ function openChat(id) {
     '</div>' : '') +
     '<div class="msg-area" id="msgArea">' +
       '<div class="datediv"><span>Сегодня</span></div>' +
-      item.msgs.map(function(m){return mHTML(m, isCh)}).join('') +
+      item.msgs.map(function(m){return mHTML(m)}).join('') +
     '</div>' +
     (isCh && String(item.created_by) !== String(currentUser && currentUser.id) ? '<div class="ro-bar">Канал только для чтения</div>' : inpHTML());
   scrollBot();
@@ -515,9 +515,9 @@ function openChat(id) {
   showChatView();
 }
 
-function mHTML(m, isCh) {
-  var me = m.from === 'me';
-  var photoHtml = m.image ? '<img class="chat-photo msg-img" src="' + escAttr(m.image) + '" onclick="openImgFull(this.src)">' : '';
+function mHTML(m) {
+  var isMy = m.from === 'me';
+  var photoHtml = m.image ? '<img class="chat-photo" src="' + escAttr(m.image) + '" style="max-width:100%;border-radius:12px;margin-bottom:6px" onclick="openImgFull(this.src)">' : '';
   var audioHtml = '';
   if (m.audio) {
     audioHtml =
@@ -526,24 +526,18 @@ function mHTML(m, isCh) {
         '<div class="voice-waveform"></div>' +
       '</div>';
   }
-  var tickMark = m.read ? '\u2713\u2713' : '\u2713';
-  var tickClass = m.read ? 'msg-status read' : 'msg-status';
-  var metaHtml = '<span class="msg-meta">' + escHtml(m.time) + (me ? ' <span class="' + tickClass + '">' + tickMark + '</span>' : '') + '</span>';
-  var replyHtml = '';
-  if (m.replyText) {
-    replyHtml = '<div style="border-left:2px solid rgba(255,255,255,0.5);padding-left:6px;margin-bottom:4px;font-size:12px;opacity:0.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(m.replyText) + '</div>';
+  var nameHtml = '';
+  if (!isMy && m.sender) {
+    nameHtml = '<div style="font-size:12px;color:var(--accent);margin-bottom:4px;font-weight:bold">' + escHtml(m.sender) + '</div>';
   }
-  var bblClass = me ? 'bbl my' : 'bbl';
-  if (isCh) {
-    return '<div class="msg-row" style="justify-content:flex-start">' +
-      '<div class="' + bblClass + '" id="msg-' + escAttr(m.id) + '" style="border-left:3px solid var(--accent)">' +
-        replyHtml + photoHtml + audioHtml + escHtml(m.text || '') + metaHtml +
-      '</div></div>';
-  }
-  return '<div class="msg-row" style="justify-content:' + (me ? 'flex-end' : 'flex-start') + '">' +
-    (!me && m.sender ? '<div class="sender-name">' + escHtml(m.sender) + '</div>' : '') +
-    '<div class="' + bblClass + '" id="msg-' + escAttr(m.id) + '">' +
-      replyHtml + photoHtml + audioHtml + escHtml(m.text || '') + metaHtml +
+  var timeStr = m.time || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+  var tickMark = m.is_read ? '\u2713\u2713' : '\u2713';
+  var tickClass = m.is_read ? 'msg-status read' : 'msg-status';
+  var metaHtml = '<span class="msg-meta">' + timeStr + (isMy ? ' <span class="' + tickClass + '" data-msg-id="' + escAttr(m.id) + '">' + tickMark + '</span>' : '') + '</span>';
+  var bblClass = isMy ? 'bbl my' : 'bbl';
+  return '<div class="msg-row" style="display:flex;margin-bottom:12px;width:100%;justify-content:' + (isMy ? 'flex-end' : 'flex-start') + '">' +
+    '<div class="' + bblClass + '" id="msg-' + escAttr(m.id || Date.now()) + '">' +
+      nameHtml + photoHtml + audioHtml + escHtml(m.text || '') + metaHtml +
     '</div></div>';
 }
 
@@ -629,7 +623,7 @@ function appendMsg(msg, isCh) {
   if (!area) return;
   var ty = area.querySelector('.typing');
   var d = document.createElement('div');
-  d.innerHTML = mHTML(msg, isCh);
+  d.innerHTML = mHTML(msg);
   if (ty) area.insertBefore(d.firstChild, ty);
   else area.appendChild(d.firstChild);
   scrollBot();
