@@ -1766,7 +1766,7 @@ function deleteMessage(msgId, el) {
   var menu = el.closest('.ctx-menu');
   if (menu) menu.remove();
   if (!msgId || !socket || !socket.connected || !cur) return;
-  socket.emit('msg_delete', { chatId: cur, msgId: msgId });
+  socket.emit('delete_msg', { chatId: cur, msgId: msgId });
   // Optimistic: remove from DOM immediately
   var msgEl = document.getElementById('msg-' + msgId);
   if (msgEl) { msgEl.style.transition = 'opacity .2s'; msgEl.style.opacity = '0'; setTimeout(function() { msgEl.remove(); }, 200); }
@@ -1784,7 +1784,7 @@ function editMessage(msgId, el) {
   if (newText === null || newText.trim() === oldText) return;
   newText = newText.trim();
   if (!newText) return;
-  socket.emit('msg_edit', { chatId: cur, msgId: msgId, text: newText });
+  socket.emit('edit_msg', { chatId: cur, msgId: msgId, text: newText });
   // Optimistic: update DOM immediately
   var msgEl = document.getElementById('msg-' + msgId);
   if (msgEl) {
