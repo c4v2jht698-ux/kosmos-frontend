@@ -516,14 +516,15 @@ function openChat(id) {
 }
 
 function mHTML(m, isCh) {
+  var mid = ' id="msg-' + escAttr(m.id) + '"';
   var imgHtml = m.image ? '<img class="msg-img" src="' + escAttr(m.image) + '" onclick="openImgFull(this.src)">' : '';
   var textHtml = m.text ? '<span style="white-space:pre-wrap">' + escHtml(m.text) + '</span>' : '';
   if (isCh) {
-    return '<div class="msg ch"><div class="bbl">' + imgHtml + textHtml +
+    return '<div class="msg ch"' + mid + '><div class="bbl">' + imgHtml + textHtml +
       '<div class="bf"><span class="mt">' + m.time + '</span></div></div></div>';
   }
   var me = m.from === 'me';
-  return '<div class="msg ' + (me ? 'me' : 'them') + '">' +
+  return '<div class="msg ' + (me ? 'me' : 'them') + '"' + mid + '>' +
     (!me && m.sender ? '<div class="sender-name">' + escHtml(m.sender) + '</div>' : '') +
     '<div class="bbl">' + imgHtml + textHtml +
       '<div class="bf"><span class="mt">' + m.time + '</span>' +
@@ -1731,25 +1732,80 @@ function showContextMenu(bbl, x, y) {
   var old = document.querySelector('.ctx-menu');
   if (old) old.remove();
   var text = bbl.textContent || '';
-  // Strip time from text
   var timeEl = bbl.querySelector('.mt');
   if (timeEl) text = text.replace(timeEl.textContent, '').trim();
   var checkEl = bbl.querySelector('.ms');
   if (checkEl) text = text.replace(checkEl.textContent, '').trim();
 
+  // Find message ID and whether it's mine
+  var msgEl = bbl.closest('.msg');
+  var msgId = msgEl ? (msgEl.id || '').replace('msg-', '') : '';
+  var isMe = msgEl && msgEl.classList.contains('me');
+
   var menu = document.createElement('div');
   menu.className = 'ctx-menu';
   menu.style.left = Math.min(x, window.innerWidth - 180) + 'px';
   menu.style.top = Math.min(y, window.innerHeight - 120) + 'px';
-  menu.innerHTML =
+  var html =
     '<div class="ctx-item" onclick="setReply(this)">\u21A9 Ответить</div>' +
-    '<div class="ctx-item" onclick="copyMsgText(this)">\uD83D\uDCCB Копировать</div>' +
-    '<div class="ctx-item danger" onclick="this.parentElement.remove()">\u2716 Закрыть</div>';
+    '<div class="ctx-item" onclick="copyMsgText(this)">\uD83D\uDCCB Копировать</div>';
+  if (isMe && msgId) {
+    html += '<div class="ctx-item" onclick="editMessage(\'' + escSearch(msgId) + '\',this)">\u270F\uFE0F Редактировать</div>';
+    html += '<div class="ctx-item danger" onclick="deleteMessage(\'' + escSearch(msgId) + '\',this)">\uD83D\uDDD1 Удалить</div>';
+  }
+  html += '<div class="ctx-item" style="color:var(--text3)" onclick="this.parentElement.remove()">\u2716 Закрыть</div>';
+  menu.innerHTML = html;
   menu.dataset.text = text;
+  menu.dataset.msgId = msgId;
   document.body.appendChild(menu);
-  // Prevent it going off screen
   var rect = menu.getBoundingClientRect();
   if (rect.bottom > window.innerHeight) menu.style.top = (y - rect.height) + 'px';
+}
+
+function deleteMessage(msgId, el) {
+  var menu = el.closest('.ctx-menu');
+  if (menu) menu.remove();
+  if (!msgId || !socket || !socket.connected || !cur) return;
+  socket.emit('msg_delete', { chatId: cur, msgId: msgId });
+  // Optimistic: remove from DOM immediately
+  var msgEl = document.getElementById('msg-' + msgId);
+  if (msgEl) { msgEl.style.transition = 'opacity .2s'; msgEl.style.opacity = '0'; setTimeout(function() { msgEl.remove(); }, 200); }
+  // Remove from local msgs array
+  var item = findItem(cur);
+  if (item) item.msgs = item.msgs.filter(function(m) { return m.id !== msgId; });
+}
+
+function editMessage(msgId, el) {
+  var menu = el.closest('.ctx-menu');
+  var oldText = menu ? menu.dataset.text : '';
+  if (menu) menu.remove();
+  if (!msgId || !socket || !socket.connected || !cur) return;
+  var newText = prompt('Редактировать сообщение:', oldText);
+  if (newText === null || newText.trim() === oldText) return;
+  newText = newText.trim();
+  if (!newText) return;
+  socket.emit('msg_edit', { chatId: cur, msgId: msgId, text: newText });
+  // Optimistic: update DOM immediately
+  var msgEl = document.getElementById('msg-' + msgId);
+  if (msgEl) {
+    var span = msgEl.querySelector('span[style*="white-space"]');
+    if (span) span.textContent = newText;
+    // Add edited indicator
+    var bf = msgEl.querySelector('.bf');
+    if (bf && !bf.querySelector('.edited')) {
+      var ed = document.createElement('span');
+      ed.className = 'edited';
+      ed.textContent = ' (ред.)';
+      ed.style.cssText = 'font-size:10px;color:var(--text3);font-style:italic';
+      bf.insertBefore(ed, bf.firstChild);
+    }
+  }
+  // Update local msgs
+  var item = findItem(cur);
+  if (item) {
+    var m = item.msgs.find(function(m) { return m.id === msgId; });
+    if (m) { m.text = newText; m.edited = true; }
+  }
 }
 
 function copyMsgText(el) {

@@ -145,6 +145,43 @@ function initSocket() {
     }
   });
 
+  socket.on('msg_deleted', function(data) {
+    var item = findItem(data.chatId);
+    if (!item) return;
+    item.msgs = item.msgs.filter(function(m) { return m.id !== data.msgId; });
+    var el = document.getElementById('msg-' + data.msgId);
+    if (el) { el.style.transition = 'opacity .2s'; el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 200); }
+    // Update sidebar preview
+    var last = item.msgs[item.msgs.length - 1];
+    if (last) { item.prev = last.text ? last.text.substring(0, 36) : '\uD83D\uDCF7 Фото'; item.time = last.time; }
+    else { item.prev = ''; item.time = ''; }
+    render();
+  });
+
+  socket.on('msg_edited', function(data) {
+    var item = findItem(data.chatId);
+    if (!item) return;
+    var m = item.msgs.find(function(m) { return m.id === data.msgId; });
+    if (m) { m.text = data.text; m.edited = true; }
+    var el = document.getElementById('msg-' + data.msgId);
+    if (el) {
+      var span = el.querySelector('span[style*="white-space"]');
+      if (span) span.textContent = data.text;
+      var bf = el.querySelector('.bf');
+      if (bf && !bf.querySelector('.edited')) {
+        var ed = document.createElement('span');
+        ed.className = 'edited';
+        ed.textContent = ' (ред.)';
+        ed.style.cssText = 'font-size:10px;color:var(--text3);font-style:italic';
+        bf.insertBefore(ed, bf.firstChild);
+      }
+    }
+    // Update sidebar if last message was edited
+    var last = item.msgs[item.msgs.length - 1];
+    if (last && last.id === data.msgId) { item.prev = data.text.substring(0, 36); }
+    render();
+  });
+
   socket.on('error_msg', function(data) {
     console.error('[socket] error_msg:', data.error);
   });
