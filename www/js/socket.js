@@ -48,7 +48,7 @@ function initSocket() {
 
   socket = io(API, {
     auth: { token: jwtToken },
-    transports: ['websocket'],
+    transports: ['websocket'], upgrade: false,
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
@@ -80,13 +80,13 @@ function initSocket() {
 
   keepaliveInterval = setInterval(function() {
     fetch(API + '/health').catch(function() {});
-  }, 14 * 60 * 1000);
+  }, 4 * 60 * 1000);
 
   socket.on('chat_msg', function(msg) {
     var ts = new Date(msg.created_at * 1000);
     var time = ts.getHours().toString().padStart(2, '0') + ':' + ts.getMinutes().toString().padStart(2, '0');
     var from = currentUser && msg.sender_id === currentUser.id ? 'me' : 'them';
-    var m = { id: msg.id, from: from, text: msg.text, time: time, sender: msg.sender_username, image: msg.image || null };
+    var m = { id: msg.id, from: from, text: msg.text, time: time, sender: msg.sender_username, image: msg.image || null, audio: msg.audio || null };
 
     var item = findItem(msg.chat_id);
 
