@@ -173,12 +173,12 @@ body{
 .msg-area::-webkit-scrollbar{width:0}
 .datediv{text-align:center;margin:16px 0 8px}
 .datediv span{color:var(--text3);font-size:12px;font-weight:500;background:var(--card);padding:4px 12px;border-radius:8px}
-.msg{display:flex;flex-direction:column;max-width:72%;animation:slideUp .3s cubic-bezier(.25,1,.5,1)}
+.msg{display:flex;flex-direction:column;max-width:85%;animation:slideUp .3s cubic-bezier(.25,1,.5,1)}
 @keyframes slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 .msg.me{align-self:flex-end;align-items:flex-end}
 .msg.them{align-self:flex-start;align-items:flex-start}
 .msg.ch{align-self:stretch;max-width:100%}
-.bbl{max-width:75%;padding:10px 14px;border-radius:20px;font-size:16px;line-height:1.4;position:relative;word-wrap:break-word;box-shadow:0 4px 15px rgba(0,0,0,0.2);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.bbl{max-width:100%;padding:10px 14px;border-radius:20px;font-size:16px;line-height:1.4;position:relative;word-wrap:break-word;box-shadow:0 4px 15px rgba(0,0,0,0.2);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .bbl.my,.me .bbl{background:var(--msg-my-bg);color:var(--msg-my-text);border-bottom-right-radius:4px;margin-left:auto;border:none}
 .bbl:not(.my),.them .bbl{background:var(--msg-other-bg);color:var(--msg-other-text);border:1px solid var(--glass-border);border-bottom-left-radius:4px}
 .ch .bbl{background:var(--msg-other-bg);color:var(--msg-other-text);border-radius:20px;border-left:3px solid var(--accent)}
