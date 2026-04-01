@@ -428,8 +428,9 @@ function openChat(id) {
   if (jwtToken) {
     // Determine if we need full load or incremental
     var lastMsgId = (item.msgs.length > 0) ? item.msgs[item.msgs.length - 1].id : null;
-    var endpoint = API + '/messages/' + encodeURIComponent(id) + (lastMsgId && item._loaded ? '?after=' + encodeURIComponent(lastMsgId) : '');
+    var endpoint = API + '/messages/' + encodeURIComponent(id) + (lastMsgId && item._loaded ? '?after=' + encodeURIComponent(lastMsgId) : '?limit=30');
     item._loaded = true;
+    if (typeof item.hasMore === 'undefined') item.hasMore = true;
     fetch(endpoint, { headers: { 'Authorization': 'Bearer ' + jwtToken } })
       .then(function(r) { return r.ok ? r.json() : []; })
       .then(function(msgs) {
@@ -448,13 +449,17 @@ function openChat(id) {
         } else {
           // Full load
           item.msgs = newMsgs;
+          if (newMsgs.length < 30) item.hasMore = false;
+          if (newMsgs.length > 0) item.firstMsgId = newMsgs[0].id;
         }
         if (cur === id) {
           var area = document.getElementById('msgArea');
           if (area) {
-            area.innerHTML = '<div class="datediv"><span>Сегодня</span></div>' +
+            var loader = item.hasMore !== false ? '<div id="loadMoreBtn" style="text-align:center;padding:10px"><button onclick="loadOlderMsgs()" style="background:var(--bg2);border:1px solid var(--sep);border-radius:20px;padding:6px 16px;color:var(--text3);font-size:13px;cursor:pointer">Загрузить старые</button></div>' : '';
+            area.innerHTML = loader + '<div class="datediv"><span>Сегодня</span></div>' +
               item.msgs.map(function(m){return mHTML(m)}).join('');
             scrollBot();
+            initScrollListener(id);
           }
         }
         if (item.msgs.length) {
@@ -1692,6 +1697,49 @@ function fallbackCopy(text) {
 // ── Utilities ───────────────────────────────────────────────────────────────
 function insE(e) { var i = document.getElementById('mi'); if (i) { i.value += e; i.focus(); } var ep = document.getElementById('ep'); if (ep) ep.classList.remove('open'); }
 function scrollBot() { var a = document.getElementById('msgArea'); if (a) a.scrollTop = a.scrollHeight; }
+
+function initScrollListener(chatId) {
+  var area = document.getElementById('msgArea');
+  if (!area || area._scrollListenerSet) return;
+  area._scrollListenerSet = true;
+  area.addEventListener('scroll', function() {
+    if (area.scrollTop < 80) loadOlderMsgs();
+  });
+}
+
+async function loadOlderMsgs() {
+  var item = findItem(cur);
+  if (!item || item.hasMore === false || item._loadingOlder || !item.firstMsgId) return;
+  item._loadingOlder = true;
+  var btn = document.getElementById('loadMoreBtn');
+  if (btn) btn.innerHTML = '<span style="color:var(--text3);font-size:13px">Загрузка...</span>';
+  try {
+    var r = await fetch(API + '/messages/' + encodeURIComponent(cur) + '?before=' + encodeURIComponent(item.firstMsgId) + '&limit=30', {
+      headers: { 'Authorization': 'Bearer ' + jwtToken }
+    });
+    var msgs = r.ok ? await r.json() : [];
+    if (!msgs.length) { item.hasMore = false; if (btn) btn.remove(); item._loadingOlder = false; return; }
+    var olderMsgs = msgs.map(function(m) {
+      var ts = new Date(m.created_at * 1000);
+      var time = ts.getHours().toString().padStart(2,'0') + ':' + ts.getMinutes().toString().padStart(2,'0');
+      var from = currentUser && m.sender_id === currentUser.id ? 'me' : 'them';
+      return { id: m.id, from: from, text: m.text, time: time, sender: m.sender_username, image: m.image || null, audio: m.audio || null };
+    });
+    if (olderMsgs.length < 30) item.hasMore = false;
+    item.firstMsgId = olderMsgs[0].id;
+    item.msgs = olderMsgs.concat(item.msgs);
+    // Re-render preserving scroll position
+    var area = document.getElementById('msgArea');
+    if (area) {
+      var oldHeight = area.scrollHeight;
+      var loader = item.hasMore !== false ? '<div id="loadMoreBtn" style="text-align:center;padding:10px"><button onclick="loadOlderMsgs()" style="background:var(--bg2);border:1px solid var(--sep);border-radius:20px;padding:6px 16px;color:var(--text3);font-size:13px;cursor:pointer">Загрузить старые</button></div>' : '';
+      area.innerHTML = loader + '<div class="datediv"><span>Сегодня</span></div>' +
+        item.msgs.map(function(m){return mHTML(m)}).join('');
+      area.scrollTop = area.scrollHeight - oldHeight;
+    }
+  } catch(e) {}
+  item._loadingOlder = false;
+}
 function showChatView() {
   document.body.classList.add('chat-open');
   history.pushState({ chat: true }, '');
