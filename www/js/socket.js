@@ -48,12 +48,12 @@ function initSocket() {
 
   socket = io(API, {
     auth: { token: jwtToken },
-    transports: ['polling', 'websocket'],
+    transports: ['websocket'],
     reconnection: true,
     reconnectionAttempts: Infinity,
-    reconnectionDelay: 2000,
-    reconnectionDelayMax: 30000,
-    timeout: 20000,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 10000,
+    timeout: 10000,
   });
 
   socket.on('connect', function() {
@@ -86,7 +86,7 @@ function initSocket() {
     var ts = new Date(msg.created_at * 1000);
     var time = ts.getHours().toString().padStart(2, '0') + ':' + ts.getMinutes().toString().padStart(2, '0');
     var from = currentUser && msg.sender_id === currentUser.id ? 'me' : 'them';
-    var m = { id: msg.id, from: from, text: msg.text, time: time, sender: msg.sender_username };
+    var m = { id: msg.id, from: from, text: msg.text, time: time, sender: msg.sender_username, image: msg.image || null };
 
     var item = findItem(msg.chat_id);
 
@@ -108,8 +108,19 @@ function initSocket() {
     }
 
     if (item.msgs.find(function(x){ return x.id === msg.id; })) return;
+    // Replace local echo with server message (avoid duplicate)
+    if (from === 'me') {
+      var localIdx = -1;
+      for (var li = item.msgs.length - 1; li >= 0; li--) {
+        if (item.msgs[li].id && item.msgs[li].id.indexOf('local-') === 0 && item.msgs[li].from === 'me') { localIdx = li; break; }
+      }
+      if (localIdx !== -1) {
+        if (item.msgs[localIdx].image && !m.image) m.image = item.msgs[localIdx].image;
+        item.msgs[localIdx] = m; render(); return;
+      }
+    }
     item.msgs.push(m);
-    item.prev = msg.text.substring(0, 36);
+    item.prev = msg.image ? '\uD83D\uDCF7 Фото' + (msg.text ? ' · ' + msg.text.substring(0, 24) : '') : msg.text.substring(0, 36);
     item.time = time;
     item._ts = msg.created_at;
 
@@ -129,12 +140,79 @@ function initSocket() {
   });
 
   socket.on('typing', function(data) {
-    if (cur === data.chatId && data.username !== (currentUser ? currentUser.username : '')) {
-      showTypingIndicator();
+    if (data.chatId !== cur) return;
+    if (data.senderId === (currentUser ? currentUser.id : '')) return;
+    var ind = document.getElementById('typingIndicator');
+    if (!ind) {
+      ind = document.createElement('div');
+      ind.id = 'typingIndicator';
+      ind.className = 'typing-wrap';
+      ind.innerHTML = '<span id="typingName"></span><div class="typing-dots"><span></span><span></span><span></span></div>';
+      var az = document.getElementById('attachZone');
+      if (az && az.parentElement) az.parentElement.insertBefore(ind, az);
     }
+    if (data.isTyping) {
+      var name = (data.senderName || data.username || '').split(' ')[0];
+      document.getElementById('typingName').innerText = name + ' печатает';
+      ind.classList.add('active');
+    } else { ind.classList.remove('active'); }
+    clearTimeout(window._typingClearTimer);
+    if (data.isTyping) window._typingClearTimer = setTimeout(function() { if (ind) ind.classList.remove('active'); }, 3500);
+  });
+
+  socket.on('msg_deleted', function(data) {
+    var item = findItem(data.chatId);
+    if (!item) return;
+    item.msgs = item.msgs.filter(function(m) { return m.id !== data.msgId; });
+    var el = document.getElementById('msg-' + data.msgId);
+    if (el) { el.style.transition = 'opacity .2s'; el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 200); }
+    // Update sidebar preview
+    var last = item.msgs[item.msgs.length - 1];
+    if (last) { item.prev = last.text ? last.text.substring(0, 36) : '\uD83D\uDCF7 Фото'; item.time = last.time; }
+    else { item.prev = ''; item.time = ''; }
+    render();
+  });
+
+  socket.on('msg_edited', function(data) {
+    var item = findItem(data.chatId);
+    if (!item) return;
+    var m = item.msgs.find(function(m) { return m.id === data.msgId; });
+    if (m) { m.text = data.text; m.edited = true; }
+    var el = document.getElementById('msg-' + data.msgId);
+    if (el) {
+      var span = el.querySelector('span[style*="white-space"]');
+      if (span) span.textContent = data.text;
+      var bf = el.querySelector('.bf');
+      if (bf && !bf.querySelector('.edited')) {
+        var ed = document.createElement('span');
+        ed.className = 'edited';
+        ed.textContent = ' (ред.)';
+        ed.style.cssText = 'font-size:10px;color:var(--text3);font-style:italic';
+        bf.insertBefore(ed, bf.firstChild);
+      }
+    }
+    // Update sidebar if last message was edited
+    var last = item.msgs[item.msgs.length - 1];
+    if (last && last.id === data.msgId) { item.prev = data.text.substring(0, 36); }
+    render();
   });
 
   socket.on('error_msg', function(data) {
     console.error('[socket] error_msg:', data.error);
+  });
+
+  socket.on('webrtc_signal', async function(data) {
+    if (currentUser && data.senderId === currentUser.id) return;
+    if (data.type === 'offer') {
+      _callChatId = data.chatId;
+      _pendingOffer = data.payload;
+      buildCallUI(data.callerName, true);
+    } else if (data.type === 'answer' && _peerConn) {
+      await _peerConn.setRemoteDescription(new RTCSessionDescription(data.payload));
+    } else if (data.type === 'ice' && _peerConn) {
+      try { await _peerConn.addIceCandidate(new RTCIceCandidate(data.payload)); } catch(e) {}
+    } else if (data.type === 'end') {
+      endCall(false);
+    }
   });
 }

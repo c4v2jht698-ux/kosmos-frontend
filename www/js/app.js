@@ -60,6 +60,7 @@ function switchTab(mode) {
   document.getElementById('authToggleBtn').onclick = function() { switchTab(mode === 'register' ? 'login' : 'register'); };
   document.getElementById('authToggleBtn').style.display = '';
   clearAuthMessages();
+  applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
 }
 
 function buildSeedGrid() {
@@ -140,7 +141,7 @@ function showSeedInGrid(phrase) {
   var grid = document.getElementById('seedShowGrid');
   var words = phrase.split(/\s+/);
   grid.innerHTML = words.map(function(w, i) {
-    return '<div class="seed-cell" style="cursor:default"><span class="seed-num">' + String(i+1).padStart(2,'0') + '</span><span style="font-family:\'Space Mono\',monospace;font-size:13px;color:var(--text);user-select:all">' + w + '</span></div>';
+    return '<div class="seed-cell" style="cursor:default"><span class="seed-num">' + String(i+1).padStart(2,'0') + '</span><span style="font-family:\'Space Mono\',monospace;font-size:13px;color:var(--text);user-select:all">' + escHtml(w) + '</span></div>';
   }).join('');
 }
 
@@ -176,12 +177,12 @@ function enterAfterReg() {
     localStorage.setItem('kosmos_token', jwtToken);
     if (pendingRefresh) localStorage.setItem('kosmos_refresh', pendingRefresh);
     localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
-    // Show onboarding for new users
+    // Show onboarding tour + interests for new users
     document.getElementById('auth').classList.add('hidden');
     document.getElementById('seedPhrase').textContent = '';
     document.getElementById('bottomNav').style.display = 'flex';
     applyChatBg();
-    showOnboarding();
+    showOnbTour();
     initSocket();
     loadMyChats();
     pendingToken = null; pendingUser = null; pendingRefresh = null;
@@ -263,9 +264,12 @@ function enterApp() {
     document.getElementById('seedPhrase').textContent = '';
   document.getElementById('bottomNav').style.display = 'flex';
   applyChatBg();
-  // Check if needs onboarding
+  // Show tour for users who haven't seen it
+  if (!localStorage.getItem('kosmos_onb_tour_done') && currentUser) {
+    showOnbTour();
+  }
+  // Check if needs interest onboarding
   if (!localStorage.getItem('kosmos_onboarded') && currentUser) {
-    // Check if user has interests
     fetch(API + '/me', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
       .then(function(r) { return r.json(); })
       .then(function(u) {
@@ -296,7 +300,7 @@ function enterApp() {
 
 function logout() {
   if (window._feedRefresh) { clearInterval(window._feedRefresh); window._feedRefresh = null; }
-  if (window._tgPoll) { clearInterval(window._tgPoll); window._tgPoll = null; }
+  stopTgPoll();
   var bn = document.getElementById('bottomNav');
   if (bn) bn.style.display = 'none';
   var qr = document.getElementById('qrScreen');
@@ -316,6 +320,7 @@ function logout() {
   document.getElementById('authBtn').style.display = '';
   switchTab('login');
   document.getElementById('mainArea').innerHTML = '<div class="empty"><div class="empty-card"><div class="empty-icon">\uD83D\uDE80</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>';
+  applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
 }
 
 var _splashDone = false;
@@ -448,21 +453,43 @@ if (jwtToken) {
 }
 
 // ── Telegram Bot Auth ─────────────────────────────────────────────────────────
+var _tgSvg = '<svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm5.53 8.16l-1.8 8.49c-.14.6-.5.75-.99.47l-2.75-2.03-1.33 1.27c-.14.15-.27.27-.56.27l.2-2.82 5.1-4.6c.22-.2-.05-.3-.34-.13l-6.3 3.97-2.72-.85c-.59-.18-.6-.59.12-.87l10.63-4.1c.49-.18.92.12.76.87z"/></svg>';
+
 async function startTelegramBotAuth() {
-  if (window._tgPoll) { clearInterval(window._tgPoll); window._tgPoll = null; }
+  stopTgPoll();
   var btn = document.getElementById('tgAuthBtn');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm5.53 8.16l-1.8 8.49c-.14.6-.5.75-.99.47l-2.75-2.03-1.33 1.27c-.14.15-.27.27-.56.27l.2-2.82 5.1-4.6c.22-.2-.05-.3-.34-.13l-6.3 3.97-2.72-.85c-.59-.18-.6-.59.12-.87l10.63-4.1c.49-.18.92.12.76.87z"/></svg> \u041E\u0436\u0438\u0434\u0430\u0435\u043C \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0438\u044F...'; btn.style.opacity = '0.7'; }
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; }
+
   try {
     var r = await fetch(API + '/auth/telegram/init', { method: 'POST' });
     var data = await r.json();
     if (!data.botUrl || !data.token) { toast('Ошибка подключения', 'error'); resetTgBtn(); return; }
 
-    window.open(data.botUrl, '_blank');
+    try {
+      var botHost = new URL(data.botUrl).hostname;
+      if (['t.me','telegram.me','telegram.org'].indexOf(botHost) === -1) { toast('Недопустимый URL бота', 'error'); resetTgBtn(); return; }
+    } catch(e) { toast('Ошибка URL', 'error'); resetTgBtn(); return; }
+
+    // Use Capacitor Browser for native in-app browser, fallback to window.open
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+      await window.Capacitor.Plugins.Browser.open({ url: data.botUrl });
+    } else {
+      window.open(data.botUrl, '_blank');
+    }
+
+    // Countdown polling: 60 attempts × 2s = 120s
+    var remaining = 120;
+    updateTgBtn(remaining);
+    window._tgCountdown = setInterval(function() {
+      remaining--;
+      if (remaining <= 0) { stopTgPoll(); toast('Время вышло. Попробуйте снова.', 'error'); resetTgBtn(); return; }
+      updateTgBtn(remaining);
+    }, 1000);
 
     var attempts = 0;
     window._tgPoll = setInterval(async function() {
       attempts++;
-      if (attempts > 150) { clearInterval(window._tgPoll); window._tgPoll = null; toast('Время вышло. Попробуйте снова.', 'error'); resetTgBtn(); return; }
+      if (attempts > 60) { stopTgPoll(); toast('Время вышло. Попробуйте снова.', 'error'); resetTgBtn(); return; }
       try {
         var cr = await fetch(API + '/auth/telegram/check', {
           method: 'POST',
@@ -471,7 +498,7 @@ async function startTelegramBotAuth() {
         });
         var cd = await cr.json();
         if (cd.token) {
-          clearInterval(window._tgPoll); window._tgPoll = null;
+          stopTgPoll();
           jwtToken = cd.token;
           refreshToken = cd.refreshToken;
           currentUser = cd.user;
@@ -487,10 +514,28 @@ async function startTelegramBotAuth() {
     resetTgBtn();
   }
 }
+
+function updateTgBtn(sec) {
+  var btn = document.getElementById('tgAuthBtn');
+  if (btn) btn.innerHTML = _tgSvg + ' Ожидание... ' + sec + 'с <span onclick="event.stopPropagation();cancelTgAuth()" style="margin-left:8px;text-decoration:underline;cursor:pointer;font-size:13px">Отмена</span>';
+}
+
+function cancelTgAuth() {
+  stopTgPoll();
+  resetTgBtn();
+}
+
+function stopTgPoll() {
+  if (window._tgPoll) { clearInterval(window._tgPoll); window._tgPoll = null; }
+  if (window._tgCountdown) { clearInterval(window._tgCountdown); window._tgCountdown = null; }
+}
+
 function resetTgBtn() {
   var btn = document.getElementById('tgAuthBtn');
-  if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm5.53 8.16l-1.8 8.49c-.14.6-.5.75-.99.47l-2.75-2.03-1.33 1.27c-.14.15-.27.27-.56.27l.2-2.82 5.1-4.6c.22-.2-.05-.3-.34-.13l-6.3 3.97-2.72-.85c-.59-.18-.6-.59.12-.87l10.63-4.1c.49-.18.92.12.76.87z"/></svg> \u0412\u043E\u0439\u0442\u0438 \u0447\u0435\u0440\u0435\u0437 Telegram'; btn.style.opacity = '1'; }
+  if (btn) { btn.disabled = false; btn.innerHTML = _tgSvg + ' Войти через Telegram'; btn.style.opacity = '1'; }
 }
+
+window.addEventListener('beforeunload', stopTgPoll);
 
 // ── Apple Auth ───────────────────────────────────────────────────────────────
 function onAppleAuth() {

@@ -8,7 +8,17 @@ function apiFetch(url, opts, timeoutMs) {
   opts.signal = controller.signal;
   if (!opts.headers) opts.headers = {};
   if (jwtToken) opts.headers['Authorization'] = 'Bearer ' + jwtToken;
+  opts.headers['X-Requested-With'] = 'XMLHttpRequest';
   return fetch(url, opts).finally(function() { clearTimeout(timer); });
+}
+
+// CSRF-safe wrapper for all API mutations (POST/PUT/DELETE)
+function apiMutate(url, method, body) {
+  return apiFetch(url, {
+    method: method,
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    body: body ? JSON.stringify(body) : undefined
+  });
 }
 
 async function loadMyChats(retries) {
@@ -138,9 +148,7 @@ async function sidebarSearch(q) {
   }, 300);
 }
 
-function escSearch(s) {
-  return String(s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-}
+// escSearch moved to ui.js (loaded first) for availability across all scripts
 
 async function startDM(userId, username, handle) {
   // Закрываем поиск
@@ -222,9 +230,9 @@ async function searchUsers(q) {
     const users = r.ok ? await r.json() : [];
     document.getElementById('userResults').innerHTML = users.length
       ? users.map(u => `
-        <div class="user-result" onclick="startDM('${u.id}','${escSearch(u.username)}','${escSearch(u.handle || '')}')">
-          <div class="ur-av ${GS[(u.username||'?').charCodeAt(0) % GS.length]}">${(u.username||'?')[0].toUpperCase()}</div>
-          <div><div class="ur-name">${u.username}</div><div class="ur-email">@${u.handle || ''}</div></div>
+        <div class="user-result" onclick="startDM('${escSearch(u.id)}','${escSearch(u.username)}','${escSearch(u.handle || '')}')">
+          <div class="ur-av ${GS[(u.username||'?').charCodeAt(0) % GS.length]}">${escHtml((u.username||'?')[0].toUpperCase())}</div>
+          <div><div class="ur-name">${escHtml(u.username)}</div><div class="ur-email">@${escHtml(u.handle || '')}</div></div>
         </div>`).join('')
       : '<div class="user-results-empty">Не найдено</div>';
   } catch(e) {

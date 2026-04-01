@@ -1,3 +1,794 @@
+// ── Config & State ──────────────────────────────────────────────────────────
+var API = 'https://kosmos-backend-1.onrender.com';
+var EMOJIS = ['\u2764\uFE0F','\uD83D\uDE02','\uD83D\uDC4D','\uD83D\uDD25','\uD83D\uDE2E','\uD83D\uDC4F','\uD83C\uDF89','\uD83D\uDE4F'];
+var GS = ['g1','g2','g3','g4','g5','g6','g7'];
+
+var jwtToken = localStorage.getItem('kosmos_token');
+var refreshToken = localStorage.getItem('kosmos_refresh');
+var currentUser = JSON.parse(localStorage.getItem('kosmos_user') || 'null');
+var socket = null;
+var typingTimeout = null;
+var cur = null;
+
+var channels = [];
+var dms = [];
+
+// Auto-refresh token every 12 min
+setInterval(async function() {
+  if (!refreshToken) return;
+  try {
+    var r = await fetch(API + '/refresh', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: refreshToken })
+    });
+    if (r.ok) {
+      var d = await r.json();
+      jwtToken = d.token;
+      localStorage.setItem('kosmos_token', jwtToken);
+    }
+  } catch(e) {}
+}, 12 * 60 * 1000);
+
+// Inactivity logout — 30 min
+var _lastActivity = Date.now();
+document.addEventListener('click', function() { _lastActivity = Date.now(); });
+document.addEventListener('keydown', function() { _lastActivity = Date.now(); });
+setInterval(function() {
+  if (jwtToken && Date.now() - _lastActivity > 30 * 60 * 1000) {
+
+    logout();
+  }
+}, 60000);
+
+// ── Auth ────────────────────────────────────────────────────────────────────
+var authMode = 'login';
+var pendingToken = null;
+var pendingUser = null;
+var pendingRefresh = null;
+
+function switchTab(mode) {
+  authMode = mode;
+  document.querySelectorAll('.auth-tab').forEach(function(t, i) {
+    t.classList.toggle('active', (mode === 'login' && i === 0) || (mode === 'register' && i === 1));
+  });
+  document.getElementById('regFields').style.display = mode === 'register' ? 'block' : 'none';
+  document.getElementById('loginFields').style.display = mode === 'login' ? 'block' : 'none';
+  document.getElementById('seedResult').style.display = 'none';
+  document.getElementById('authBtn').style.display = '';
+  document.getElementById('authBtn').textContent = mode === 'register' ? 'Создать аккаунт' : 'Войти в Космос';
+  document.getElementById('authToggleBtn').textContent = mode === 'register' ? 'Уже есть аккаунт' : 'Создать новый аккаунт';
+  document.getElementById('authToggleBtn').onclick = function() { switchTab(mode === 'register' ? 'login' : 'register'); };
+  document.getElementById('authToggleBtn').style.display = '';
+  clearAuthMessages();
+}
+
+function buildSeedGrid() {
+  var grid = document.getElementById('seedGrid');
+  grid.innerHTML = '';
+  for (var i = 0; i < 12; i++) {
+    var cell = document.createElement('div');
+    cell.className = 'seed-cell';
+    cell.innerHTML = '<span class="seed-num">' + String(i+1).padStart(2,'0') + '</span><input type="text" data-idx="' + i + '" placeholder="..." autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">';
+    grid.appendChild(cell);
+  }
+  grid.addEventListener('paste', function(e) {
+    var text = (e.clipboardData || window.clipboardData).getData('text').trim();
+    var words = text.split(/\s+/);
+    if (words.length >= 2) {
+      e.preventDefault();
+      e.stopPropagation();
+      var inputs = grid.querySelectorAll('input');
+      words.slice(0, 12).forEach(function(w, i) { if (inputs[i]) inputs[i].value = w; });
+    }
+  });
+  function seedAdvance(input) {
+    var val = input.value;
+    if (val.indexOf(' ') === -1) return false;
+    var parts = val.split(/\s+/);
+    input.value = parts[0];
+    var inputs = grid.querySelectorAll('input');
+    var idx = parseInt(input.dataset.idx) || 0;
+    for (var j = 1; j < parts.length; j++) {
+      if (inputs[idx + j] && parts[j]) inputs[idx + j].value = parts[j];
+    }
+    var next = inputs[idx + 1];
+    if (next) next.focus();
+    return true;
+  }
+  // input event — catches paste and typing on most browsers
+  grid.addEventListener('input', function(e) {
+    if (e.target.tagName !== 'INPUT') return;
+    seedAdvance(e.target);
+  });
+  // keyup on space — fallback for WebView where input event may miss the space
+  grid.addEventListener('keyup', function(e) {
+    if (e.target.tagName !== 'INPUT') return;
+    if (e.key === ' ' || e.keyCode === 32) {
+      e.target.value = e.target.value.replace(/\s/g, '');
+      var inputs = grid.querySelectorAll('input');
+      var idx = parseInt(e.target.dataset.idx) || 0;
+      var next = inputs[idx + 1];
+      if (next) next.focus();
+    }
+  });
+  // keydown on Enter — advance to next field
+  grid.addEventListener('keydown', function(e) {
+    if (e.target.tagName !== 'INPUT') return;
+    if (e.key === 'Enter' || e.keyCode === 13) {
+      e.preventDefault();
+      var inputs = grid.querySelectorAll('input');
+      var idx = parseInt(e.target.dataset.idx) || 0;
+      var next = inputs[idx + 1];
+      if (next) next.focus();
+    }
+    if (e.key === ' ' || e.keyCode === 32) {
+      e.preventDefault();
+      var inputs = grid.querySelectorAll('input');
+      var idx = parseInt(e.target.dataset.idx) || 0;
+      var next = inputs[idx + 1];
+      if (next) next.focus();
+    }
+  });
+}
+
+function getSeedFromGrid() {
+  var inputs = document.querySelectorAll('#seedGrid input');
+  return Array.from(inputs).map(function(i) { return i.value.trim().toLowerCase(); }).join(' ');
+}
+
+function showSeedInGrid(phrase) {
+  var grid = document.getElementById('seedShowGrid');
+  var words = phrase.split(/\s+/);
+  grid.innerHTML = words.map(function(w, i) {
+    return '<div class="seed-cell" style="cursor:default"><span class="seed-num">' + String(i+1).padStart(2,'0') + '</span><span style="font-family:\'Space Mono\',monospace;font-size:13px;color:var(--text);user-select:all">' + escHtml(w) + '</span></div>';
+  }).join('');
+}
+
+function clearAuthMessages() {
+  document.getElementById('authError').classList.remove('show');
+  document.getElementById('authSuccess').classList.remove('show');
+}
+function showError(msg) {
+  var el = document.getElementById('authError');
+  el.textContent = msg; el.classList.add('show');
+  document.getElementById('authSuccess').classList.remove('show');
+}
+function showSuccess(msg) {
+  var el = document.getElementById('authSuccess');
+  el.textContent = msg; el.classList.add('show');
+  document.getElementById('authError').classList.remove('show');
+}
+
+function copySeed() {
+  var text = document.getElementById('seedPhrase').textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    var el = document.getElementById('seedCopied');
+    el.style.display = 'block'; el.textContent = 'Скопировано!';
+    setTimeout(function() { el.style.display = 'none'; }, 2000);
+  });
+}
+
+function enterAfterReg() {
+  if (pendingToken && pendingUser) {
+    jwtToken = pendingToken;
+    refreshToken = pendingRefresh;
+    currentUser = pendingUser;
+    localStorage.setItem('kosmos_token', jwtToken);
+    if (pendingRefresh) localStorage.setItem('kosmos_refresh', pendingRefresh);
+    localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
+    // Show onboarding tour + interests for new users
+    document.getElementById('auth').classList.add('hidden');
+    document.getElementById('seedPhrase').textContent = '';
+    document.getElementById('bottomNav').style.display = 'flex';
+    applyChatBg();
+    showOnbTour();
+    initSocket();
+    loadMyChats();
+    pendingToken = null; pendingUser = null; pendingRefresh = null;
+  }
+}
+
+async function submitAuth() {
+  clearAuthMessages();
+  var _lastAuthAttempt = window._lastAuthAttempt || 0;
+  if (Date.now() - _lastAuthAttempt < 2000) { showError('Подождите секунду...'); return; }
+  window._lastAuthAttempt = Date.now();
+  var btn = document.getElementById('authBtn');
+  btn.disabled = true; btn.textContent = '...';
+
+  try {
+    var url, body;
+    if (authMode === 'register') {
+      var name = document.getElementById('authName').value.trim();
+      var handle = document.getElementById('authHandle').value.trim().toLowerCase();
+      if (!name) { showError('Введи своё имя'); btn.disabled = false; btn.textContent = 'Создать аккаунт'; return; }
+      if (!handle) { showError('Введи @username'); btn.disabled = false; btn.textContent = 'Создать аккаунт'; return; }
+      if (!/^[a-z0-9_]{3,20}$/.test(handle)) { showError('@username: только a-z, 0-9 и _ (3\u201320 символов)'); btn.disabled = false; btn.textContent = 'Создать аккаунт'; return; }
+      url = API + '/register';
+      body = { username: name, handle: handle, ref: _refCode || undefined };
+    } else {
+      var seed = getSeedFromGrid();
+      if (!seed.replace(/\s/g,'')) { showError('Введите все 12 слов'); btn.disabled = false; btn.textContent = 'Войти в Космос'; return; }
+      if (seed.split(/\s+/).filter(Boolean).length < 12) { showError('Нужно 12 слов'); btn.disabled = false; btn.textContent = 'Войти в Космос'; return; }
+      url = API + '/login';
+      body = { seed: seed };
+    }
+
+    var res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    var data = await res.json();
+
+    if (!res.ok) {
+      showError(data.error || 'Ошибка сервера');
+      btn.disabled = false;
+      btn.textContent = authMode === 'register' ? 'Создать аккаунт' : 'Войти в Космос';
+      return;
+    }
+
+    if (authMode === 'register' && data.seed) {
+      pendingToken = data.token;
+      pendingUser = data.user;
+      pendingRefresh = data.refreshToken;
+      document.getElementById('seedPhrase').textContent = data.seed;
+      showSeedInGrid(data.seed);
+      document.getElementById('seedResult').style.display = 'block';
+      document.getElementById('authBtn').style.display = 'none';
+      document.getElementById('authToggleBtn').style.display = 'none';
+      document.getElementById('regFields').style.display = 'none';
+      btn.disabled = false; btn.textContent = 'Создать аккаунт';
+      return;
+    }
+
+    jwtToken = data.token;
+    refreshToken = data.refreshToken;
+    currentUser = data.user;
+    localStorage.setItem('kosmos_token', jwtToken);
+    if (data.refreshToken) localStorage.setItem('kosmos_refresh', data.refreshToken);
+    localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
+    showSuccess('Добро пожаловать, ' + data.user.username + '!');
+    setTimeout(enterApp, 700);
+  } catch (e) {
+    showError('Нет связи с сервером');
+    btn.disabled = false;
+    btn.textContent = authMode === 'register' ? 'Создать аккаунт' : 'Войти в Космос';
+  }
+}
+
+// ── App lifecycle ───────────────────────────────────────────────────────────
+function enterApp() {
+  document.getElementById('auth').classList.add('hidden');
+    document.getElementById('seedPhrase').textContent = '';
+  document.getElementById('bottomNav').style.display = 'flex';
+  applyChatBg();
+  // Show tour for users who haven't seen it
+  if (!localStorage.getItem('kosmos_onb_tour_done') && currentUser) {
+    showOnbTour();
+  }
+  // Check if needs interest onboarding
+  if (!localStorage.getItem('kosmos_onboarded') && currentUser) {
+    fetch(API + '/me', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+      .then(function(r) { return r.json(); })
+      .then(function(u) {
+        if (!u.interests || !u.interests.length) {
+          showOnboarding();
+        }
+      }).catch(function() {});
+  }
+  initSocket();
+  loadMyChats().then(function() {
+    var channelSlug = new URLSearchParams(window.location.search).get('channel');
+    if (channelSlug) {
+      var ch = channels.find(function(c) { return c.slug === channelSlug; });
+      if (ch) { openChat(ch.id); }
+      else {
+        fetch(API + '/channels?search=' + encodeURIComponent(channelSlug), { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+          .then(function(r) { return r.ok ? r.json() : []; })
+          .then(function(list) {
+            var found = list.find(function(c) { return c.slug === channelSlug; });
+            if (found) joinChannel(found.id, found.name, found.slug);
+            else toast('Канал не найден', 'error');
+          }).catch(function() {});
+      }
+      history.replaceState(null, '', window.location.pathname);
+    }
+  });
+}
+
+function logout() {
+  if (window._feedRefresh) { clearInterval(window._feedRefresh); window._feedRefresh = null; }
+  stopTgPoll();
+  var bn = document.getElementById('bottomNav');
+  if (bn) bn.style.display = 'none';
+  var qr = document.getElementById('qrScreen');
+  if (qr) qr.style.display = 'none';
+  var st = document.getElementById('settingsScreen');
+  if (st) st.style.display = 'none';
+  localStorage.removeItem('chatBg');
+  localStorage.removeItem('kosmos_token');
+  localStorage.removeItem('kosmos_refresh');
+  localStorage.removeItem('kosmos_user');
+  localStorage.removeItem('kosmos_onboarded');
+  jwtToken = null; refreshToken = null; currentUser = null;
+  if (socket) { socket.disconnect(); socket = null; }
+  cur = null; channels.length = 0; dms.length = 0;
+  document.getElementById('auth').classList.remove('hidden');
+  document.getElementById('seedResult').style.display = 'none';
+  document.getElementById('authBtn').style.display = '';
+  switchTab('login');
+  document.getElementById('mainArea').innerHTML = '<div class="empty"><div class="empty-card"><div class="empty-icon">\uD83D\uDE80</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>';
+  applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
+}
+
+var _splashDone = false;
+var _splashStart = Date.now();
+function closeSplash() {
+  if (_splashDone) return;
+  // Ensure minimum 1.5s display
+  var elapsed = Date.now() - _splashStart;
+  if (elapsed < 1500) {
+    setTimeout(closeSplash, 1500 - elapsed);
+    return;
+  }
+  _splashDone = true;
+  var sp = document.getElementById('splash');
+  if (sp) { sp.style.transform = 'scale(1.1)'; sp.style.opacity = '0'; setTimeout(function(){ sp.remove(); }, 800); }
+  if (jwtToken && currentUser) enterApp();
+  else {
+    var authEl = document.getElementById('auth');
+    if (authEl) authEl.classList.remove('hidden');
+  }
+}
+
+// ── Theme ────────────────────────────────────────────────────────────────────
+function applyTheme(theme) {
+  if (theme !== 'blue' && theme !== 'pink') theme = 'blue';
+  document.documentElement.setAttribute('data-theme', theme);
+}
+function toggleTheme() {
+  var cur = document.documentElement.getAttribute('data-theme') || 'blue';
+  var next = cur === 'blue' ? 'pink' : 'blue';
+  localStorage.setItem('kosmos_theme', next);
+  applyTheme(next);
+}
+
+// ── Modal ────────────────────────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('overlay').classList.add('open');
+  onChatTypeChange();
+  setTimeout(function() {
+    var isCh = document.querySelector('input[name="ct"]:checked').value === 'channel';
+    var el = isCh ? document.getElementById('ncName') : document.getElementById('userSearch');
+    if (el) el.focus();
+  }, 120);
+}
+
+function closeModal() {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('ncName').value = '';
+  document.getElementById('userSearch').value = '';
+  document.getElementById('userResults').innerHTML = '';
+}
+
+function onChatTypeChange() {
+  var isCh = document.querySelector('input[name="ct"]:checked').value === 'channel';
+  document.getElementById('userSearchWrap').style.display = isCh ? 'none' : 'block';
+  document.getElementById('channelNameWrap').style.display = isCh ? 'block' : 'none';
+  document.getElementById('chatCancelWrap').style.display = isCh ? 'none' : 'block';
+}
+
+// ── WebView / Capacitor detection ────────────────────────────────────────────
+var isWebView = /wv|WebView/i.test(navigator.userAgent) || !!window.Capacitor;
+if (isWebView) {
+  // Telegram widget iframe doesn't work in WebView — hide it, show custom button
+  var tgWidget = document.getElementById('telegramLoginWrap');
+  if (tgWidget) tgWidget.style.display = 'none';
+  var tgApkBtn = document.getElementById('telegramApkBtn');
+  if (tgApkBtn) tgApkBtn.style.display = 'block';
+}
+
+function openTelegramAuth() {
+  // Open web version in system browser where Telegram widget works
+  var url = 'https://c4v2jht698-ux.github.io/kosmos-frontend/#telegram-login';
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+    window.Capacitor.Plugins.Browser.open({ url: url });
+  } else {
+    window.open(url, '_system');
+  }
+}
+
+// ── Referral code from URL ────────────────────────────────────────────────────
+var _refCode = new URLSearchParams(window.location.search).get('ref') || '';
+
+// ── Init on load ─────────────────────────────────────────────────────────────
+applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
+buildSeedGrid();
+
+document.getElementById('overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+
+// Splash: stars + typewriter
+(function(){
+  var c = document.getElementById('starsCanvas');
+  if (!c) return;
+  var ctx = c.getContext('2d');
+  c.width = window.innerWidth; c.height = window.innerHeight;
+  var stars = [], t = 0;
+  for (var i = 0; i < 80; i++) stars.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*1.4+0.3,sp:Math.random()*0.015+0.005,ph:Math.random()*Math.PI*2});
+  function draw(){ctx.clearRect(0,0,c.width,c.height);for(var i=0;i<stars.length;i++){var s=stars[i],a=0.3+0.7*Math.abs(Math.sin(t*s.sp+s.ph));ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,'+a+')';ctx.fill();}t++;requestAnimationFrame(draw);}
+  draw();
+  var _splashText='Powered by Jesus Christ.';
+  var _splashIdx=0;
+  var _splashEl=document.getElementById('splashTyped');
+  var _splashCur=document.getElementById('splashCursor');
+  function _splashType(){
+    if(_splashIdx<_splashText.length){
+      _splashEl.textContent+=_splashText[_splashIdx++];
+      setTimeout(_splashType,28);
+    } else {
+      setTimeout(function(){_splashCur.style.display='none';},1000);
+      setTimeout(closeSplash,2800);
+    }
+  }
+  setTimeout(_splashType,900);
+})();
+
+// Auto-login
+if (jwtToken) {
+  fetch(API + '/me', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(user) {
+      if (user) {
+        currentUser = user;
+        localStorage.setItem('kosmos_user', JSON.stringify(user));
+      } else {
+        localStorage.removeItem('kosmos_token');
+        localStorage.removeItem('kosmos_user');
+        jwtToken = null;
+      }
+    })
+    .catch(function() {});
+}
+
+// ── Telegram Bot Auth ─────────────────────────────────────────────────────────
+var _tgSvg = '<svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm5.53 8.16l-1.8 8.49c-.14.6-.5.75-.99.47l-2.75-2.03-1.33 1.27c-.14.15-.27.27-.56.27l.2-2.82 5.1-4.6c.22-.2-.05-.3-.34-.13l-6.3 3.97-2.72-.85c-.59-.18-.6-.59.12-.87l10.63-4.1c.49-.18.92.12.76.87z"/></svg>';
+
+async function startTelegramBotAuth() {
+  stopTgPoll();
+  var btn = document.getElementById('tgAuthBtn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; }
+
+  // Open window synchronously in click handler to avoid popup blocker
+  var win = window.open('about:blank', '_blank');
+
+  try {
+    var r = await fetch(API + '/auth/telegram/init', { method: 'POST' });
+    var data = await r.json();
+    if (!data.botUrl || !data.token) { if (win) win.close(); toast('Ошибка подключения', 'error'); resetTgBtn(); return; }
+
+    try {
+      var botHost = new URL(data.botUrl).hostname;
+      if (['t.me','telegram.me','telegram.org'].indexOf(botHost) === -1) { if (win) win.close(); toast('Недопустимый URL бота', 'error'); resetTgBtn(); return; }
+    } catch(e) { if (win) win.close(); toast('Ошибка URL', 'error'); resetTgBtn(); return; }
+
+    if (win) win.location.href = data.botUrl; else window.open(data.botUrl, '_blank');
+
+    // Countdown polling: 30 attempts × 2s = 60s
+    var remaining = 60;
+    updateTgBtn(remaining);
+    window._tgCountdown = setInterval(function() {
+      remaining--;
+      if (remaining <= 0) { stopTgPoll(); toast('Время вышло. Попробуйте снова.', 'error'); resetTgBtn(); return; }
+      updateTgBtn(remaining);
+    }, 1000);
+
+    var attempts = 0;
+    window._tgPoll = setInterval(async function() {
+      attempts++;
+      if (attempts > 30) { stopTgPoll(); toast('Время вышло. Попробуйте снова.', 'error'); resetTgBtn(); return; }
+      try {
+        var cr = await fetch(API + '/auth/telegram/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: data.token })
+        });
+        var cd = await cr.json();
+        if (cd.token) {
+          stopTgPoll();
+          jwtToken = cd.token;
+          refreshToken = cd.refreshToken;
+          currentUser = cd.user;
+          localStorage.setItem('kosmos_token', jwtToken);
+          if (cd.refreshToken) localStorage.setItem('kosmos_refresh', cd.refreshToken);
+          localStorage.setItem('kosmos_user', JSON.stringify(cd.user));
+          enterApp();
+        }
+      } catch(e) {}
+    }, 2000);
+  } catch(e) {
+    toast('Нет связи с сервером', 'error');
+    resetTgBtn();
+  }
+}
+
+function updateTgBtn(sec) {
+  var btn = document.getElementById('tgAuthBtn');
+  if (btn) btn.innerHTML = _tgSvg + ' Ожидание... ' + sec + 'с <span onclick="event.stopPropagation();cancelTgAuth()" style="margin-left:8px;text-decoration:underline;cursor:pointer;font-size:13px">Отмена</span>';
+}
+
+function cancelTgAuth() {
+  stopTgPoll();
+  resetTgBtn();
+}
+
+function stopTgPoll() {
+  if (window._tgPoll) { clearInterval(window._tgPoll); window._tgPoll = null; }
+  if (window._tgCountdown) { clearInterval(window._tgCountdown); window._tgCountdown = null; }
+}
+
+function resetTgBtn() {
+  var btn = document.getElementById('tgAuthBtn');
+  if (btn) { btn.disabled = false; btn.innerHTML = _tgSvg + ' Войти через Telegram'; btn.style.opacity = '1'; }
+}
+
+window.addEventListener('beforeunload', stopTgPoll);
+
+// ── Apple Auth ───────────────────────────────────────────────────────────────
+function onAppleAuth() {
+  if (typeof AppleID === 'undefined') {
+    toast('Apple Sign In недоступен', 'error');
+    return;
+  }
+  AppleID.auth.signIn().then(function(response) {
+    var idToken = response.authorization && response.authorization.id_token;
+    if (!idToken) { toast('Не удалось получить токен Apple', 'error'); return; }
+    fetch(API + '/auth/apple', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id_token: idToken,
+        user: response.user || null,
+      }),
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.token) {
+          jwtToken = data.token;
+          refreshToken = data.refreshToken;
+          currentUser = data.user;
+          localStorage.setItem('kosmos_token', jwtToken);
+          if (data.refreshToken) localStorage.setItem('kosmos_refresh', data.refreshToken);
+          localStorage.setItem('kosmos_user', JSON.stringify(data.user));
+          enterApp();
+        } else {
+          toast(data.error || 'Ошибка авторизации Apple', 'error');
+        }
+      })
+      .catch(function() { toast('Нет связи с сервером', 'error'); });
+  }).catch(function(err) {
+    if (err.error === 'popup_closed_by_user') return;
+    console.error('[apple] auth error:', err);
+    toast('Ошибка Apple Sign In', 'error');
+  });
+}
+window.onAppleAuth = onAppleAuth;
+
+render();
+
+// ── Backend ping (keep Render awake) ─────────────────────────────────────────
+fetch(API + '/ping').catch(function(){});
+setInterval(function() { fetch(API + '/ping').catch(function(){}); }, 9 * 60 * 1000);
+
+// ── Offline detection ────────────────────────────────────────────────────────
+var offlineBanner = null;
+window.addEventListener('offline', function() {
+  if (offlineBanner) return;
+  offlineBanner = document.createElement('div');
+  offlineBanner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:10000;background:#FF3B30;color:#fff;text-align:center;padding:6px;font-size:13px;font-weight:600';
+  offlineBanner.textContent = 'Нет соединения';
+  document.body.appendChild(offlineBanner);
+});
+window.addEventListener('online', function() {
+  if (offlineBanner) { offlineBanner.remove(); offlineBanner = null; }
+  if (socket && !socket.connected) socket.connect();
+  loadMyChats();
+});
+
+// ── Swipe back (Hammer.js) + Android back button ─────────────────────────────
+(function() {
+  if (typeof Hammer !== 'undefined') {
+    var mc = new Hammer(document.body, { recognizers: [[Hammer.Swipe, { direction: Hammer.DIRECTION_RIGHT, threshold: 50, velocity: 0.3 }]] });
+    mc.on('swiperight', function() {
+      if (document.body.classList.contains('chat-open')) goBack();
+    });
+  }
+
+  function handleBack() {
+    var qrScreen = document.getElementById('qrScreen');
+    var settingsScreen = document.getElementById('settingsScreen');
+
+    if (qrScreen && qrScreen.style.display !== 'none') {
+      showTab('chats');
+      return;
+    }
+    if (settingsScreen && settingsScreen.style.display !== 'none') {
+      showTab('chats');
+      return;
+    }
+    if (document.body.classList.contains('chat-open')) {
+      goBack();
+      return;
+    }
+    var d = document.createElement('div');
+    d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;padding:16px';
+    d.innerHTML = '<div style="background:var(--card);border-radius:16px;padding:20px;width:100%;text-align:center"><div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:8px">Выйти из Космоса?</div><div style="font-size:13px;color:var(--text2);margin-bottom:16px">Вы можете войти снова с помощью seed-фразы</div><button onclick="if(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App)window.Capacitor.Plugins.App.exitApp();this.closest(\'[data-exit]\').remove()" style="width:100%;padding:14px;background:#ff3b30;border:none;border-radius:12px;color:#fff;font-size:16px;font-weight:600;margin-bottom:8px;cursor:pointer">Выйти</button><button onclick="this.closest(\'[data-exit]\').remove()" style="width:100%;padding:14px;background:var(--bg2);border:none;border-radius:12px;color:var(--text);font-size:16px;cursor:pointer">Отмена</button></div>';
+    d.setAttribute('data-exit','');
+    d.onclick = function(e){ if(e.target===d) d.remove(); };
+    document.body.appendChild(d);
+  }
+
+  document.addEventListener('backbutton', handleBack);
+  try {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+      window.Capacitor.Plugins.App.addListener('backButton', function(e) {
+        // e.canGoBack is true if webview has history
+        handleBack();
+      });
+    }
+  } catch(e) {}
+  window.addEventListener('popstate', function() {
+    if (document.body.classList.contains('chat-open')) goBack();
+  });
+})();
+// ── Socket.io: connection, message handling, typing, keepalive ──────────────
+var keepaliveInterval = null;
+
+// ── Toast Notification ──────────────────────────────────────────────────────
+function showToast(name, text) {
+  var existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  var g = GS[(name || '?').charCodeAt(0) % GS.length];
+  var toast = document.createElement('div');
+  toast.className = 'toast';
+  var av = document.createElement('div');
+  av.className = 'toast-av ' + g;
+  av.innerHTML = '<span style="color:#fff;font-size:14px">\uD83D\uDC36</span>';
+  var body = document.createElement('div');
+  body.className = 'toast-body';
+  var nameEl = document.createElement('div');
+  nameEl.className = 'toast-name';
+  nameEl.textContent = name || '';
+  var textEl = document.createElement('div');
+  textEl.className = 'toast-text';
+  textEl.textContent = (text || '').substring(0, 60);
+  body.appendChild(nameEl);
+  body.appendChild(textEl);
+  toast.appendChild(av);
+  toast.appendChild(body);
+  document.body.appendChild(toast);
+  setTimeout(function() { toast.classList.add('show'); }, 10);
+  setTimeout(function() { toast.classList.remove('show'); setTimeout(function() { toast.remove(); }, 300); }, 3000);
+}
+
+// ── Tab Badge ───────────────────────────────────────────────────────────────
+function updateTabBadges() {
+  var totalUnread = 0;
+  channels.concat(dms).forEach(function(c) { totalUnread += (c.unread || 0); });
+  var chatTab = document.getElementById('bnChats');
+  if (chatTab) {
+    var badge = chatTab.querySelector('.tab-badge');
+    if (totalUnread > 0) {
+      if (!badge) { badge = document.createElement('span'); badge.className = 'tab-badge'; chatTab.appendChild(badge); }
+      badge.textContent = totalUnread > 99 ? '99+' : totalUnread;
+    } else if (badge) { badge.remove(); }
+  }
+}
+
+function initSocket() {
+  if (socket) socket.disconnect();
+  if (keepaliveInterval) clearInterval(keepaliveInterval);
+
+  socket = io(API, {
+    auth: { token: jwtToken },
+    transports: ['polling', 'websocket'],
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 2000,
+    reconnectionDelayMax: 30000,
+    timeout: 20000,
+  });
+
+  socket.on('connect', function() {
+    console.log('[socket] connected as', currentUser ? currentUser.username : '?');
+    if (currentUser) {
+      var sub = document.getElementById('logoSub');
+      if (sub) sub.textContent = currentUser.handle ? '@' + currentUser.handle : currentUser.username;
+    }
+    if (cur) socket.emit('join', cur);
+    channels.forEach(function(c) { socket.emit('join', c.id); });
+    dms.forEach(function(d) { socket.emit('join', d.id); });
+  });
+
+  socket.on('connect_error', function(e) {
+    console.warn('[socket] error:', e.message);
+  });
+
+  socket.on('reconnect', function(attempt) {
+    console.log('[socket] reconnected after', attempt, 'attempts');
+    if (cur) socket.emit('join', cur);
+    channels.forEach(function(c) { socket.emit('join', c.id); });
+    dms.forEach(function(d) { socket.emit('join', d.id); });
+  });
+
+  keepaliveInterval = setInterval(function() {
+    fetch(API + '/health').catch(function() {});
+  }, 14 * 60 * 1000);
+
+  socket.on('chat_msg', function(msg) {
+    var ts = new Date(msg.created_at * 1000);
+    var time = ts.getHours().toString().padStart(2, '0') + ':' + ts.getMinutes().toString().padStart(2, '0');
+    var from = currentUser && msg.sender_id === currentUser.id ? 'me' : 'them';
+    var m = { id: msg.id, from: from, text: msg.text, time: time, sender: msg.sender_username, image: msg.image || null };
+
+    var item = findItem(msg.chat_id);
+
+    if (!item) {
+      var chatId = msg.chat_id;
+      if (chatId.startsWith('dm-')) {
+        var senderName = msg.sender_username || 'Пользователь';
+        item = {
+          id: chatId, type: 'chat', name: senderName,
+          g: GS[senderName.charCodeAt(0) % GS.length],
+          em: (senderName || '?')[0].toUpperCase(),
+          online: true, prev: '', time: '', _ts: 0, unread: 0, msgs: [], _loaded: true,
+        };
+        dms.unshift(item);
+        socket.emit('join', chatId);
+      } else {
+        return;
+      }
+    }
+
+    if (item.msgs.find(function(x){ return x.id === msg.id; })) return;
+    // Replace local echo with server message (avoid duplicate)
+    if (from === 'me') {
+      var localIdx = -1;
+      for (var li = item.msgs.length - 1; li >= 0; li--) {
+        if (item.msgs[li].id && item.msgs[li].id.indexOf('local-') === 0 && item.msgs[li].from === 'me') { localIdx = li; break; }
+      }
+      if (localIdx !== -1) { item.msgs[localIdx] = m; render(); return; }
+    }
+    item.msgs.push(m);
+    item.prev = msg.image ? '\uD83D\uDCF7 Фото' + (msg.text ? ' · ' + msg.text.substring(0, 24) : '') : msg.text.substring(0, 36);
+    item.time = time;
+    item._ts = msg.created_at;
+
+    if (cur === msg.chat_id) {
+      var isCh = item.type === 'channel';
+      appendMsg(m, isCh);
+    } else {
+      item.unread = (item.unread || 0) + 1;
+      // Toast notification if message is from someone else
+      if (from === 'them') {
+        showToast(msg.sender_username || item.name, msg.text);
+      }
+    }
+
+    render();
+    updateTabBadges();
+  });
+
+  socket.on('typing', function(data) {
+    if (cur === data.chatId && data.username !== (currentUser ? currentUser.username : '')) {
+      showTypingIndicator();
+    }
+  });
+
+  socket.on('error_msg', function(data) {
+    console.error('[socket] error_msg:', data.error);
+  });
+}
 // ── CSRF Protection: sync token + X-Requested-With on all API requests ──
 (function() {
   // Generate CSRF token once per session
@@ -476,7 +1267,7 @@ function openChat(id) {
           var area = document.getElementById('msgArea');
           if (area) {
             area.innerHTML = '<div class="datediv"><span>Сегодня</span></div>' +
-              item.msgs.map(function(m){return mHTML(m)}).join('');
+              item.msgs.map(function(m){return mHTML(m, isCh2)}).join('');
             scrollBot();
           }
         }
@@ -499,7 +1290,7 @@ function openChat(id) {
       '<button class="back-btn" onclick="goBack()">\u2039</button>' +
       avHtml +
       '<div class="hinfo"><div class="hname">' + escHtml(item.name) + '</div><div class="hsub">' + sub + '</div></div>' +
-      '<div class="hacts"><button onclick="startVideoCall()" style="background:none;border:none;color:var(--accent);font-size:24px;cursor:pointer">\uD83D\uDCDE</button><button class="hb">\uD83D\uDD0D</button></div>' +
+      '<div class="hacts"><button class="hb">\uD83D\uDD0D</button></div>' +
     '</div>' +
     (isCh && item.slug ? '<div style="display:flex;align-items:center;gap:8px;padding:6px 16px;background:var(--bg2);font-size:13px;border-bottom:0.5px solid var(--sep)">' +
       '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--accent)">https://c4v2jht698-ux.github.io/kosmos-frontend/?channel=' + encodeURIComponent(item.slug) + '</span>' +
@@ -507,7 +1298,7 @@ function openChat(id) {
     '</div>' : '') +
     '<div class="msg-area" id="msgArea">' +
       '<div class="datediv"><span>Сегодня</span></div>' +
-      item.msgs.map(function(m){return mHTML(m)}).join('') +
+      item.msgs.map(function(m){return mHTML(m, isCh)}).join('') +
     '</div>' +
     (isCh && String(item.created_by) !== String(currentUser && currentUser.id) ? '<div class="ro-bar">Канал только для чтения</div>' : inpHTML());
   scrollBot();
@@ -515,30 +1306,20 @@ function openChat(id) {
   showChatView();
 }
 
-function mHTML(m) {
-  var isMy = m.from === 'me';
-  var photoHtml = m.image ? '<img class="chat-photo" src="' + escAttr(m.image) + '" style="max-width:100%;border-radius:12px;margin-bottom:6px" onclick="openImgFull(this.src)">' : '';
-  var audioHtml = '';
-  if (m.audio) {
-    audioHtml =
-      '<div class="voice-player" onclick="togglePlay(this,\'' + escAttr(m.audio) + '\')">' +
-        '<button class="voice-play-btn">\u25B6</button>' +
-        '<div class="voice-waveform"></div>' +
-      '</div>';
+function mHTML(m, isCh) {
+  var imgHtml = m.image ? '<img class="msg-img" src="' + escAttr(m.image) + '" onclick="openImgFull(this.src)">' : '';
+  var textHtml = m.text ? '<span style="white-space:pre-wrap">' + escHtml(m.text) + '</span>' : '';
+  if (isCh) {
+    return '<div class="msg ch"><div class="bbl">' + imgHtml + textHtml +
+      '<div class="bf"><span class="mt">' + m.time + '</span></div></div></div>';
   }
-  var nameHtml = '';
-  if (!isMy && m.sender) {
-    nameHtml = '<div style="font-size:12px;color:var(--accent);margin-bottom:4px;font-weight:bold">' + escHtml(m.sender) + '</div>';
-  }
-  var timeStr = m.time || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-  var tickMark = m.is_read ? '\u2713\u2713' : '\u2713';
-  var tickClass = m.is_read ? 'msg-status read' : 'msg-status';
-  var metaHtml = '<span class="msg-meta">' + timeStr + (isMy ? ' <span class="' + tickClass + '" data-msg-id="' + escAttr(m.id) + '">' + tickMark + '</span>' : '') + '</span>';
-  var bblClass = isMy ? 'bbl my' : 'bbl';
-  return '<div class="msg-row" style="display:flex;margin-bottom:12px;width:100%;justify-content:' + (isMy ? 'flex-end' : 'flex-start') + '">' +
-    '<div class="' + bblClass + '" id="msg-' + escAttr(m.id || Date.now()) + '">' +
-      nameHtml + photoHtml + audioHtml + '<span style="white-space:pre-wrap">' + escHtml(m.text || '') + '</span> ' + metaHtml +
-    '</div></div>';
+  var me = m.from === 'me';
+  return '<div class="msg ' + (me ? 'me' : 'them') + '">' +
+    (!me && m.sender ? '<div class="sender-name">' + escHtml(m.sender) + '</div>' : '') +
+    '<div class="bbl">' + imgHtml + textHtml +
+      '<div class="bf"><span class="mt">' + m.time + '</span>' +
+        (me ? '<span class="ms">\u2713\u2713</span>' : '') +
+      '</div></div></div>';
 }
 
 function openImgFull(src) {
@@ -550,52 +1331,40 @@ function openImgFull(src) {
 }
 
 function escHtml(s) {
-  return String(s || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+  s = String(s || '');
+  if (typeof DOMPurify !== 'undefined') return DOMPurify.sanitize(s, { ALLOWED_TAGS: [] });
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
 function escAttr(s) {
-  return escHtml(s);
+  return String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#x27;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+
 function escSearch(s) {
-  return String(s || '')
-    .replace(/&/g, '&amp;')
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
+
 function safePhotoUrl(url) {
   if (!url) return '';
-  url = String(url).trim();
-  if (!/^https?:\/\//i.test(url)) return '';
-  return escAttr(url);
+  try {
+    var parsed = new URL(String(url).trim());
+    if (parsed.protocol !== 'https:') return '';
+    return escAttr(parsed.href);
+  } catch(e) { return ''; }
 }
 
 function inpHTML() {
-  return '<div class="inp-wrap">' +
-    '<div id="attachZone" style="display:flex;flex-direction:column;gap:8px;padding:0 4px"></div>' +
+  return '<div class="inp-zone" style="position:relative">' +
+    '<div class="epanel" id="ep">' + EMOJIS.map(function(e){return '<span class="ep" onclick="insE(\'' + e + '\')">' + e + '</span>'}).join('') + '</div>' +
     '<div class="img-preview" id="imgPreview" style="display:none"><img id="imgPreviewImg"><button class="img-preview-cancel" onclick="cancelImgPreview()">\u2715</button></div>' +
-    '<div class="epanel glass-panel" id="ep" style="bottom:70px;border-radius:16px">' + EMOJIS.map(function(e){return '<span class="ep" onclick="insE(\'' + e + '\')">' + e + '</span>'}).join('') + '</div>' +
-    '<div style="display:flex;align-items:flex-end;gap:8px">' +
-      '<button class="action-btn" onclick="openPhotoGallery()">\uD83D\uDCCE</button>' +
-      '<div class="inp-box">' +
-        '<textarea class="minput" id="mi" placeholder="Сообщение..." rows="1" maxlength="500" onkeydown="hKey(event)" oninput="onInput(this)" style="flex:1;border:none;background:transparent;resize:none;font-family:inherit;outline:none"></textarea>' +
-        '<button class="action-btn" onclick="togE()" style="padding:4px;font-size:20px">\uD83D\uDE42</button>' +
-      '</div>' +
-      '<div style="display:flex;gap:6px;align-items:flex-end;padding-bottom:4px">' +
-        '<button id="micBtn" class="action-btn" style="background:rgba(255,255,255,0.1);border-radius:50%;width:40px;height:40px">\uD83C\uDFA4</button>' +
-        '<button class="sbtn" onclick="send()">' +
-          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>' +
-        '</button>' +
-      '</div>' +
+    '<div class="inp-box">' +
+      '<button class="ib" onclick="document.getElementById(\'photoInput\').click()" title="Отправить фото" style="font-size:18px">\uD83D\uDCCE</button>' +
+      '<textarea class="minput" id="mi" placeholder="Написать сообщение..." rows="1" maxlength="500" onkeydown="hKey(event)" oninput="onInput(this)"></textarea>' +
+      '<button class="ib" onclick="togE()">\uD83D\uDE0A</button>' +
     '</div>' +
     '<input type="file" id="photoInput" accept="image/*" style="display:none" onchange="handlePhotoSelect(this)">' +
     '<span class="char-counter" id="charCount"></span>' +
+    '<button class="sbtn" onclick="send()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9H4l4 4-2 7 6-4 6 4-2-7 4-4h-5z"/></svg></button>' +
   '</div>';
 }
 
@@ -623,7 +1392,7 @@ function appendMsg(msg, isCh) {
   if (!area) return;
   var ty = area.querySelector('.typing');
   var d = document.createElement('div');
-  d.innerHTML = mHTML(msg);
+  d.innerHTML = mHTML(msg, isCh);
   if (ty) area.insertBefore(d.firstChild, ty);
   else area.appendChild(d.firstChild);
   scrollBot();
@@ -1733,113 +2502,41 @@ function goBack() {
 
 // ── Context Menu (long press on message) ────────────────────────────────────
 var _longPressTimer = null;
-var _mainAreaNode = document.getElementById('mainArea');
-if (_mainAreaNode) {
-  _mainAreaNode.addEventListener('touchstart', startPress, { passive: true });
-  _mainAreaNode.addEventListener('touchend', cancelPress);
-  _mainAreaNode.addEventListener('touchmove', cancelPress);
-  _mainAreaNode.addEventListener('mousedown', startPress);
-  _mainAreaNode.addEventListener('mouseup', cancelPress);
-  _mainAreaNode.addEventListener('mousemove', cancelPress);
-  _mainAreaNode.addEventListener('contextmenu', function(e) {
-    if (e.target.closest('.bbl')) e.preventDefault();
-  });
-}
-function startPress(e) {
+document.addEventListener('touchstart', function(e) {
   var bbl = e.target.closest('.bbl');
   if (!bbl) return;
-  var x = e.touches ? e.touches[0].clientX : e.clientX;
-  var y = e.touches ? e.touches[0].clientY : e.clientY;
   _longPressTimer = setTimeout(function() {
     _longPressTimer = null;
-    showContextMenu(bbl, x, y);
+    showContextMenu(bbl, e.touches[0].clientX, e.touches[0].clientY);
   }, 500);
-}
-function cancelPress() {
-  if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
-}
+}, { passive: true });
+document.addEventListener('touchend', function() { if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; } });
+document.addEventListener('touchmove', function() { if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; } });
 document.addEventListener('click', function() { var m = document.querySelector('.ctx-menu'); if (m) m.remove(); });
 
 function showContextMenu(bbl, x, y) {
   var old = document.querySelector('.ctx-menu');
   if (old) old.remove();
-
-  // Find msg ID — bbl itself has id="msg-..." in new layout, or check parent
-  var msgId = bbl.id ? bbl.id.replace('msg-', '') : null;
-  if (!msgId) { var msgEl = bbl.closest('[id^="msg-"]'); if (msgEl) msgId = msgEl.id.replace('msg-', ''); }
-  var isMine = bbl.classList.contains('my');
-  if (!isMine) { var p = bbl.closest('.msg-row,.msg'); if (p) isMine = p.style.justifyContent === 'flex-end' || p.classList.contains('me'); }
-
-  // Extract clean text
-  var clone = bbl.cloneNode(true);
-  var meta = clone.querySelector('.msg-meta');
-  if (meta) meta.remove();
-  var txt = clone.innerText.trim();
+  var text = bbl.textContent || '';
+  // Strip time from text
+  var timeEl = bbl.querySelector('.mt');
+  if (timeEl) text = text.replace(timeEl.textContent, '').trim();
+  var checkEl = bbl.querySelector('.ms');
+  if (checkEl) text = text.replace(checkEl.textContent, '').trim();
 
   var menu = document.createElement('div');
-  menu.className = 'ctx-menu glass-panel';
-  var menuX = x > window.innerWidth - 180 ? window.innerWidth - 180 : x;
-  menu.style.cssText = 'position:fixed;top:' + y + 'px;left:' + menuX + 'px;z-index:9999;display:flex;flex-direction:column;min-width:170px';
-  menu.dataset.text = txt;
-  menu.dataset.msgId = msgId || '';
-
-  var html = '<button class="ctx-btn" onclick="setReply(this)"><span>\u21A9</span> Ответить</button>';
-  html += '<button class="ctx-btn" onclick="copyMsgText(this)"><span>\uD83D\uDCCB</span> Копировать</button>';
-  if (isMine && msgId) {
-    html += '<hr style="margin:0;border:none;border-top:1px solid var(--glass-border)">';
-    html += '<button class="ctx-btn" onclick="editMessage(\'' + escSearch(msgId) + '\',this)"><span>\u270F\uFE0F</span> Изменить</button>';
-    html += '<button class="ctx-btn danger" onclick="deleteMessage(\'' + escSearch(msgId) + '\',this)"><span>\uD83D\uDDD1</span> Удалить</button>';
-  }
-  menu.innerHTML = html;
+  menu.className = 'ctx-menu';
+  menu.style.left = Math.min(x, window.innerWidth - 180) + 'px';
+  menu.style.top = Math.min(y, window.innerHeight - 120) + 'px';
+  menu.innerHTML =
+    '<div class="ctx-item" onclick="setReply(this)">\u21A9 Ответить</div>' +
+    '<div class="ctx-item" onclick="copyMsgText(this)">\uD83D\uDCCB Копировать</div>' +
+    '<div class="ctx-item danger" onclick="this.parentElement.remove()">\u2716 Закрыть</div>';
+  menu.dataset.text = text;
   document.body.appendChild(menu);
+  // Prevent it going off screen
   var rect = menu.getBoundingClientRect();
   if (rect.bottom > window.innerHeight) menu.style.top = (y - rect.height) + 'px';
-}
-
-function deleteMessage(msgId, el) {
-  var menu = el.closest('.ctx-menu');
-  if (menu) menu.remove();
-  if (!msgId || !socket || !socket.connected || !cur) return;
-  socket.emit('delete_msg', { chatId: cur, msgId: msgId });
-  // Optimistic: remove from DOM immediately
-  var msgEl = document.getElementById('msg-' + msgId);
-  if (msgEl) { msgEl.style.transition = 'opacity .2s'; msgEl.style.opacity = '0'; setTimeout(function() { msgEl.remove(); }, 200); }
-  // Remove from local msgs array
-  var item = findItem(cur);
-  if (item) item.msgs = item.msgs.filter(function(m) { return m.id !== msgId; });
-}
-
-function editMessage(msgId, el) {
-  var menu = el.closest('.ctx-menu');
-  var oldText = menu ? menu.dataset.text : '';
-  if (menu) menu.remove();
-  if (!msgId || !socket || !socket.connected || !cur) return;
-  var newText = prompt('Редактировать сообщение:', oldText);
-  if (newText === null || newText.trim() === oldText) return;
-  newText = newText.trim();
-  if (!newText) return;
-  socket.emit('edit_msg', { chatId: cur, msgId: msgId, text: newText });
-  // Optimistic: update DOM immediately
-  var msgEl = document.getElementById('msg-' + msgId);
-  if (msgEl) {
-    var span = msgEl.querySelector('span[style*="white-space"]');
-    if (span) span.textContent = newText;
-    // Add edited indicator
-    var bf = msgEl.querySelector('.bf');
-    if (bf && !bf.querySelector('.edited')) {
-      var ed = document.createElement('span');
-      ed.className = 'edited';
-      ed.textContent = ' (ред.)';
-      ed.style.cssText = 'font-size:10px;color:var(--text3);font-style:italic';
-      bf.insertBefore(ed, bf.firstChild);
-    }
-  }
-  // Update local msgs
-  var item = findItem(cur);
-  if (item) {
-    var m = item.msgs.find(function(m) { return m.id === msgId; });
-    if (m) { m.text = newText; m.edited = true; }
-  }
 }
 
 function copyMsgText(el) {
@@ -1858,86 +2555,61 @@ function setReply(el) {
   var text = menu ? menu.dataset.text : '';
   if (menu) menu.remove();
   _replyTo = { text: text.substring(0, 80) };
-
-  var zone = document.getElementById('attachZone');
+  // Show reply quote above input
+  var zone = document.querySelector('.inp-zone');
   if (!zone) return;
-
   var existing = zone.querySelector('.reply-quote');
   if (existing) existing.remove();
-
   var q = document.createElement('div');
   q.className = 'reply-quote';
-  q.style.cssText = 'display:flex;justify-content:space-between;align-items:center;background:var(--bg2);padding:8px 12px;border-left:3px solid var(--accent);border-radius:6px;margin-top:8px;font-size:14px;color:var(--text)';
-  q.innerHTML = '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:12px">\u21A9 ' + escHtml(_replyTo.text) + '</span><button class="reply-quote-close" onclick="cancelReply()" style="background:none;border:none;color:var(--text3);font-size:16px;padding:0;cursor:pointer">\u2716</button>';
-
-  zone.appendChild(q);
-
+  q.innerHTML = '<span>\u21A9 ' + escHtml(_replyTo.text) + '</span><button class="reply-quote-close" onclick="cancelReply()">\u2716</button>';
+  zone.insertBefore(q, zone.firstChild);
   var inp = document.getElementById('mi');
   if (inp) inp.focus();
 }
 
 function cancelReply() {
   _replyTo = null;
-  renderAttachZone();
+  var q = document.querySelector('.reply-quote');
+  if (q) q.remove();
 }
 
 // ── Photo Sharing ───────────────────────────────────────────────────────────
 var _pendingImage = null;
 
-function openPhotoGallery() {
-  var input = document.createElement('input');
-  input.type = 'file'; input.accept = 'image/*';
-  input.onchange = function(e) {
-    var file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { toast('Файл слишком большой (макс 10МБ)', 'error'); return; }
-    var img = new Image();
-    img.src = URL.createObjectURL(file);
-    img.onload = function() {
-      var canvas = document.createElement('canvas');
-      var w = img.width, h = img.height, max = 1200;
-      if (w > h && w > max) { h *= max / w; w = max; }
-      else if (h > max) { w *= max / h; h = max; }
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      _pendingImage = canvas.toDataURL('image/jpeg', 0.7);
-      URL.revokeObjectURL(img.src);
-      // Show preview in attachZone
-      _attachedPhoto = _pendingImage;
-      renderAttachZone();
-      // Also update old preview if exists
-      var preview = document.getElementById('imgPreview');
-      var prevImg = document.getElementById('imgPreviewImg');
-      if (preview && prevImg) { prevImg.src = _pendingImage; preview.style.display = 'flex'; }
-    };
-  };
-  input.click();
-}
-// Backward compat aliases
 function handlePhotoSelect(input) {
   var file = input.files && input.files[0];
-  if (input.value) input.value = '';
+  input.value = '';
   if (!file) return;
+  if (!file.type.startsWith('image/')) { toast('Только изображения', 'error'); return; }
   if (file.size > 10 * 1024 * 1024) { toast('Максимум 10 МБ', 'error'); return; }
-  var img = new Image();
-  img.src = URL.createObjectURL(file);
-  img.onload = function() {
-    var canvas = document.createElement('canvas');
-    var w = img.width, h = img.height, max = 1200;
-    if (w > h && w > max) { h *= max / w; w = max; }
-    else if (h > max) { w *= max / h; h = max; }
-    canvas.width = w; canvas.height = h;
-    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-    _pendingImage = canvas.toDataURL('image/jpeg', 0.7);
-    _attachedPhoto = _pendingImage;
-    URL.revokeObjectURL(img.src);
-    renderAttachZone();
+  compressImage(file, function(base64) {
+    _pendingImage = base64;
+    var preview = document.getElementById('imgPreview');
+    var img = document.getElementById('imgPreviewImg');
+    if (preview && img) { img.src = base64; preview.style.display = 'flex'; }
+  });
+}
+
+function compressImage(file, cb) {
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var maxW = 1200, w = img.width, h = img.height;
+      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      cb(canvas.toDataURL('image/jpeg', 0.8));
+    };
+    img.src = e.target.result;
   };
+  reader.readAsDataURL(file);
 }
 
 function cancelImgPreview() {
-  _pendingImage = null; _attachedPhoto = null;
-  renderAttachZone();
+  _pendingImage = null;
   var preview = document.getElementById('imgPreview');
   if (preview) preview.style.display = 'none';
 }
@@ -2394,48 +3066,46 @@ function shareQR() {
 
 // ── Chat Background ─────────────────────────────────────────────────────────
 function setChatBg(input) {
-  // Support both file input element and direct base64 string
-  if (typeof input === 'string') {
-    try {
-      localStorage.removeItem('chatBg');
-      localStorage.setItem('chatBg', input);
-      applyChatBg(input);
-      toast('Фон сохранен', 'success');
-    } catch(e) { toast('Ошибка: недостаточно памяти', 'error'); }
-    return;
-  }
   var file = input.files[0];
   if (!file) return;
-  if (file.size > 5 * 1024 * 1024) { toast('Максимум 5MB', 'error'); input.value=''; return; }
-  var img = new Image();
-  img.src = URL.createObjectURL(file);
-  img.onload = function() {
-    var canvas = document.createElement('canvas');
-    var w = img.width, h = img.height, max = 1200;
-    if (w > h && w > max) { h *= max / w; w = max; }
-    else if (h > max) { w *= max / h; h = max; }
-    canvas.width = w; canvas.height = h;
-    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-    var compressed = canvas.toDataURL('image/jpeg', 0.7);
-    URL.revokeObjectURL(img.src);
-    try {
-      localStorage.removeItem('chatBg');
-      localStorage.setItem('chatBg', compressed);
-      applyChatBg(compressed);
-      toast('Фон установлен!', 'success');
-    } catch(e) { toast('Ошибка: недостаточно памяти', 'error'); }
+  if (file.size > 5 * 1024 * 1024) { toast('Фото слишком большое. Максимум 5MB', 'error'); input.value=''; return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement('canvas');
+      var max = 1200;
+      var w = img.width, h = img.height;
+      if (w > max || h > max) {
+        if (w > h) { h = Math.round(h * max / w); w = max; }
+        else { w = Math.round(w * max / h); h = max; }
+      }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      var compressed = canvas.toDataURL('image/jpeg', 0.7);
+      try {
+        localStorage.setItem('chatBg', compressed);
+        applyChatBg();
+        var preview = document.getElementById('bgPreview');
+        if (preview) { preview.style.backgroundImage='url('+compressed+')'; preview.style.backgroundSize='cover'; }
+        toast('Фон установлен!', 'success');
+      } catch(e) {
+        toast('Фото слишком большое для сохранения', 'error');
+      }
+    };
+    img.src = e.target.result;
   };
+  reader.readAsDataURL(file);
 }
 
-function applyChatBg(base64) {
-  var bg = base64 || localStorage.getItem('chatBg');
+function applyChatBg() {
+  var bg = localStorage.getItem('chatBg');
   var areas = document.querySelectorAll('.msg-area');
   areas.forEach(function(area) {
     if (bg) {
       area.style.backgroundImage = 'url(' + bg + ')';
       area.style.backgroundSize = 'cover';
       area.style.backgroundPosition = 'center';
-      area.style.backgroundAttachment = 'fixed';
     } else {
       area.style.backgroundImage = '';
     }
@@ -2456,173 +3126,4 @@ function showConfirm(msg, onOk, onCancel) {
   overlay.querySelector('#sc-cancel').onclick = function() { document.body.removeChild(overlay); if(onCancel) onCancel(); };
   overlay.onclick = function(e) { if(e.target===overlay) { document.body.removeChild(overlay); if(onCancel) onCancel(); } };
 }
-
-// ── Attach Zone (unified photo preview + reply quote) ────────────────────────
-var _attachedPhoto = null;
-
-// triggerAttach is now an alias for openPhotoGallery
-function triggerAttach() { openPhotoGallery(); }
-
-function renderAttachZone() {
-  var z = document.getElementById('attachZone');
-  if (!z) return;
-  var html = '';
-  if (typeof _replyTo !== 'undefined' && _replyTo && _replyTo.text) {
-    html += '<div class="reply-quote glass-panel" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-left:3px solid var(--accent);border-radius:6px;margin-top:8px;font-size:14px"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:12px">\u21A9 ' + escHtml(_replyTo.text) + '</span><button onclick="cancelReply()" class="action-btn" style="padding:0;font-size:16px">\u2716</button></div>';
-  }
-  if (_attachedPhoto) {
-    html += '<div style="position:relative;display:inline-block;margin-top:8px"><img src="' + _attachedPhoto + '" style="max-height:100px;border-radius:8px;border:1px solid var(--glass-border)"><button onclick="cancelAttach()" style="position:absolute;top:-8px;right:-8px;background:#ff3b30;color:#fff;border-radius:50%;border:none;width:24px;height:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.2)">\u2715</button></div>';
-  }
-  z.innerHTML = html;
-}
-
-function cancelAttach() {
-  _attachedPhoto = null;
-  _pendingImage = null;
-  renderAttachZone();
-}
-
-// ── Voice Recording (Microphone) ─────────────────────────────────────────────
-var _mediaRecorder = null, _audioChunks = [], _isRecording = false, _voiceStream = null;
-
-async function startVoice() {
-  if (_isRecording) return;
-  if (!cur) { toast('Откройте чат для записи', 'error'); return; }
-  try {
-    _voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    _mediaRecorder = new MediaRecorder(_voiceStream);
-    _audioChunks = [];
-    _mediaRecorder.ondataavailable = function(e) { _audioChunks.push(e.data); };
-    _mediaRecorder.onstop = function() {
-      var blob = new Blob(_audioChunks, { type: 'audio/ogg; codecs=opus' });
-      var reader = new FileReader();
-      reader.onloadend = function() {
-        if (socket && socket.connected && cur) {
-          socket.emit('chat_msg', { chatId: cur, type: 'audio', audio: reader.result, text: 'Голосовое сообщение' });
-        }
-      };
-      reader.readAsDataURL(blob);
-      if (_voiceStream) { _voiceStream.getTracks().forEach(function(t) { t.stop(); }); _voiceStream = null; }
-    };
-    _mediaRecorder.start();
-    _isRecording = true;
-    var btn = document.getElementById('micBtn');
-    if (btn) { btn.classList.add('recording'); btn.innerHTML = '\u23F9'; }
-    // Auto-stop after 60 seconds
-    setTimeout(function() { if (_isRecording) stopVoice(); }, 60000);
-  } catch(e) {
-    toast('Нет доступа к микрофону', 'error');
-  }
-}
-
-function stopVoice() {
-  if (!_isRecording || !_mediaRecorder) return;
-  _mediaRecorder.stop();
-  _isRecording = false;
-  var btn = document.getElementById('micBtn');
-  if (btn) { btn.classList.remove('recording'); btn.innerHTML = '\uD83C\uDFA4'; }
-}
-
-// ── Custom Audio Player ──────────────────────────────────────────────────────
-var _currentAudio = null, _currentPlayBtn = null;
-
-function togglePlay(el, src) {
-  var btn = el.querySelector('.voice-play-btn');
-  if (_currentAudio && _currentPlayBtn === btn) {
-    _currentAudio.pause();
-    btn.innerHTML = '\u25B6';
-    _currentAudio = null; _currentPlayBtn = null;
-    return;
-  }
-  if (_currentAudio) {
-    _currentAudio.pause();
-    if (_currentPlayBtn) _currentPlayBtn.innerHTML = '\u25B6';
-  }
-  _currentAudio = new Audio(src);
-  _currentPlayBtn = btn;
-  btn.innerHTML = '\u23F8';
-  _currentAudio.play();
-  _currentAudio.onended = function() {
-    btn.innerHTML = '\u25B6';
-    _currentAudio = null; _currentPlayBtn = null;
-  };
-}
-
-// ── WebRTC Video Calls ───────────────────────────────────────────────────────
-var _peerConn = null, _localStream = null, _callChatId = null, _pendingOffer = null;
-var rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-
-function buildCallUI(callerName, isIncoming) {
-  if (document.getElementById('callOverlay')) return;
-  var div = document.createElement('div');
-  div.id = 'callOverlay';
-  div.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--glass-bg);backdrop-filter:blur(25px)';
-  var buttonsHtml = isIncoming
-    ? '<div style="display:flex;gap:40px;position:absolute;bottom:60px"><button class="sbtn" style="width:64px;height:64px;background:#ff3b30" onclick="endCall(true)">\u260E</button><button class="sbtn" style="width:64px;height:64px;background:#34c759" onclick="answerCall()">\uD83D\uDCDE</button></div>'
-    : '<button class="sbtn" style="width:64px;height:64px;background:#ff3b30;position:absolute;bottom:60px" onclick="endCall(true)">\u260E</button>';
-  div.innerHTML =
-    '<video id="remoteVideo" autoplay playsinline style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;z-index:1"></video>' +
-    '<video id="localVideo" autoplay playsinline muted style="width:110px;height:160px;object-fit:cover;position:absolute;top:60px;right:20px;border-radius:16px;border:2px solid rgba(255,255,255,0.2);z-index:3"></video>' +
-    '<div style="position:absolute;top:60px;left:20px;z-index:3;color:#fff">' +
-      '<div style="font-size:28px;font-weight:700">' + escHtml(callerName || 'Собеседник') + '</div>' +
-      '<div id="callStatus" style="font-size:16px;opacity:0.8;margin-top:4px">Подключение...</div>' +
-    '</div>' + buttonsHtml;
-  document.body.appendChild(div);
-}
-
-async function startVideoCall() {
-  if (!cur) { toast('Откройте чат для звонка', 'error'); return; }
-  _callChatId = cur;
-  buildCallUI('Вызов...', false);
-  try {
-    _localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    document.getElementById('localVideo').srcObject = _localStream;
-    _peerConn = new RTCPeerConnection(rtcConfig);
-    _localStream.getTracks().forEach(function(track) { _peerConn.addTrack(track, _localStream); });
-    _peerConn.ontrack = function(e) { document.getElementById('remoteVideo').srcObject = e.streams[0]; var s = document.getElementById('callStatus'); if (s) s.innerText = 'На связи'; };
-    _peerConn.onicecandidate = function(e) { if (e.candidate) socket.emit('webrtc_signal', { chatId: _callChatId, type: 'ice', payload: e.candidate }); };
-    var offer = await _peerConn.createOffer();
-    await _peerConn.setLocalDescription(offer);
-    var cName = currentUser ? currentUser.username : 'Пользователь';
-    socket.emit('webrtc_signal', { chatId: _callChatId, type: 'offer', payload: offer, callerName: cName });
-  } catch(e) { toast('Ошибка камеры/микрофона', 'error'); endCall(true); }
-}
-
-async function answerCall() {
-  if (!_pendingOffer) return;
-  var s = document.getElementById('callStatus'); if (s) s.innerText = 'Соединение...';
-  try {
-    _localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    document.getElementById('localVideo').srcObject = _localStream;
-    _peerConn = new RTCPeerConnection(rtcConfig);
-    _localStream.getTracks().forEach(function(track) { _peerConn.addTrack(track, _localStream); });
-    _peerConn.ontrack = function(e) { document.getElementById('remoteVideo').srcObject = e.streams[0]; var st = document.getElementById('callStatus'); if (st) st.innerText = 'На связи'; };
-    _peerConn.onicecandidate = function(e) { if (e.candidate) socket.emit('webrtc_signal', { chatId: _callChatId, type: 'ice', payload: e.candidate }); };
-    await _peerConn.setRemoteDescription(new RTCSessionDescription(_pendingOffer));
-    var answer = await _peerConn.createAnswer();
-    await _peerConn.setLocalDescription(answer);
-    socket.emit('webrtc_signal', { chatId: _callChatId, type: 'answer', payload: answer });
-    _pendingOffer = null;
-  } catch(e) { toast('Ошибка ответа', 'error'); endCall(true); }
-}
-
-function endCall(emitSignal) {
-  if (emitSignal && _callChatId) socket.emit('webrtc_signal', { chatId: _callChatId, type: 'end' });
-  if (_peerConn) { _peerConn.close(); _peerConn = null; }
-  if (_localStream) { _localStream.getTracks().forEach(function(t) { t.stop(); }); _localStream = null; }
-  var overlay = document.getElementById('callOverlay');
-  if (overlay) overlay.remove();
-  _callChatId = null; _pendingOffer = null;
-}
-
-// ── Typing Indicator ─────────────────────────────────────────────────────────
-var _typingTimer = null, _isTypingNow = false, _typingClearTimer = null;
-
-document.addEventListener('input', function(e) {
-  if (e.target.id !== 'mi') return;
-  if (!cur || typeof socket === 'undefined') return;
-  if (!_isTypingNow) { _isTypingNow = true; socket.emit('typing', { chatId: cur, isTyping: true }); }
-  clearTimeout(_typingTimer);
-  _typingTimer = setTimeout(function() { _isTypingNow = false; socket.emit('typing', { chatId: cur, isTyping: false }); }, 2000);
-});
 

@@ -48,7 +48,7 @@ function initSocket() {
 
   socket = io(API, {
     auth: { token: jwtToken },
-    transports: ['polling', 'websocket'],
+    transports: ['websocket'],
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
