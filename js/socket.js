@@ -182,13 +182,13 @@ function initSocket() {
     if (el) {
       var span = el.querySelector('span[style*="white-space"]');
       if (span) span.textContent = data.text;
-      var bf = el.querySelector('.bf');
-      if (bf && !bf.querySelector('.edited')) {
+      var meta = el.querySelector('.msg-meta') || el.querySelector('.bf');
+      if (meta && !meta.querySelector('.edited')) {
         var ed = document.createElement('span');
         ed.className = 'edited';
         ed.textContent = ' (ред.)';
         ed.style.cssText = 'font-size:10px;color:var(--text3);font-style:italic';
-        bf.insertBefore(ed, bf.firstChild);
+        meta.insertBefore(ed, meta.firstChild);
       }
     }
     // Update sidebar if last message was edited

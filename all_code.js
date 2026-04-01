@@ -437,7 +437,7 @@ function openChat(id) {
           var ts = new Date(m.created_at * 1000);
           var time = ts.getHours().toString().padStart(2,'0') + ':' + ts.getMinutes().toString().padStart(2,'0');
           var from = currentUser && m.sender_id === currentUser.id ? 'me' : 'them';
-          return { id: m.id, from: from, text: m.text, time: time, sender: m.sender_username, image: m.image || null };
+          return { id: m.id, from: from, text: m.text, time: time, sender: m.sender_username, image: m.image || null, audio: m.audio || null };
         });
         if (cur === id) {
           var area = document.getElementById('msgArea');
@@ -555,7 +555,7 @@ function inpHTML() {
         '<button class="action-btn" onclick="togE()" style="padding:4px;font-size:20px">\uD83D\uDE42</button>' +
       '</div>' +
       '<div style="display:flex;gap:6px;align-items:flex-end;padding-bottom:4px">' +
-        '<button id="micBtn" class="action-btn" style="background:rgba(255,255,255,0.1);border-radius:50%;width:40px;height:40px">\uD83C\uDFA4</button>' +
+        '<button id="micBtn" class="action-btn" onmousedown="startVoice()" onmouseup="stopVoice()" ontouchstart="startVoice()" ontouchend="stopVoice()" style="background:rgba(255,255,255,0.1);border-radius:50%;width:40px;height:40px">\uD83C\uDFA4</button>' +
         '<button class="sbtn" onclick="send()">' +
           '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>' +
         '</button>' +
@@ -570,7 +570,7 @@ function hKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); s
 function aRes(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 130) + 'px'; }
 function onInput(el) {
   aRes(el);
-  if (socket && socket.connected && cur) socket.emit('typing', { chatId: cur });
+  if (socket && socket.connected && cur) socket.emit('typing', { chatId: cur, isTyping: true });
   // Update char counter
   var cc = document.getElementById('charCount');
   if (cc) {
@@ -1785,7 +1785,7 @@ function editMessage(msgId, el) {
   if (newText === null || newText.trim() === oldText) return;
   newText = newText.trim();
   if (!newText) return;
-  socket.emit('edit_msg', { chatId: cur, msgId: msgId, text: newText });
+  socket.emit('edit_msg', { chatId: cur, msgId: msgId, newText: newText });
   // Optimistic: update DOM immediately
   var msgEl = document.getElementById('msg-' + msgId);
   if (msgEl) {
@@ -2281,7 +2281,7 @@ function startQRScan() {
         if (code) {
           result.textContent = 'Найден: ' + code.data;
           stopQRScan();
-          var match = code.data.match(/\/u\/([^/?]+)/);
+          var match = code.data.match(/[?&]u=([^&]+)/);
           if (match) searchUsers(match[1]);
         }
       }, 300);
@@ -2457,7 +2457,7 @@ async function startVoice() {
   if (!cur) { toast('Откройте чат для записи', 'error'); return; }
   try {
     _voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    _mediaRecorder = new MediaRecorder(_voiceStream);
+    _mediaRecorder = new MediaRecorder(_voiceStream, { mimeType: 'audio/webm' });
     _audioChunks = [];
     _mediaRecorder.ondataavailable = function(e) { _audioChunks.push(e.data); };
     _mediaRecorder.onstop = function() {
@@ -3049,13 +3049,13 @@ function initSocket() {
     if (el) {
       var span = el.querySelector('span[style*="white-space"]');
       if (span) span.textContent = data.text;
-      var bf = el.querySelector('.bf');
-      if (bf && !bf.querySelector('.edited')) {
+      var meta = el.querySelector('.msg-meta') || el.querySelector('.bf');
+      if (meta && !meta.querySelector('.edited')) {
         var ed = document.createElement('span');
         ed.className = 'edited';
         ed.textContent = ' (ред.)';
         ed.style.cssText = 'font-size:10px;color:var(--text3);font-style:italic';
-        bf.insertBefore(ed, bf.firstChild);
+        meta.insertBefore(ed, meta.firstChild);
       }
     }
     // Update sidebar if last message was edited
