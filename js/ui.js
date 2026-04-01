@@ -2281,7 +2281,7 @@ function startQRScan() {
         if (code) {
           result.textContent = 'Найден: ' + code.data;
           stopQRScan();
-          var match = code.data.match(/\/u\/([^/?]+)/);
+          var match = code.data.match(/[?&]u=([^&]+)/);
           if (match) searchUsers(match[1]);
         }
       }, 300);
