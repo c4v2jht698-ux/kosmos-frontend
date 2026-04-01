@@ -2508,7 +2508,6 @@ async function startVoice() {
     _isRecording = true;
     var btn = document.getElementById('micBtn');
     if (btn) { btn.classList.add('recording'); btn.innerHTML = '\u23F9'; }
-    toast('Запись...', 'success');
     // Auto-stop after 60 seconds
     setTimeout(function() { if (_isRecording) stopVoice(); }, 60000);
   } catch(e) {

@@ -51,9 +51,9 @@ function initSocket() {
     transports: ['polling', 'websocket'],
     reconnection: true,
     reconnectionAttempts: Infinity,
-    reconnectionDelay: 2000,
-    reconnectionDelayMax: 30000,
-    timeout: 20000,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 10000,
+    timeout: 10000,
   });
 
   socket.on('connect', function() {

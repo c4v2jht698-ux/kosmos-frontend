@@ -2508,7 +2508,6 @@ async function startVoice() {
     _isRecording = true;
     var btn = document.getElementById('micBtn');
     if (btn) { btn.classList.add('recording'); btn.innerHTML = '\u23F9'; }
-    toast('Запись...', 'success');
     // Auto-stop after 60 seconds
     setTimeout(function() { if (_isRecording) stopVoice(); }, 60000);
   } catch(e) {
@@ -2952,9 +2951,9 @@ function initSocket() {
     transports: ['polling', 'websocket'],
     reconnection: true,
     reconnectionAttempts: Infinity,
-    reconnectionDelay: 2000,
-    reconnectionDelayMax: 30000,
-    timeout: 20000,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 10000,
+    timeout: 10000,
   });
 
   socket.on('connect', function() {
