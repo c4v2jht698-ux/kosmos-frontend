@@ -2494,7 +2494,7 @@ async function startVoice() {
     _audioChunks = [];
     _mediaRecorder.ondataavailable = function(e) { _audioChunks.push(e.data); };
     _mediaRecorder.onstop = function() {
-      var blob = new Blob(_audioChunks, { type: 'audio/ogg; codecs=opus' });
+      var blob = new Blob(_audioChunks, { type: 'audio/webm' });
       var reader = new FileReader();
       reader.onloadend = function() {
         if (socket && socket.connected && cur) {
@@ -2948,7 +2948,7 @@ function initSocket() {
 
   socket = io(API, {
     auth: { token: jwtToken },
-    transports: ['websocket'],
+    transports: ['websocket'], upgrade: false,
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
@@ -2980,7 +2980,7 @@ function initSocket() {
 
   keepaliveInterval = setInterval(function() {
     fetch(API + '/health').catch(function() {});
-  }, 14 * 60 * 1000);
+  }, 4 * 60 * 1000);
 
   socket.on('chat_msg', function(msg) {
     var ts = new Date(msg.created_at * 1000);
