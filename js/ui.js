@@ -1998,7 +1998,15 @@ function send() {
     render();
   }
 
-  if (socket && socket.connected && cur) {
+  // Check if this is an AI bot chat
+  var isAiChat = cur && (cur.indexOf('gemini-bot') !== -1 || cur.indexOf('claude-bot') !== -1);
+  if (isAiChat && text) {
+    fetch(API + '/api/ai/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+      body: JSON.stringify({ prompt: text, chatId: cur })
+    }).catch(function(){});
+  } else if (socket && socket.connected && cur) {
     var payload = { chatId: cur, text: text || '', replyTo: _replyTo ? _replyTo.text : undefined };
     if (image) payload.image = image;
     socket.emit('chat_msg', payload);
