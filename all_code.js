@@ -425,20 +425,30 @@ function openChat(id) {
   item.unread = 0;
   render();
 
-  if (!item._loaded && jwtToken) {
+  if (jwtToken) {
+    // Determine if we need full load or incremental
+    var lastMsgId = (item.msgs.length > 0) ? item.msgs[item.msgs.length - 1].id : null;
+    var endpoint = API + '/messages/' + encodeURIComponent(id) + (lastMsgId && item._loaded ? '?after=' + encodeURIComponent(lastMsgId) : '');
     item._loaded = true;
-    fetch(API + '/messages/' + encodeURIComponent(id), {
-      headers: { 'Authorization': 'Bearer ' + jwtToken }
-    })
+    fetch(endpoint, { headers: { 'Authorization': 'Bearer ' + jwtToken } })
       .then(function(r) { return r.ok ? r.json() : []; })
       .then(function(msgs) {
-        var isCh2 = item.type === 'channel';
-        item.msgs = msgs.map(function(m) {
+        if (!msgs.length) return;
+        var newMsgs = msgs.map(function(m) {
           var ts = new Date(m.created_at * 1000);
           var time = ts.getHours().toString().padStart(2,'0') + ':' + ts.getMinutes().toString().padStart(2,'0');
           var from = currentUser && m.sender_id === currentUser.id ? 'me' : 'them';
           return { id: m.id, from: from, text: m.text, time: time, sender: m.sender_username, image: m.image || null, audio: m.audio || null };
         });
+        if (lastMsgId) {
+          // Incremental: append only new messages (dedup by id)
+          var existingIds = {};
+          item.msgs.forEach(function(m) { existingIds[m.id] = true; });
+          newMsgs.forEach(function(m) { if (!existingIds[m.id]) item.msgs.push(m); });
+        } else {
+          // Full load
+          item.msgs = newMsgs;
+        }
         if (cur === id) {
           var area = document.getElementById('msgArea');
           if (area) {
@@ -448,7 +458,8 @@ function openChat(id) {
           }
         }
         if (item.msgs.length) {
-          item.prev = item.msgs[item.msgs.length-1].text.substring(0, 36);
+          var last = item.msgs[item.msgs.length-1];
+          item.prev = last.text ? last.text.substring(0, 36) : (last.image ? '\uD83D\uDCF7 Фото' : '\uD83C\uDFA4 Голосовое');
           render();
         }
       }).catch(function(){});
@@ -2457,7 +2468,9 @@ async function startVoice() {
   if (!cur) { toast('Откройте чат для записи', 'error'); return; }
   try {
     _voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    _mediaRecorder = new MediaRecorder(_voiceStream, { mimeType: 'audio/webm' });
+    var options = { mimeType: 'audio/webm' };
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) options.mimeType = 'audio/mp4';
+    _mediaRecorder = new MediaRecorder(_voiceStream, options);
     _audioChunks = [];
     _mediaRecorder.ondataavailable = function(e) { _audioChunks.push(e.data); };
     _mediaRecorder.onstop = function() {
@@ -2910,6 +2923,7 @@ function updateTabBadges() {
 }
 
 function initSocket() {
+  if (socket && socket.connected) return;
   if (socket) socket.disconnect();
   if (keepaliveInterval) clearInterval(keepaliveInterval);
 
