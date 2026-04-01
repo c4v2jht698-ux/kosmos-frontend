@@ -522,7 +522,7 @@ function mHTML(m) {
 function openImgFull(src) {
   var ov = document.createElement('div');
   ov.className = 'img-fullscreen';
-  ov.onclick = function() { ov.remove(); };
+  ov.onclick = function() { var img = ov.querySelector('img'); if (img) img.src = ''; ov.remove(); };
   ov.innerHTML = '<img src="' + escAttr(src) + '">';
   document.body.appendChild(ov);
 }

@@ -51,7 +51,7 @@ function initSocket() {
     auth: { token: jwtToken },
     transports: ['websocket'], upgrade: false,
     reconnection: true,
-    reconnectionAttempts: Infinity,
+    reconnectionAttempts: 10,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 10000,
     timeout: 10000,

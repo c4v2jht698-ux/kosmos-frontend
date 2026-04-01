@@ -522,7 +522,7 @@ function mHTML(m) {
 function openImgFull(src) {
   var ov = document.createElement('div');
   ov.className = 'img-fullscreen';
-  ov.onclick = function() { ov.remove(); };
+  ov.onclick = function() { var img = ov.querySelector('img'); if (img) img.src = ''; ov.remove(); };
   ov.innerHTML = '<img src="' + escAttr(src) + '">';
   document.body.appendChild(ov);
 }
@@ -2691,7 +2691,7 @@ async function loadMyChats(retries) {
   }
 }
 
-let searchTimeout;
+let searchTimeout, searchController, searchUsersController;
 async function sidebarSearch(q) {
   clearTimeout(searchTimeout);
   const sr = document.getElementById('sidebarResults');
@@ -2709,13 +2709,16 @@ async function sidebarSearch(q) {
   if (dmSec) dmSec.style.display = 'none';
 
   searchTimeout = setTimeout(async () => {
+    if (searchController) searchController.abort();
+    searchController = new AbortController();
+    var signal = searchController.signal;
     try {
       const [ur, cr] = await Promise.all([
         fetch(`${API}/users?search=${encodeURIComponent(q)}`, {
-          headers: { 'Authorization': `Bearer ${jwtToken}` }
+          signal, headers: { 'Authorization': `Bearer ${jwtToken}` }
         }).then(r => r.ok ? r.json() : []),
         fetch(`${API}/channels?search=${encodeURIComponent(q)}`, {
-          headers: { 'Authorization': `Bearer ${jwtToken}` }
+          signal, headers: { 'Authorization': `Bearer ${jwtToken}` }
         }).then(r => r.ok ? r.json() : []),
       ]);
 
@@ -2751,7 +2754,7 @@ async function sidebarSearch(q) {
         else if (ci.dataset.action === 'join') joinChannel(ci.dataset.cid, ci.dataset.cname, ci.dataset.cslug);
       };
     } catch(e) {
-      console.error('[api] search:', e);
+      if (e.name === 'AbortError') return; console.error('[api] search:', e);
     }
   }, 300);
 }
@@ -2830,10 +2833,12 @@ async function joinChannel(id, name, slug) {
 }
 
 async function searchUsers(q) {
-  if (!q.trim()) { document.getElementById('userResults').innerHTML = ''; return; }
+  if (!q.trim()) { if (searchUsersController) searchUsersController.abort(); document.getElementById('userResults').innerHTML = ''; return; }
+  if (searchUsersController) searchUsersController.abort();
+  searchUsersController = new AbortController();
   try {
     const r = await fetch(`${API}/users?search=${encodeURIComponent(q)}`, {
-      headers: { 'Authorization': `Bearer ${jwtToken}` }
+      signal: searchUsersController.signal, headers: { 'Authorization': `Bearer ${jwtToken}` }
     });
     const users = r.ok ? await r.json() : [];
     document.getElementById('userResults').innerHTML = users.length
@@ -2844,7 +2849,7 @@ async function searchUsers(q) {
         </div>`).join('')
       : '<div class="user-results-empty">Не найдено</div>';
   } catch(e) {
-    console.error('[api] searchUsers:', e);
+    if (e.name === 'AbortError') return; console.error('[api] searchUsers:', e);
   }
 }
 
@@ -2931,7 +2936,7 @@ function initSocket() {
     auth: { token: jwtToken },
     transports: ['websocket'], upgrade: false,
     reconnection: true,
-    reconnectionAttempts: Infinity,
+    reconnectionAttempts: 10,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 10000,
     timeout: 10000,
