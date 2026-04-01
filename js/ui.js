@@ -2457,7 +2457,9 @@ async function startVoice() {
   if (!cur) { toast('Откройте чат для записи', 'error'); return; }
   try {
     _voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    _mediaRecorder = new MediaRecorder(_voiceStream, { mimeType: 'audio/webm' });
+    var options = { mimeType: 'audio/webm' };
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) options.mimeType = 'audio/mp4';
+    _mediaRecorder = new MediaRecorder(_voiceStream, options);
     _audioChunks = [];
     _mediaRecorder.ondataavailable = function(e) { _audioChunks.push(e.data); };
     _mediaRecorder.onstop = function() {

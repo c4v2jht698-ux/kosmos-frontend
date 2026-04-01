@@ -43,6 +43,7 @@ function updateTabBadges() {
 }
 
 function initSocket() {
+  if (socket && socket.connected) return;
   if (socket) socket.disconnect();
   if (keepaliveInterval) clearInterval(keepaliveInterval);
 
