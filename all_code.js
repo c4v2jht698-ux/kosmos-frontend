@@ -1,33 +1,3 @@
-// ── CSRF Protection: sync token + X-Requested-With on all API requests ──
-(function() {
-  // Generate CSRF token once per session
-  if (!sessionStorage.getItem('csrf_token')) {
-    sessionStorage.setItem('csrf_token', crypto.randomUUID());
-  }
-  var _origFetch = window.fetch;
-  window.fetch = function(url, opts) {
-    if (typeof url === 'string' && typeof API !== 'undefined' && url.indexOf(API) === 0) {
-      opts = opts || {};
-      if (!opts.headers) opts.headers = {};
-      var method = (opts.method || 'GET').toUpperCase();
-      var isHeaders = opts.headers instanceof Headers;
-      // Always add X-Requested-With
-      if (isHeaders) {
-        if (!opts.headers.has('X-Requested-With')) opts.headers.set('X-Requested-With', 'XMLHttpRequest');
-      } else {
-        if (!opts.headers['X-Requested-With']) opts.headers['X-Requested-With'] = 'XMLHttpRequest';
-      }
-      // CSRF token disabled — was causing 30s delay in WebView
-      // if (method === 'POST' || method === 'PUT' || method === 'DELETE' || method === 'PATCH') {
-      //   var token = sessionStorage.getItem('csrf_token') || '';
-      //   if (isHeaders) { opts.headers.set('X-CSRF-Token', token); }
-      //   else { opts.headers['X-CSRF-Token'] = token; }
-      // }
-    }
-    return _origFetch.apply(this, arguments);
-  };
-})();
-
 // ── UI: Render, chat open, message HTML, input helpers ──────────────────────
 
 function toast(msg, type) {
