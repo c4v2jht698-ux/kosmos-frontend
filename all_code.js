@@ -2627,3 +2627,1137 @@ document.addEventListener('input', function(e) {
   _typingTimer = setTimeout(function() { _isTypingNow = false; socket.emit('typing', { chatId: cur, isTyping: false }); }, 2000);
 });
 
+// ── API: load chats, search, create chat ────────────────────────────────────
+
+function apiFetch(url, opts, timeoutMs) {
+  timeoutMs = timeoutMs || 15000;
+  var controller = new AbortController();
+  var timer = setTimeout(function() { controller.abort(); }, timeoutMs);
+  opts = opts || {};
+  opts.signal = controller.signal;
+  if (!opts.headers) opts.headers = {};
+  if (jwtToken) opts.headers['Authorization'] = 'Bearer ' + jwtToken;
+  opts.headers['X-Requested-With'] = 'XMLHttpRequest';
+  return fetch(url, opts).finally(function() { clearTimeout(timer); });
+}
+
+// CSRF-safe wrapper for all API mutations (POST/PUT/DELETE)
+function apiMutate(url, method, body) {
+  return apiFetch(url, {
+    method: method,
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    body: body ? JSON.stringify(body) : undefined
+  });
+}
+
+async function loadMyChats(retries) {
+  if (!jwtToken) return;
+  retries = retries || 0;
+  try {
+    const r = await fetch(`${API}/my-chats`, {
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    });
+    if (!r.ok) {
+      if (r.status === 401) logout();
+      return;
+    }
+    const data = await r.json();
+
+    channels.length = 0;
+    dms.length = 0;
+
+    var AI_SLUGS = ['crypto_pulse','cinema_club','music_wave','fitness_cosmos','tech_cosmos','gaming_zone','auto_drive','food_lab','travel_vibes','fashion_now','science_daily','health_tips','business_hub','humor_daily','nature_world','art_space','book_shelf','mindset_pro','ai_future','history_facts'];
+    (data.channels || []).forEach(ch => {
+      if (AI_SLUGS.indexOf(ch.slug) !== -1) return; // hide AI agent channels
+      channels.push({
+        id: ch.id, type: 'channel', name: ch.name, slug: ch.slug,
+        g: GS[(ch.name || '?').charCodeAt(0) % GS.length],
+        em: (ch.name || '?')[0].toUpperCase(),
+        members: ch.members || 0,
+        prev: ch.last_text || '',
+        time: ch.last_time || '',
+        _ts: parseInt(ch.last_ts) || 0,
+        unread: 0, msgs: [], _loaded: false,
+        created_by: ch.created_by,
+      });
+    });
+
+    (data.dms || []).forEach(dm => {
+      const name = dm.name || 'Пользователь';
+      dms.push({
+        id: dm.chat_id, type: 'chat', name,
+        g: GS[name.charCodeAt(0) % GS.length],
+        em: name[0].toUpperCase(),
+        online: false,
+        prev: dm.last_text || '',
+        time: dm.last_time || '',
+        _ts: parseInt(dm.last_ts) || 0,
+        unread: 0, msgs: [], _loaded: false,
+      });
+    });
+
+    render();
+
+    // Переподписаться на все каналы после загрузки
+    if (socket && socket.connected) {
+      channels.forEach(c => socket.emit('join', c.id));
+      dms.forEach(d => socket.emit('join', d.id));
+    }
+  } catch(e) {
+    console.warn('[api] loadMyChats failed:', e.message);
+    if (retries < 3) {
+      console.log('[api] retry in 5s... (' + (retries+1) + '/3)');
+      setTimeout(() => loadMyChats(retries + 1), 5000);
+    }
+  }
+}
+
+let searchTimeout;
+async function sidebarSearch(q) {
+  clearTimeout(searchTimeout);
+  const sr = document.getElementById('sidebarResults');
+  if (!q.trim()) {
+    sr.style.display = 'none';
+    document.getElementById('chSection').style.display = '';
+    const dmSec = document.getElementById('dmSection');
+    if (dmSec) dmSec.style.display = 'none';
+    return;
+  }
+
+  sr.style.display = 'block';
+  document.getElementById('chSection').style.display = 'none';
+  const dmSec = document.getElementById('dmSection');
+  if (dmSec) dmSec.style.display = 'none';
+
+  searchTimeout = setTimeout(async () => {
+    try {
+      const [ur, cr] = await Promise.all([
+        fetch(`${API}/users?search=${encodeURIComponent(q)}`, {
+          headers: { 'Authorization': `Bearer ${jwtToken}` }
+        }).then(r => r.ok ? r.json() : []),
+        fetch(`${API}/channels?search=${encodeURIComponent(q)}`, {
+          headers: { 'Authorization': `Bearer ${jwtToken}` }
+        }).then(r => r.ok ? r.json() : []),
+      ]);
+
+      let html = '';
+
+      if (ur.length) {
+        html += '<div class="sec-label" style="padding:10px 11px 4px">Пользователи</div>';
+        html += ur.map(u => {
+          var safe = { id: escSearch(u.id), name: escHtml(u.username || ''), handle: escHtml(u.handle || '') };
+          return '<div class="ci" data-action="dm" data-uid="' + safe.id + '" data-uname="' + escSearch(u.username) + '" data-uhandle="' + escSearch(u.handle || '') + '">' +
+            '<div class="av ' + GS[(u.username||'?').charCodeAt(0) % GS.length] + '">' + (safe.name || '?')[0].toUpperCase() + '</div>' +
+            '<div class="ci-info"><div class="ci-name">' + safe.name + '</div><div class="ci-prev">@' + safe.handle + '</div></div></div>';
+        }).join('');
+      }
+
+      if (cr.length) {
+        html += '<div class="sec-label" style="padding:10px 11px 4px">Каналы</div>';
+        html += cr.map(c => {
+          var safe = { id: escSearch(c.id), name: escHtml(c.name || ''), slug: escHtml(c.slug || '') };
+          return '<div class="ci" data-action="join" data-cid="' + safe.id + '" data-cname="' + escSearch(c.name) + '" data-cslug="' + escSearch(c.slug || '') + '">' +
+            '<div class="av ' + GS[(c.name||'?').charCodeAt(0) % GS.length] + ' sq">' + (safe.name || '?')[0].toUpperCase() + '</div>' +
+            '<div class="ci-info"><div class="ci-name">' + safe.name + '</div><div class="ci-prev">' + (c.members || 0) + ' участников</div></div></div>';
+        }).join('');
+      }
+
+      if (!html) html = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">Ничего не найдено</div>';
+      sr.innerHTML = html;
+      // Delegated click handler — no inline onclick
+      sr.onclick = function(e) {
+        var ci = e.target.closest('.ci[data-action]');
+        if (!ci) return;
+        if (ci.dataset.action === 'dm') startDM(ci.dataset.uid, ci.dataset.uname, ci.dataset.uhandle);
+        else if (ci.dataset.action === 'join') joinChannel(ci.dataset.cid, ci.dataset.cname, ci.dataset.cslug);
+      };
+    } catch(e) {
+      console.error('[api] search:', e);
+    }
+  }, 300);
+}
+
+// escSearch moved to ui.js (loaded first) for availability across all scripts
+
+async function startDM(userId, username, handle) {
+  // Закрываем поиск
+  var searchInput = document.querySelector('.search input');
+  if (searchInput) searchInput.value = '';
+  document.getElementById('sidebarResults').style.display = 'none';
+  document.getElementById('chSection').style.display = '';
+
+  // Try to get chat ID from server (prevents IDOR)
+  var chatId;
+  try {
+    var r = await fetch(API + '/chats/dm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+      body: JSON.stringify({ targetUserId: userId })
+    });
+    if (r.ok) {
+      var d = await r.json();
+      chatId = d.chatId || d.id;
+    }
+  } catch(e) {}
+
+  // Fallback to client-side generation if server unavailable
+  if (!chatId) {
+    var myId = currentUser.id;
+    var ids = [myId, userId].sort();
+    chatId = 'dm-' + ids[0] + '-' + ids[1];
+  }
+
+  var item = dms.find(function(d) { return d.id === chatId; });
+  if (!item) {
+    var name = (username || '?') + (handle ? ' @' + handle : '');
+    item = {
+      id: chatId, type: 'chat', name: name,
+      g: GS[(username || '?').charCodeAt(0) % GS.length],
+      em: (username || '?')[0].toUpperCase(),
+      online: false, prev: '', time: '', _ts: 0,
+      unread: 0, msgs: [], _loaded: false,
+    };
+    dms.unshift(item);
+    render();
+  }
+
+  openChat(chatId);
+  closeModal();
+}
+
+async function joinChannel(id, name, slug) {
+  document.querySelector('.search input').value = '';
+  document.getElementById('sidebarResults').style.display = 'none';
+  document.getElementById('chSection').style.display = '';
+
+  await fetch(`${API}/channels/${id}/join`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${jwtToken}` }
+  });
+
+  let item = channels.find(c => c.id === id);
+  if (!item) {
+    item = {
+      id, type: 'channel', name, slug,
+      g: GS[(name || '?').charCodeAt(0) % GS.length],
+      em: (name || '?')[0].toUpperCase(),
+      members: '?', prev: '', time: '', _ts: 0,
+      unread: 0, msgs: [], _loaded: false,
+    };
+    channels.unshift(item);
+    render();
+  }
+  openChat(id);
+}
+
+async function searchUsers(q) {
+  if (!q.trim()) { document.getElementById('userResults').innerHTML = ''; return; }
+  try {
+    const r = await fetch(`${API}/users?search=${encodeURIComponent(q)}`, {
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    });
+    const users = r.ok ? await r.json() : [];
+    document.getElementById('userResults').innerHTML = users.length
+      ? users.map(u => `
+        <div class="user-result" onclick="startDM('${escSearch(u.id)}','${escSearch(u.username)}','${escSearch(u.handle || '')}')">
+          <div class="ur-av ${GS[(u.username||'?').charCodeAt(0) % GS.length]}">${escHtml((u.username||'?')[0].toUpperCase())}</div>
+          <div><div class="ur-name">${escHtml(u.username)}</div><div class="ur-email">@${escHtml(u.handle || '')}</div></div>
+        </div>`).join('')
+      : '<div class="user-results-empty">Не найдено</div>';
+  } catch(e) {
+    console.error('[api] searchUsers:', e);
+  }
+}
+
+async function createChat() {
+  const isCh = document.querySelector('input[name="ct"]:checked').value === 'channel';
+  if (isCh) {
+    const name = document.getElementById('ncName').value.trim();
+    if (!name) return;
+    try {
+      const r = await fetch(`${API}/channels`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${jwtToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+      if (!r.ok) return;
+      const ch = await r.json();
+      const item = {
+        id: ch.id, type: 'channel', name: ch.name, slug: ch.slug,
+        g: GS[(ch.name || '?').charCodeAt(0) % GS.length],
+        em: (ch.name || '?')[0].toUpperCase(),
+        members: 1, prev: '', time: '', _ts: Date.now() / 1000,
+        unread: 0, msgs: [], _loaded: true,
+        created_by: currentUser.id,
+      };
+      channels.unshift(item);
+      render();
+      closeModal();
+      openChat(ch.id);
+    } catch(e) {
+      console.error('[api] createChannel:', e);
+    }
+  }
+}
+// ── Socket.io: connection, message handling, typing, keepalive ──────────────
+var keepaliveInterval = null;
+
+// ── Toast Notification ──────────────────────────────────────────────────────
+function showToast(name, text) {
+  var existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  var g = GS[(name || '?').charCodeAt(0) % GS.length];
+  var toast = document.createElement('div');
+  toast.className = 'toast';
+  var av = document.createElement('div');
+  av.className = 'toast-av ' + g;
+  av.innerHTML = '<span style="color:#fff;font-size:14px">\uD83D\uDC36</span>';
+  var body = document.createElement('div');
+  body.className = 'toast-body';
+  var nameEl = document.createElement('div');
+  nameEl.className = 'toast-name';
+  nameEl.textContent = name || '';
+  var textEl = document.createElement('div');
+  textEl.className = 'toast-text';
+  textEl.textContent = (text || '').substring(0, 60);
+  body.appendChild(nameEl);
+  body.appendChild(textEl);
+  toast.appendChild(av);
+  toast.appendChild(body);
+  document.body.appendChild(toast);
+  setTimeout(function() { toast.classList.add('show'); }, 10);
+  setTimeout(function() { toast.classList.remove('show'); setTimeout(function() { toast.remove(); }, 300); }, 3000);
+}
+
+// ── Tab Badge ───────────────────────────────────────────────────────────────
+function updateTabBadges() {
+  var totalUnread = 0;
+  channels.concat(dms).forEach(function(c) { totalUnread += (c.unread || 0); });
+  var chatTab = document.getElementById('bnChats');
+  if (chatTab) {
+    var badge = chatTab.querySelector('.tab-badge');
+    if (totalUnread > 0) {
+      if (!badge) { badge = document.createElement('span'); badge.className = 'tab-badge'; chatTab.appendChild(badge); }
+      badge.textContent = totalUnread > 99 ? '99+' : totalUnread;
+    } else if (badge) { badge.remove(); }
+  }
+}
+
+function initSocket() {
+  if (socket) socket.disconnect();
+  if (keepaliveInterval) clearInterval(keepaliveInterval);
+
+  socket = io(API, {
+    auth: { token: jwtToken },
+    transports: ['polling', 'websocket'],
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 2000,
+    reconnectionDelayMax: 30000,
+    timeout: 20000,
+  });
+
+  socket.on('connect', function() {
+    console.log('[socket] connected as', currentUser ? currentUser.username : '?');
+    if (currentUser) {
+      var sub = document.getElementById('logoSub');
+      if (sub) sub.textContent = currentUser.handle ? '@' + currentUser.handle : currentUser.username;
+    }
+    if (cur) socket.emit('join', cur);
+    channels.forEach(function(c) { socket.emit('join', c.id); });
+    dms.forEach(function(d) { socket.emit('join', d.id); });
+  });
+
+  socket.on('connect_error', function(e) {
+    console.warn('[socket] error:', e.message);
+  });
+
+  socket.on('reconnect', function(attempt) {
+    console.log('[socket] reconnected after', attempt, 'attempts');
+    if (cur) socket.emit('join', cur);
+    channels.forEach(function(c) { socket.emit('join', c.id); });
+    dms.forEach(function(d) { socket.emit('join', d.id); });
+  });
+
+  keepaliveInterval = setInterval(function() {
+    fetch(API + '/health').catch(function() {});
+  }, 14 * 60 * 1000);
+
+  socket.on('chat_msg', function(msg) {
+    var ts = new Date(msg.created_at * 1000);
+    var time = ts.getHours().toString().padStart(2, '0') + ':' + ts.getMinutes().toString().padStart(2, '0');
+    var from = currentUser && msg.sender_id === currentUser.id ? 'me' : 'them';
+    var m = { id: msg.id, from: from, text: msg.text, time: time, sender: msg.sender_username, image: msg.image || null };
+
+    var item = findItem(msg.chat_id);
+
+    if (!item) {
+      var chatId = msg.chat_id;
+      if (chatId.startsWith('dm-')) {
+        var senderName = msg.sender_username || 'Пользователь';
+        item = {
+          id: chatId, type: 'chat', name: senderName,
+          g: GS[senderName.charCodeAt(0) % GS.length],
+          em: (senderName || '?')[0].toUpperCase(),
+          online: true, prev: '', time: '', _ts: 0, unread: 0, msgs: [], _loaded: true,
+        };
+        dms.unshift(item);
+        socket.emit('join', chatId);
+      } else {
+        return;
+      }
+    }
+
+    if (item.msgs.find(function(x){ return x.id === msg.id; })) return;
+    // Replace local echo with server message (avoid duplicate)
+    if (from === 'me') {
+      var localIdx = -1;
+      for (var li = item.msgs.length - 1; li >= 0; li--) {
+        if (item.msgs[li].id && item.msgs[li].id.indexOf('local-') === 0 && item.msgs[li].from === 'me') { localIdx = li; break; }
+      }
+      if (localIdx !== -1) {
+        if (item.msgs[localIdx].image && !m.image) m.image = item.msgs[localIdx].image;
+        item.msgs[localIdx] = m; render(); return;
+      }
+    }
+    item.msgs.push(m);
+    item.prev = msg.image ? '\uD83D\uDCF7 Фото' + (msg.text ? ' · ' + msg.text.substring(0, 24) : '') : msg.text.substring(0, 36);
+    item.time = time;
+    item._ts = msg.created_at;
+
+    if (cur === msg.chat_id) {
+      var isCh = item.type === 'channel';
+      appendMsg(m, isCh);
+    } else {
+      item.unread = (item.unread || 0) + 1;
+      // Toast notification if message is from someone else
+      if (from === 'them') {
+        showToast(msg.sender_username || item.name, msg.text);
+      }
+    }
+
+    render();
+    updateTabBadges();
+  });
+
+  socket.on('typing', function(data) {
+    if (data.chatId !== cur) return;
+    if (data.senderId === (currentUser ? currentUser.id : '')) return;
+    var ind = document.getElementById('typingIndicator');
+    if (!ind) {
+      ind = document.createElement('div');
+      ind.id = 'typingIndicator';
+      ind.className = 'typing-wrap';
+      ind.innerHTML = '<span id="typingName"></span><div class="typing-dots"><span></span><span></span><span></span></div>';
+      var az = document.getElementById('attachZone');
+      if (az && az.parentElement) az.parentElement.insertBefore(ind, az);
+    }
+    if (data.isTyping) {
+      var name = (data.senderName || data.username || '').split(' ')[0];
+      document.getElementById('typingName').innerText = name + ' печатает';
+      ind.classList.add('active');
+    } else { ind.classList.remove('active'); }
+    clearTimeout(window._typingClearTimer);
+    if (data.isTyping) window._typingClearTimer = setTimeout(function() { if (ind) ind.classList.remove('active'); }, 3500);
+  });
+
+  socket.on('msg_deleted', function(data) {
+    var item = findItem(data.chatId);
+    if (!item) return;
+    item.msgs = item.msgs.filter(function(m) { return m.id !== data.msgId; });
+    var el = document.getElementById('msg-' + data.msgId);
+    if (el) { el.style.transition = 'opacity .2s'; el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 200); }
+    // Update sidebar preview
+    var last = item.msgs[item.msgs.length - 1];
+    if (last) { item.prev = last.text ? last.text.substring(0, 36) : '\uD83D\uDCF7 Фото'; item.time = last.time; }
+    else { item.prev = ''; item.time = ''; }
+    render();
+  });
+
+  socket.on('msg_edited', function(data) {
+    var item = findItem(data.chatId);
+    if (!item) return;
+    var m = item.msgs.find(function(m) { return m.id === data.msgId; });
+    if (m) { m.text = data.text; m.edited = true; }
+    var el = document.getElementById('msg-' + data.msgId);
+    if (el) {
+      var span = el.querySelector('span[style*="white-space"]');
+      if (span) span.textContent = data.text;
+      var bf = el.querySelector('.bf');
+      if (bf && !bf.querySelector('.edited')) {
+        var ed = document.createElement('span');
+        ed.className = 'edited';
+        ed.textContent = ' (ред.)';
+        ed.style.cssText = 'font-size:10px;color:var(--text3);font-style:italic';
+        bf.insertBefore(ed, bf.firstChild);
+      }
+    }
+    // Update sidebar if last message was edited
+    var last = item.msgs[item.msgs.length - 1];
+    if (last && last.id === data.msgId) { item.prev = data.text.substring(0, 36); }
+    render();
+  });
+
+  socket.on('error_msg', function(data) {
+    console.error('[socket] error_msg:', data.error);
+  });
+
+  socket.on('webrtc_signal', async function(data) {
+    if (currentUser && data.senderId === currentUser.id) return;
+    if (data.type === 'offer') {
+      _callChatId = data.chatId;
+      _pendingOffer = data.payload;
+      buildCallUI(data.callerName, true);
+    } else if (data.type === 'answer' && _peerConn) {
+      await _peerConn.setRemoteDescription(new RTCSessionDescription(data.payload));
+    } else if (data.type === 'ice' && _peerConn) {
+      try { await _peerConn.addIceCandidate(new RTCIceCandidate(data.payload)); } catch(e) {}
+    } else if (data.type === 'end') {
+      endCall(false);
+    }
+  });
+}
+// ── Config & State ──────────────────────────────────────────────────────────
+var API = 'https://kosmos-backend-1.onrender.com';
+var EMOJIS = ['\u2764\uFE0F','\uD83D\uDE02','\uD83D\uDC4D','\uD83D\uDD25','\uD83D\uDE2E','\uD83D\uDC4F','\uD83C\uDF89','\uD83D\uDE4F'];
+var GS = ['g1','g2','g3','g4','g5','g6','g7'];
+
+var jwtToken = localStorage.getItem('kosmos_token');
+var refreshToken = localStorage.getItem('kosmos_refresh');
+var currentUser = JSON.parse(localStorage.getItem('kosmos_user') || 'null');
+var socket = null;
+var typingTimeout = null;
+var cur = null;
+
+var channels = [];
+var dms = [];
+
+// Auto-refresh token every 12 min
+setInterval(async function() {
+  if (!refreshToken) return;
+  try {
+    var r = await fetch(API + '/refresh', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: refreshToken })
+    });
+    if (r.ok) {
+      var d = await r.json();
+      jwtToken = d.token;
+      localStorage.setItem('kosmos_token', jwtToken);
+    }
+  } catch(e) {}
+}, 12 * 60 * 1000);
+
+// Inactivity logout — 30 min
+var _lastActivity = Date.now();
+document.addEventListener('click', function() { _lastActivity = Date.now(); });
+document.addEventListener('keydown', function() { _lastActivity = Date.now(); });
+setInterval(function() {
+  if (jwtToken && Date.now() - _lastActivity > 30 * 60 * 1000) {
+
+    logout();
+  }
+}, 60000);
+
+// ── Auth ────────────────────────────────────────────────────────────────────
+var authMode = 'login';
+var pendingToken = null;
+var pendingUser = null;
+var pendingRefresh = null;
+
+function switchTab(mode) {
+  authMode = mode;
+  document.querySelectorAll('.auth-tab').forEach(function(t, i) {
+    t.classList.toggle('active', (mode === 'login' && i === 0) || (mode === 'register' && i === 1));
+  });
+  document.getElementById('regFields').style.display = mode === 'register' ? 'block' : 'none';
+  document.getElementById('loginFields').style.display = mode === 'login' ? 'block' : 'none';
+  document.getElementById('seedResult').style.display = 'none';
+  document.getElementById('authBtn').style.display = '';
+  document.getElementById('authBtn').textContent = mode === 'register' ? 'Создать аккаунт' : 'Войти в Космос';
+  document.getElementById('authToggleBtn').textContent = mode === 'register' ? 'Уже есть аккаунт' : 'Создать новый аккаунт';
+  document.getElementById('authToggleBtn').onclick = function() { switchTab(mode === 'register' ? 'login' : 'register'); };
+  document.getElementById('authToggleBtn').style.display = '';
+  clearAuthMessages();
+  applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
+}
+
+function buildSeedGrid() {
+  var grid = document.getElementById('seedGrid');
+  grid.innerHTML = '';
+  for (var i = 0; i < 12; i++) {
+    var cell = document.createElement('div');
+    cell.className = 'seed-cell';
+    cell.innerHTML = '<span class="seed-num">' + String(i+1).padStart(2,'0') + '</span><input type="text" data-idx="' + i + '" placeholder="..." autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">';
+    grid.appendChild(cell);
+  }
+  grid.addEventListener('paste', function(e) {
+    var text = (e.clipboardData || window.clipboardData).getData('text').trim();
+    var words = text.split(/\s+/);
+    if (words.length >= 2) {
+      e.preventDefault();
+      e.stopPropagation();
+      var inputs = grid.querySelectorAll('input');
+      words.slice(0, 12).forEach(function(w, i) { if (inputs[i]) inputs[i].value = w; });
+    }
+  });
+  function seedAdvance(input) {
+    var val = input.value;
+    if (val.indexOf(' ') === -1) return false;
+    var parts = val.split(/\s+/);
+    input.value = parts[0];
+    var inputs = grid.querySelectorAll('input');
+    var idx = parseInt(input.dataset.idx) || 0;
+    for (var j = 1; j < parts.length; j++) {
+      if (inputs[idx + j] && parts[j]) inputs[idx + j].value = parts[j];
+    }
+    var next = inputs[idx + 1];
+    if (next) next.focus();
+    return true;
+  }
+  // input event — catches paste and typing on most browsers
+  grid.addEventListener('input', function(e) {
+    if (e.target.tagName !== 'INPUT') return;
+    seedAdvance(e.target);
+  });
+  // keyup on space — fallback for WebView where input event may miss the space
+  grid.addEventListener('keyup', function(e) {
+    if (e.target.tagName !== 'INPUT') return;
+    if (e.key === ' ' || e.keyCode === 32) {
+      e.target.value = e.target.value.replace(/\s/g, '');
+      var inputs = grid.querySelectorAll('input');
+      var idx = parseInt(e.target.dataset.idx) || 0;
+      var next = inputs[idx + 1];
+      if (next) next.focus();
+    }
+  });
+  // keydown on Enter — advance to next field
+  grid.addEventListener('keydown', function(e) {
+    if (e.target.tagName !== 'INPUT') return;
+    if (e.key === 'Enter' || e.keyCode === 13) {
+      e.preventDefault();
+      var inputs = grid.querySelectorAll('input');
+      var idx = parseInt(e.target.dataset.idx) || 0;
+      var next = inputs[idx + 1];
+      if (next) next.focus();
+    }
+    if (e.key === ' ' || e.keyCode === 32) {
+      e.preventDefault();
+      var inputs = grid.querySelectorAll('input');
+      var idx = parseInt(e.target.dataset.idx) || 0;
+      var next = inputs[idx + 1];
+      if (next) next.focus();
+    }
+  });
+}
+
+function getSeedFromGrid() {
+  var inputs = document.querySelectorAll('#seedGrid input');
+  return Array.from(inputs).map(function(i) { return i.value.trim().toLowerCase(); }).join(' ');
+}
+
+function showSeedInGrid(phrase) {
+  var grid = document.getElementById('seedShowGrid');
+  var words = phrase.split(/\s+/);
+  grid.innerHTML = words.map(function(w, i) {
+    return '<div class="seed-cell" style="cursor:default"><span class="seed-num">' + String(i+1).padStart(2,'0') + '</span><span style="font-family:\'Space Mono\',monospace;font-size:13px;color:var(--text);user-select:all">' + escHtml(w) + '</span></div>';
+  }).join('');
+}
+
+function clearAuthMessages() {
+  document.getElementById('authError').classList.remove('show');
+  document.getElementById('authSuccess').classList.remove('show');
+}
+function showError(msg) {
+  var el = document.getElementById('authError');
+  el.textContent = msg; el.classList.add('show');
+  document.getElementById('authSuccess').classList.remove('show');
+}
+function showSuccess(msg) {
+  var el = document.getElementById('authSuccess');
+  el.textContent = msg; el.classList.add('show');
+  document.getElementById('authError').classList.remove('show');
+}
+
+function copySeed() {
+  var text = document.getElementById('seedPhrase').textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    var el = document.getElementById('seedCopied');
+    el.style.display = 'block'; el.textContent = 'Скопировано!';
+    setTimeout(function() { el.style.display = 'none'; }, 2000);
+  });
+}
+
+function enterAfterReg() {
+  if (pendingToken && pendingUser) {
+    jwtToken = pendingToken;
+    refreshToken = pendingRefresh;
+    currentUser = pendingUser;
+    localStorage.setItem('kosmos_token', jwtToken);
+    if (pendingRefresh) localStorage.setItem('kosmos_refresh', pendingRefresh);
+    localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
+    // Show onboarding tour + interests for new users
+    document.getElementById('auth').classList.add('hidden');
+    document.getElementById('seedPhrase').textContent = '';
+    document.getElementById('bottomNav').style.display = 'flex';
+    applyChatBg();
+    showOnbTour();
+    initSocket();
+    loadMyChats();
+    pendingToken = null; pendingUser = null; pendingRefresh = null;
+  }
+}
+
+async function submitAuth() {
+  clearAuthMessages();
+  var _lastAuthAttempt = window._lastAuthAttempt || 0;
+  if (Date.now() - _lastAuthAttempt < 2000) { showError('Подождите секунду...'); return; }
+  window._lastAuthAttempt = Date.now();
+  var btn = document.getElementById('authBtn');
+  btn.disabled = true; btn.textContent = '...';
+
+  try {
+    var url, body;
+    if (authMode === 'register') {
+      var name = document.getElementById('authName').value.trim();
+      var handle = document.getElementById('authHandle').value.trim().toLowerCase();
+      if (!name) { showError('Введи своё имя'); btn.disabled = false; btn.textContent = 'Создать аккаунт'; return; }
+      if (!handle) { showError('Введи @username'); btn.disabled = false; btn.textContent = 'Создать аккаунт'; return; }
+      if (!/^[a-z0-9_]{3,20}$/.test(handle)) { showError('@username: только a-z, 0-9 и _ (3\u201320 символов)'); btn.disabled = false; btn.textContent = 'Создать аккаунт'; return; }
+      url = API + '/register';
+      body = { username: name, handle: handle, ref: _refCode || undefined };
+    } else {
+      var seed = getSeedFromGrid();
+      if (!seed.replace(/\s/g,'')) { showError('Введите все 12 слов'); btn.disabled = false; btn.textContent = 'Войти в Космос'; return; }
+      if (seed.split(/\s+/).filter(Boolean).length < 12) { showError('Нужно 12 слов'); btn.disabled = false; btn.textContent = 'Войти в Космос'; return; }
+      url = API + '/login';
+      body = { seed: seed };
+    }
+
+    var res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    var data = await res.json();
+
+    if (!res.ok) {
+      showError(data.error || 'Ошибка сервера');
+      btn.disabled = false;
+      btn.textContent = authMode === 'register' ? 'Создать аккаунт' : 'Войти в Космос';
+      return;
+    }
+
+    if (authMode === 'register' && data.seed) {
+      pendingToken = data.token;
+      pendingUser = data.user;
+      pendingRefresh = data.refreshToken;
+      document.getElementById('seedPhrase').textContent = data.seed;
+      showSeedInGrid(data.seed);
+      document.getElementById('seedResult').style.display = 'block';
+      document.getElementById('authBtn').style.display = 'none';
+      document.getElementById('authToggleBtn').style.display = 'none';
+      document.getElementById('regFields').style.display = 'none';
+      btn.disabled = false; btn.textContent = 'Создать аккаунт';
+      return;
+    }
+
+    jwtToken = data.token;
+    refreshToken = data.refreshToken;
+    currentUser = data.user;
+    localStorage.setItem('kosmos_token', jwtToken);
+    if (data.refreshToken) localStorage.setItem('kosmos_refresh', data.refreshToken);
+    localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
+    showSuccess('Добро пожаловать, ' + data.user.username + '!');
+    setTimeout(enterApp, 700);
+  } catch (e) {
+    showError('Нет связи с сервером');
+    btn.disabled = false;
+    btn.textContent = authMode === 'register' ? 'Создать аккаунт' : 'Войти в Космос';
+  }
+}
+
+// ── App lifecycle ───────────────────────────────────────────────────────────
+function enterApp() {
+  document.getElementById('auth').classList.add('hidden');
+    document.getElementById('seedPhrase').textContent = '';
+  document.getElementById('bottomNav').style.display = 'flex';
+  applyChatBg();
+  // Show tour for users who haven't seen it
+  if (!localStorage.getItem('kosmos_onb_tour_done') && currentUser) {
+    showOnbTour();
+  }
+  // Check if needs interest onboarding
+  if (!localStorage.getItem('kosmos_onboarded') && currentUser) {
+    fetch(API + '/me', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+      .then(function(r) { return r.json(); })
+      .then(function(u) {
+        if (!u.interests || !u.interests.length) {
+          showOnboarding();
+        }
+      }).catch(function() {});
+  }
+  initSocket();
+  loadMyChats().then(function() {
+    var channelSlug = new URLSearchParams(window.location.search).get('channel');
+    if (channelSlug) {
+      var ch = channels.find(function(c) { return c.slug === channelSlug; });
+      if (ch) { openChat(ch.id); }
+      else {
+        fetch(API + '/channels?search=' + encodeURIComponent(channelSlug), { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+          .then(function(r) { return r.ok ? r.json() : []; })
+          .then(function(list) {
+            var found = list.find(function(c) { return c.slug === channelSlug; });
+            if (found) joinChannel(found.id, found.name, found.slug);
+            else toast('Канал не найден', 'error');
+          }).catch(function() {});
+      }
+      history.replaceState(null, '', window.location.pathname);
+    }
+  });
+}
+
+function logout() {
+  if (window._feedRefresh) { clearInterval(window._feedRefresh); window._feedRefresh = null; }
+  stopTgPoll();
+  var bn = document.getElementById('bottomNav');
+  if (bn) bn.style.display = 'none';
+  var qr = document.getElementById('qrScreen');
+  if (qr) qr.style.display = 'none';
+  var st = document.getElementById('settingsScreen');
+  if (st) st.style.display = 'none';
+  localStorage.removeItem('chatBg');
+  localStorage.removeItem('kosmos_token');
+  localStorage.removeItem('kosmos_refresh');
+  localStorage.removeItem('kosmos_user');
+  localStorage.removeItem('kosmos_onboarded');
+  jwtToken = null; refreshToken = null; currentUser = null;
+  if (socket) { socket.disconnect(); socket = null; }
+  cur = null; channels.length = 0; dms.length = 0;
+  document.getElementById('auth').classList.remove('hidden');
+  document.getElementById('seedResult').style.display = 'none';
+  document.getElementById('authBtn').style.display = '';
+  switchTab('login');
+  document.getElementById('mainArea').innerHTML = '<div class="empty"><div class="empty-card"><div class="empty-icon">\uD83D\uDE80</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>';
+  applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
+}
+
+var _splashDone = false;
+var _splashStart = Date.now();
+function closeSplash() {
+  if (_splashDone) return;
+  // Ensure minimum 1.5s display
+  var elapsed = Date.now() - _splashStart;
+  if (elapsed < 1500) {
+    setTimeout(closeSplash, 1500 - elapsed);
+    return;
+  }
+  _splashDone = true;
+  var sp = document.getElementById('splash');
+  if (sp) { sp.style.transform = 'scale(1.1)'; sp.style.opacity = '0'; setTimeout(function(){ sp.remove(); }, 800); }
+  if (jwtToken && currentUser) enterApp();
+  else {
+    var authEl = document.getElementById('auth');
+    if (authEl) authEl.classList.remove('hidden');
+  }
+}
+
+// ── Theme ────────────────────────────────────────────────────────────────────
+function applyTheme(theme) {
+  if (theme !== 'blue' && theme !== 'pink') theme = 'blue';
+  document.documentElement.setAttribute('data-theme', theme);
+}
+function toggleTheme() {
+  var cur = document.documentElement.getAttribute('data-theme') || 'blue';
+  var next = cur === 'blue' ? 'pink' : 'blue';
+  localStorage.setItem('kosmos_theme', next);
+  applyTheme(next);
+}
+
+// ── Modal ────────────────────────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('overlay').classList.add('open');
+  onChatTypeChange();
+  setTimeout(function() {
+    var isCh = document.querySelector('input[name="ct"]:checked').value === 'channel';
+    var el = isCh ? document.getElementById('ncName') : document.getElementById('userSearch');
+    if (el) el.focus();
+  }, 120);
+}
+
+function closeModal() {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('ncName').value = '';
+  document.getElementById('userSearch').value = '';
+  document.getElementById('userResults').innerHTML = '';
+}
+
+function onChatTypeChange() {
+  var isCh = document.querySelector('input[name="ct"]:checked').value === 'channel';
+  document.getElementById('userSearchWrap').style.display = isCh ? 'none' : 'block';
+  document.getElementById('channelNameWrap').style.display = isCh ? 'block' : 'none';
+  document.getElementById('chatCancelWrap').style.display = isCh ? 'none' : 'block';
+}
+
+// ── WebView / Capacitor detection ────────────────────────────────────────────
+var isWebView = /wv|WebView/i.test(navigator.userAgent) || !!window.Capacitor;
+if (isWebView) {
+  // Telegram widget iframe doesn't work in WebView — hide it, show custom button
+  var tgWidget = document.getElementById('telegramLoginWrap');
+  if (tgWidget) tgWidget.style.display = 'none';
+  var tgApkBtn = document.getElementById('telegramApkBtn');
+  if (tgApkBtn) tgApkBtn.style.display = 'block';
+}
+
+function openTelegramAuth() {
+  // Open web version in system browser where Telegram widget works
+  var url = 'https://c4v2jht698-ux.github.io/kosmos-frontend/#telegram-login';
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+    window.Capacitor.Plugins.Browser.open({ url: url });
+  } else {
+    window.open(url, '_system');
+  }
+}
+
+// ── Referral code from URL ────────────────────────────────────────────────────
+var _refCode = new URLSearchParams(window.location.search).get('ref') || '';
+
+// ── Init on load ─────────────────────────────────────────────────────────────
+applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
+buildSeedGrid();
+
+document.getElementById('overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+
+// Splash: stars + typewriter
+(function(){
+  var c = document.getElementById('starsCanvas');
+  if (!c) return;
+  var ctx = c.getContext('2d');
+  c.width = window.innerWidth; c.height = window.innerHeight;
+  var stars = [], t = 0;
+  for (var i = 0; i < 80; i++) stars.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*1.4+0.3,sp:Math.random()*0.015+0.005,ph:Math.random()*Math.PI*2});
+  function draw(){ctx.clearRect(0,0,c.width,c.height);for(var i=0;i<stars.length;i++){var s=stars[i],a=0.3+0.7*Math.abs(Math.sin(t*s.sp+s.ph));ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,'+a+')';ctx.fill();}t++;requestAnimationFrame(draw);}
+  draw();
+  var _splashText='Powered by Jesus Christ.';
+  var _splashIdx=0;
+  var _splashEl=document.getElementById('splashTyped');
+  var _splashCur=document.getElementById('splashCursor');
+  function _splashType(){
+    if(_splashIdx<_splashText.length){
+      _splashEl.textContent+=_splashText[_splashIdx++];
+      setTimeout(_splashType,28);
+    } else {
+      setTimeout(function(){_splashCur.style.display='none';},1000);
+      setTimeout(closeSplash,2800);
+    }
+  }
+  setTimeout(_splashType,900);
+})();
+
+// Auto-login
+if (jwtToken) {
+  fetch(API + '/me', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(user) {
+      if (user) {
+        currentUser = user;
+        localStorage.setItem('kosmos_user', JSON.stringify(user));
+      } else {
+        localStorage.removeItem('kosmos_token');
+        localStorage.removeItem('kosmos_user');
+        jwtToken = null;
+      }
+    })
+    .catch(function() {});
+}
+
+// ── Telegram Bot Auth ─────────────────────────────────────────────────────────
+var _tgSvg = '<svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm5.53 8.16l-1.8 8.49c-.14.6-.5.75-.99.47l-2.75-2.03-1.33 1.27c-.14.15-.27.27-.56.27l.2-2.82 5.1-4.6c.22-.2-.05-.3-.34-.13l-6.3 3.97-2.72-.85c-.59-.18-.6-.59.12-.87l10.63-4.1c.49-.18.92.12.76.87z"/></svg>';
+
+async function startTelegramBotAuth() {
+  stopTgPoll();
+  var btn = document.getElementById('tgAuthBtn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; }
+
+  // Open window synchronously in click handler to avoid popup blocker
+  var win = window.open('about:blank', '_blank');
+
+  try {
+    var r = await fetch(API + '/auth/telegram/init', { method: 'POST' });
+    var data = await r.json();
+    if (!data.botUrl || !data.token) { if (win) win.close(); toast('Ошибка подключения', 'error'); resetTgBtn(); return; }
+
+    try {
+      var botHost = new URL(data.botUrl).hostname;
+      if (['t.me','telegram.me','telegram.org'].indexOf(botHost) === -1) { if (win) win.close(); toast('Недопустимый URL бота', 'error'); resetTgBtn(); return; }
+    } catch(e) { if (win) win.close(); toast('Ошибка URL', 'error'); resetTgBtn(); return; }
+
+    if (win) win.location.href = data.botUrl; else window.open(data.botUrl, '_blank');
+
+    // Countdown polling: 60 attempts × 2s = 120s
+    var remaining = 120;
+    updateTgBtn(remaining);
+    window._tgCountdown = setInterval(function() {
+      remaining--;
+      if (remaining <= 0) { stopTgPoll(); toast('Время вышло. Попробуйте снова.', 'error'); resetTgBtn(); return; }
+      updateTgBtn(remaining);
+    }, 1000);
+
+    var attempts = 0;
+    window._tgPoll = setInterval(async function() {
+      attempts++;
+      if (attempts > 60) { stopTgPoll(); toast('Время вышло. Попробуйте снова.', 'error'); resetTgBtn(); return; }
+      try {
+        var cr = await fetch(API + '/auth/telegram/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: data.token })
+        });
+        var cd = await cr.json();
+        if (cd.token) {
+          stopTgPoll();
+          jwtToken = cd.token;
+          refreshToken = cd.refreshToken;
+          currentUser = cd.user;
+          localStorage.setItem('kosmos_token', jwtToken);
+          if (cd.refreshToken) localStorage.setItem('kosmos_refresh', cd.refreshToken);
+          localStorage.setItem('kosmos_user', JSON.stringify(cd.user));
+          enterApp();
+        }
+      } catch(e) {}
+    }, 2000);
+  } catch(e) {
+    toast('Нет связи с сервером', 'error');
+    resetTgBtn();
+  }
+}
+
+function updateTgBtn(sec) {
+  var btn = document.getElementById('tgAuthBtn');
+  if (btn) btn.innerHTML = _tgSvg + ' Ожидание... ' + sec + 'с <span onclick="event.stopPropagation();cancelTgAuth()" style="margin-left:8px;text-decoration:underline;cursor:pointer;font-size:13px">Отмена</span>';
+}
+
+function cancelTgAuth() {
+  stopTgPoll();
+  resetTgBtn();
+}
+
+function stopTgPoll() {
+  if (window._tgPoll) { clearInterval(window._tgPoll); window._tgPoll = null; }
+  if (window._tgCountdown) { clearInterval(window._tgCountdown); window._tgCountdown = null; }
+}
+
+function resetTgBtn() {
+  var btn = document.getElementById('tgAuthBtn');
+  if (btn) { btn.disabled = false; btn.innerHTML = _tgSvg + ' Войти через Telegram'; btn.style.opacity = '1'; }
+}
+
+window.addEventListener('beforeunload', stopTgPoll);
+
+// ── Apple Auth ───────────────────────────────────────────────────────────────
+function onAppleAuth() {
+  if (typeof AppleID === 'undefined') {
+    toast('Apple Sign In недоступен', 'error');
+    return;
+  }
+  AppleID.auth.signIn().then(function(response) {
+    var idToken = response.authorization && response.authorization.id_token;
+    if (!idToken) { toast('Не удалось получить токен Apple', 'error'); return; }
+    fetch(API + '/auth/apple', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id_token: idToken,
+        user: response.user || null,
+      }),
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.token) {
+          jwtToken = data.token;
+          refreshToken = data.refreshToken;
+          currentUser = data.user;
+          localStorage.setItem('kosmos_token', jwtToken);
+          if (data.refreshToken) localStorage.setItem('kosmos_refresh', data.refreshToken);
+          localStorage.setItem('kosmos_user', JSON.stringify(data.user));
+          enterApp();
+        } else {
+          toast(data.error || 'Ошибка авторизации Apple', 'error');
+        }
+      })
+      .catch(function() { toast('Нет связи с сервером', 'error'); });
+  }).catch(function(err) {
+    if (err.error === 'popup_closed_by_user') return;
+    console.error('[apple] auth error:', err);
+    toast('Ошибка Apple Sign In', 'error');
+  });
+}
+window.onAppleAuth = onAppleAuth;
+
+render();
+
+// ── Backend ping (keep Render awake) ─────────────────────────────────────────
+fetch(API + '/ping').catch(function(){});
+setInterval(function() { fetch(API + '/ping').catch(function(){}); }, 9 * 60 * 1000);
+
+// ── Offline detection ────────────────────────────────────────────────────────
+var offlineBanner = null;
+window.addEventListener('offline', function() {
+  if (offlineBanner) return;
+  offlineBanner = document.createElement('div');
+  offlineBanner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:10000;background:#FF3B30;color:#fff;text-align:center;padding:6px;font-size:13px;font-weight:600';
+  offlineBanner.textContent = 'Нет соединения';
+  document.body.appendChild(offlineBanner);
+});
+window.addEventListener('online', function() {
+  if (offlineBanner) { offlineBanner.remove(); offlineBanner = null; }
+  if (socket && !socket.connected) socket.connect();
+  loadMyChats();
+});
+
+// ── Swipe back (Hammer.js) + Android back button ─────────────────────────────
+(function() {
+  if (typeof Hammer !== 'undefined') {
+    var mc = new Hammer(document.body, { recognizers: [[Hammer.Swipe, { direction: Hammer.DIRECTION_RIGHT, threshold: 50, velocity: 0.3 }]] });
+    mc.on('swiperight', function() {
+      if (document.body.classList.contains('chat-open')) goBack();
+    });
+  }
+
+  function handleBack() {
+    var qrScreen = document.getElementById('qrScreen');
+    var settingsScreen = document.getElementById('settingsScreen');
+
+    if (qrScreen && qrScreen.style.display !== 'none') {
+      showTab('chats');
+      return;
+    }
+    if (settingsScreen && settingsScreen.style.display !== 'none') {
+      showTab('chats');
+      return;
+    }
+    if (document.body.classList.contains('chat-open')) {
+      goBack();
+      return;
+    }
+    var d = document.createElement('div');
+    d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;padding:16px';
+    d.innerHTML = '<div style="background:var(--card);border-radius:16px;padding:20px;width:100%;text-align:center"><div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:8px">Выйти из Космоса?</div><div style="font-size:13px;color:var(--text2);margin-bottom:16px">Вы можете войти снова с помощью seed-фразы</div><button onclick="if(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App)window.Capacitor.Plugins.App.exitApp();this.closest(\'[data-exit]\').remove()" style="width:100%;padding:14px;background:#ff3b30;border:none;border-radius:12px;color:#fff;font-size:16px;font-weight:600;margin-bottom:8px;cursor:pointer">Выйти</button><button onclick="this.closest(\'[data-exit]\').remove()" style="width:100%;padding:14px;background:var(--bg2);border:none;border-radius:12px;color:var(--text);font-size:16px;cursor:pointer">Отмена</button></div>';
+    d.setAttribute('data-exit','');
+    d.onclick = function(e){ if(e.target===d) d.remove(); };
+    document.body.appendChild(d);
+  }
+
+  document.addEventListener('backbutton', handleBack);
+  try {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+      window.Capacitor.Plugins.App.addListener('backButton', function(e) {
+        // e.canGoBack is true if webview has history
+        handleBack();
+      });
+    }
+  } catch(e) {}
+  window.addEventListener('popstate', function() {
+    if (document.body.classList.contains('chat-open')) goBack();
+  });
+})();
