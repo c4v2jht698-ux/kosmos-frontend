@@ -17,15 +17,12 @@
       } else {
         if (!opts.headers['X-Requested-With']) opts.headers['X-Requested-With'] = 'XMLHttpRequest';
       }
-      // Add CSRF token to all state-changing requests
-      if (method === 'POST' || method === 'PUT' || method === 'DELETE' || method === 'PATCH') {
-        var token = sessionStorage.getItem('csrf_token') || '';
-        if (isHeaders) {
-          opts.headers.set('X-CSRF-Token', token);
-        } else {
-          opts.headers['X-CSRF-Token'] = token;
-        }
-      }
+      // CSRF token disabled — was causing 30s delay in WebView
+      // if (method === 'POST' || method === 'PUT' || method === 'DELETE' || method === 'PATCH') {
+      //   var token = sessionStorage.getItem('csrf_token') || '';
+      //   if (isHeaders) { opts.headers.set('X-CSRF-Token', token); }
+      //   else { opts.headers['X-CSRF-Token'] = token; }
+      // }
     }
     return _origFetch.apply(this, arguments);
   };
@@ -2986,7 +2983,7 @@ function initSocket() {
     var ts = new Date(msg.created_at * 1000);
     var time = ts.getHours().toString().padStart(2, '0') + ':' + ts.getMinutes().toString().padStart(2, '0');
     var from = currentUser && msg.sender_id === currentUser.id ? 'me' : 'them';
-    var m = { id: msg.id, from: from, text: msg.text, time: time, sender: msg.sender_username, image: msg.image || null };
+    var m = { id: msg.id, from: from, text: msg.text, time: time, sender: msg.sender_username, image: msg.image || null, audio: msg.audio || null };
 
     var item = findItem(msg.chat_id);
 
@@ -3588,12 +3585,8 @@ async function startTelegramBotAuth() {
       if (['t.me','telegram.me','telegram.org'].indexOf(botHost) === -1) { toast('Недопустимый URL бота', 'error'); resetTgBtn(); return; }
     } catch(e) { toast('Ошибка URL', 'error'); resetTgBtn(); return; }
 
-    // Use Capacitor Browser for native in-app browser, fallback to window.open
-    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
-      await window.Capacitor.Plugins.Browser.open({ url: data.botUrl });
-    } else {
-      window.open(data.botUrl, '_blank');
-    }
+    // Direct redirect — most reliable for APK WebView
+    window.location.href = data.botUrl;
 
     // Countdown polling: 60 attempts × 2s = 120s
     var remaining = 120;

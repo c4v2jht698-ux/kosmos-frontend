@@ -17,15 +17,12 @@
       } else {
         if (!opts.headers['X-Requested-With']) opts.headers['X-Requested-With'] = 'XMLHttpRequest';
       }
-      // Add CSRF token to all state-changing requests
-      if (method === 'POST' || method === 'PUT' || method === 'DELETE' || method === 'PATCH') {
-        var token = sessionStorage.getItem('csrf_token') || '';
-        if (isHeaders) {
-          opts.headers.set('X-CSRF-Token', token);
-        } else {
-          opts.headers['X-CSRF-Token'] = token;
-        }
-      }
+      // CSRF token disabled — was causing 30s delay in WebView
+      // if (method === 'POST' || method === 'PUT' || method === 'DELETE' || method === 'PATCH') {
+      //   var token = sessionStorage.getItem('csrf_token') || '';
+      //   if (isHeaders) { opts.headers.set('X-CSRF-Token', token); }
+      //   else { opts.headers['X-CSRF-Token'] = token; }
+      // }
     }
     return _origFetch.apply(this, arguments);
   };
