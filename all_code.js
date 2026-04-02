@@ -995,39 +995,55 @@ async function sendAI() {
   var text = inp.value.trim();
   if (!text) return;
   inp.value = ''; inp.style.height = 'auto';
+
   var now = new Date();
   var time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+
   aiMessages.push({ role: 'user', content: text, time: time });
   var area = document.getElementById('msgArea');
   var d = document.createElement('div');
   d.innerHTML = '<div class="msg me"><div class="bbl">' + escHtml(text) + '<div class="bf"><span class="mt">' + time + '</span></div></div></div>';
   area.appendChild(d.firstChild);
+
   var loading = document.createElement('div');
   loading.className = 'typing';
   loading.innerHTML = '<div class="tdots"><span></span><span></span><span></span></div>';
   area.appendChild(loading);
   scrollBot();
+
   try {
-    var res = await fetch(API + '/ai/chat', {
+    var res = await fetch(API + '/api/ai/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
-      body: JSON.stringify({ messages: aiMessages.filter(function(m){return m.role==='user'||m.role==='assistant'}).map(function(m){return {role:m.role,content:m.content}}) }),
+      body: JSON.stringify({ prompt: text, chatId: 'gigachat-local' }),
     });
     var data = await res.json();
     loading.remove();
-    var aiText = data.text || data.error || 'Нет ответа';
+
     var aiTime = new Date().getHours().toString().padStart(2,'0') + ':' + new Date().getMinutes().toString().padStart(2,'0');
-    aiMessages.push({ role: 'assistant', content: aiText, time: aiTime });
-    d = document.createElement('div');
-    d.innerHTML = '<div class="msg them"><div class="bbl">' + escHtml(aiText) + '<div class="bf"><span class="mt">' + aiTime + '</span></div></div></div>';
-    area.appendChild(d.firstChild);
+
+    if (data.gemini) {
+      aiMessages.push({ role: 'assistant', content: 'Gemini: ' + data.gemini, time: aiTime });
+      var dG = document.createElement('div');
+      dG.innerHTML = '<div class="msg them"><div class="bbl" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd"><b>\u2728 Gemini:</b><br>' + escHtml(data.gemini) + '<div class="bf"><span class="mt">' + aiTime + '</span></div></div></div>';
+      area.appendChild(dG.firstChild);
+    }
+
+    if (data.claude) {
+      aiMessages.push({ role: 'assistant', content: 'Claude: ' + data.claude, time: aiTime });
+      var dC = document.createElement('div');
+      dC.innerHTML = '<div class="msg them"><div class="bbl" style="background:#fce7f3;color:#be185d;border:1px solid #fbcfe8"><b>\uD83E\uDDE0 Claude:</b><br>' + escHtml(data.claude) + '<div class="bf"><span class="mt">' + aiTime + '</span></div></div></div>';
+      area.appendChild(dC.firstChild);
+    }
+
     scrollBot();
     localStorage.setItem('kosmos_ai_history', JSON.stringify(aiMessages.slice(-50)));
+
   } catch(e) {
     loading.remove();
-    d = document.createElement('div');
-    d.innerHTML = '<div class="msg them"><div class="bbl">Ошибка: нет связи с сервером<div class="bf"><span class="mt">\u2014</span></div></div></div>';
-    area.appendChild(d.firstChild);
+    var err = document.createElement('div');
+    err.innerHTML = '<div class="msg them"><div class="bbl">Ошибка: ИИ-сотрудники не отвечают<div class="bf"><span class="mt">\u2014</span></div></div></div>';
+    area.appendChild(err.firstChild);
     scrollBot();
   }
 }
