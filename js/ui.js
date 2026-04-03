@@ -1026,10 +1026,14 @@ async function sendAI() {
   scrollBot();
 
   try {
+    var history = aiMessages.slice(-8).map(function(m) {
+      return { role: m.role, content: m.content };
+    });
+    console.log('Отправлено контекста:', history.length);
     var res = await fetch(API + '/api/ai/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
-      body: JSON.stringify({ prompt: text, chatId: 'gigachat-local' }),
+      body: JSON.stringify({ prompt: text, history: history, chatId: 'gigachat-local' }),
     });
     var data = await res.json();
     loading.remove();
