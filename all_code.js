@@ -1982,6 +1982,7 @@ function openPhotoGallery() {
   input.onchange = function(e) {
     var file = e.target.files[0];
     if (!file) return;
+    console.log('фото выбрано', file.size);
     if (file.size > 10 * 1024 * 1024) { toast('Файл слишком большой (макс 10МБ)', 'error'); return; }
     var img = new Image();
     img.src = URL.createObjectURL(file);
@@ -1993,6 +1994,7 @@ function openPhotoGallery() {
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
       _pendingImage = canvas.toDataURL('image/jpeg', 0.7);
+      console.log('base64 готов', _pendingImage.length);
       URL.revokeObjectURL(img.src);
       // Show preview in attachZone
       _attachedPhoto = _pendingImage;
@@ -2075,6 +2077,7 @@ function send() {
   } else if (socket && socket.connected && cur) {
     var payload = { chatId: cur, text: text || '', replyTo: _replyTo ? _replyTo.text : undefined };
     if (image) payload.image = image;
+    console.log('отправляем через сокет', image ? 'с фото ' + image.length : 'без фото');
     socket.emit('chat_msg', payload);
   }
   _pendingImage = null;
