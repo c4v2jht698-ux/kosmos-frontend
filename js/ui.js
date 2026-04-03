@@ -1026,7 +1026,7 @@ async function sendAI() {
   scrollBot();
 
   try {
-    var history = aiMessages.slice(-8).map(function(m) {
+    var history = aiMessages.slice(-4).map(function(m) {
       return { role: m.role, content: m.content };
     });
     console.log('Отправлено контекста:', history.length);
