@@ -219,11 +219,9 @@ body{
 
 /* ── Photo messages ── */
 .msg-img{max-width:100%;max-height:300px;border-radius:12px;margin-bottom:4px;cursor:pointer;display:block;object-fit:cover}
-.bbl-photo{padding:4px;overflow:hidden}
-.bbl-photo .chat-photo{width:100%;max-width:280px;max-height:320px;border-radius:16px;object-fit:cover;display:block;cursor:pointer}
-.bbl-photo.my .chat-photo{border-radius:16px 16px 4px 16px}
-.bbl-photo:not(.my) .chat-photo{border-radius:16px 16px 16px 4px}
-.bbl-text-under-photo{padding:6px 10px 2px;font-size:15px;line-height:1.4;color:inherit}
+.bbl-photo{max-width:320px;width:100%;background:#212d3b;border-radius:12px;overflow:hidden;padding:0!important;display:flex;flex-direction:column}
+.chat-photo{width:100%;height:auto;display:block;cursor:pointer}
+.bbl-text-under-photo{padding:8px 12px 10px;color:#f5f5f5;font-size:15px;line-height:1.4}
 .img-preview{display:none;align-items:center;gap:8px;padding:8px 12px;background:var(--bg2);border-radius:12px;margin-bottom:4px;position:relative}
 .img-preview img{width:60px;height:60px;object-fit:cover;border-radius:8px}
 .img-preview-cancel{position:absolute;top:2px;right:2px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.5);border:none;color:#fff;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
