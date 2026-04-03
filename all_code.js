@@ -990,11 +990,17 @@ function saveNote() {
 var aiMessages = [];
 
 function stripMd(t) {
-  if (!t) return '';
-  return t.replace(/\*\*(.*?)\*\*/g, '$1')
+  if (!t) return t;
+  return t
+    .replace(/```[\w]*\n?([\s\S]*?)```/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
     .replace(/\*(.*?)\*/g, '$1')
-    .replace(/#{1,3} /g, '')
-    .replace(/`{1,3}[^`]*`{1,3}/g, '[код]');
+    .replace(/_(.*?)_/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^[-*]{3,}$/gm, '')
+    .trim();
 }
 
 async function sendAI() {
