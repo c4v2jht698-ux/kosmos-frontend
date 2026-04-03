@@ -500,7 +500,8 @@ function openChat(id) {
 
 function mHTML(m) {
   var isMy = m.from === 'me';
-  var photoHtml = m.image ? '<img class="chat-photo" src="' + escAttr(m.image) + '" style="max-width:100%;border-radius:12px;margin-bottom:6px" onclick="openImgFull(this.src)">' : '';
+  var hasPhoto = !!m.image;
+  var photoHtml = hasPhoto ? '<img class="chat-photo" src="' + escAttr(m.image) + '" onclick="openImgFull(this.src)">' : '';
   var audioHtml = '';
   if (m.audio) {
     audioHtml =
@@ -517,10 +518,12 @@ function mHTML(m) {
   var tickMark = m.is_read ? '\u2713\u2713' : '\u2713';
   var tickClass = m.is_read ? 'msg-status read' : 'msg-status';
   var metaHtml = '<span class="msg-meta">' + timeStr + (isMy ? ' <span class="' + tickClass + '" data-msg-id="' + escAttr(m.id) + '">' + tickMark + '</span>' : '') + '</span>';
-  var bblClass = isMy ? 'bbl my' : 'bbl';
+  var bblClass = (isMy ? 'bbl my' : 'bbl') + (hasPhoto ? ' bbl-photo' : '');
+  var textBlock = (m.text || '').trim();
+  var textHtml = textBlock ? (hasPhoto ? '<div class="bbl-text-under-photo">' + escHtml(textBlock) + '</div>' : '<span style="white-space:pre-wrap">' + escHtml(textBlock) + '</span> ') : '';
   return '<div class="msg-row" style="display:flex;margin-bottom:12px;width:100%;justify-content:' + (isMy ? 'flex-end' : 'flex-start') + '">' +
     '<div class="' + bblClass + '" id="msg-' + escAttr(m.id || Date.now()) + '">' +
-      nameHtml + photoHtml + audioHtml + '<span style="white-space:pre-wrap">' + escHtml(m.text || '') + '</span> ' + metaHtml +
+      nameHtml + photoHtml + audioHtml + textHtml + metaHtml +
     '</div></div>';
 }
 
