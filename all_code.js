@@ -1827,6 +1827,7 @@ function showContextMenu(bbl, x, y) {
 
   var html = '<button class="ctx-btn" onclick="setReply(this)"><span>\u21A9</span> Ответить</button>';
   html += '<button class="ctx-btn" onclick="copyMsgText(this)"><span>\uD83D\uDCCB</span> Копировать</button>';
+  html += '<button class="ctx-btn" onclick="copyFullMsg(this)"><span>\uD83D\uDCCB</span> Копировать всё</button>';
   if (isMine && msgId) {
     html += '<hr style="margin:0;border:none;border-top:1px solid var(--glass-border)">';
     html += '<button class="ctx-btn" onclick="editMessage(\'' + escSearch(msgId) + '\',this)"><span>\u270F\uFE0F</span> Изменить</button>';
@@ -1888,7 +1889,26 @@ function copyMsgText(el) {
   var menu = el.closest('.ctx-menu');
   var text = menu ? menu.dataset.text : '';
   navigator.clipboard.writeText(text).then(function() {
-    showToast('', 'Скопировано');
+    toast('Скопировано', 'success');
+  }).catch(function() {});
+  if (menu) menu.remove();
+}
+
+function copyFullMsg(el) {
+  var menu = el.closest('.ctx-menu');
+  var msgId = menu ? menu.dataset.msgId : '';
+  var msgEl = msgId ? document.getElementById('msg-' + msgId) : null;
+  var fullText = '';
+  if (msgEl) {
+    var clone = msgEl.cloneNode(true);
+    var meta = clone.querySelector('.msg-meta');
+    if (meta) meta.remove();
+    fullText = clone.innerText.trim();
+  } else {
+    fullText = menu ? menu.dataset.text : '';
+  }
+  navigator.clipboard.writeText(fullText).then(function() {
+    toast('Текст скопирован', 'success');
   }).catch(function() {});
   if (menu) menu.remove();
 }

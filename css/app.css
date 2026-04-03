@@ -178,7 +178,7 @@ body{
 .msg.me{align-self:flex-end;align-items:flex-end}
 .msg.them{align-self:flex-start;align-items:flex-start}
 .msg.ch{align-self:stretch;max-width:100%}
-.bbl{max-width:100%;padding:10px 14px;border-radius:20px;font-size:16px;line-height:1.4;position:relative;word-wrap:break-word;box-shadow:0 4px 15px rgba(0,0,0,0.2);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.bbl{max-width:100%;padding:10px 14px;border-radius:20px;font-size:16px;line-height:1.4;position:relative;word-wrap:break-word;box-shadow:0 4px 15px rgba(0,0,0,0.2);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);-webkit-user-select:text;user-select:text}
 .bbl.my,.me .bbl{background:var(--msg-my-bg);color:var(--msg-my-text);border-bottom-right-radius:4px;margin-left:auto;border:none}
 .bbl:not(.my),.them .bbl{background:var(--msg-other-bg);color:var(--msg-other-text);border:1px solid var(--glass-border);border-bottom-left-radius:4px}
 .ch .bbl{background:var(--msg-other-bg);color:var(--msg-other-text);border-radius:20px;border-left:3px solid var(--accent)}
