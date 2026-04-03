@@ -989,6 +989,14 @@ function saveNote() {
 // ── AI Chat ──────────────────────────────────────────────────────────────────
 var aiMessages = [];
 
+function stripMd(t) {
+  if (!t) return '';
+  return t.replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/#{1,3} /g, '')
+    .replace(/`{1,3}[^`]*`{1,3}/g, '[код]');
+}
+
 async function sendAI() {
   var inp = document.getElementById('mi');
   if (!inp) return;
@@ -1019,6 +1027,9 @@ async function sendAI() {
     });
     var data = await res.json();
     loading.remove();
+
+    data.gemini = stripMd(data.gemini);
+    data.claude = stripMd(data.claude);
 
     var aiTime = new Date().getHours().toString().padStart(2,'0') + ':' + new Date().getMinutes().toString().padStart(2,'0');
 
@@ -1811,12 +1822,14 @@ function showContextMenu(bbl, x, y) {
   if (!msgId) { var msgEl = bbl.closest('[id^="msg-"]'); if (msgEl) msgId = msgEl.id.replace('msg-', ''); }
   var isMine = bbl.classList.contains('my');
   if (!isMine) { var p = bbl.closest('.msg-row,.msg'); if (p) isMine = p.style.justifyContent === 'flex-end' || p.classList.contains('me'); }
+  console.log('Контекстное меню вызвано для сообщения:', msgId, 'isMine:', isMine);
 
-  // Extract clean text
+  // Extract clean text (try text, then content, then innerText)
   var clone = bbl.cloneNode(true);
   var meta = clone.querySelector('.msg-meta');
   if (meta) meta.remove();
   var txt = clone.innerText.trim();
+  if (!txt && bbl.dataset && bbl.dataset.content) txt = bbl.dataset.content;
 
   var menu = document.createElement('div');
   menu.className = 'ctx-menu glass-panel';
