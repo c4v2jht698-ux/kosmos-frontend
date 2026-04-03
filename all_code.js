@@ -1801,7 +1801,12 @@ if (_mainAreaNode) {
   _mainAreaNode.addEventListener('mouseup', cancelPress);
   _mainAreaNode.addEventListener('mousemove', cancelPress);
   _mainAreaNode.addEventListener('contextmenu', function(e) {
-    if (e.target.closest('.bbl')) e.preventDefault();
+    var bbl = e.target.closest('.bbl');
+    if (bbl) {
+      e.preventDefault();
+      var x = e.clientX, y = e.clientY;
+      showContextMenu(bbl, x, y);
+    }
   });
 }
 function startPress(e) {
@@ -1820,6 +1825,7 @@ function cancelPress() {
 document.addEventListener('click', function() { var m = document.querySelector('.ctx-menu'); if (m) m.remove(); });
 
 function showContextMenu(bbl, x, y) {
+  console.log('Меню должно открыться в:', x, y);
   var old = document.querySelector('.ctx-menu');
   if (old) old.remove();
 
