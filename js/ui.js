@@ -1978,8 +1978,18 @@ function cancelReply() {
   renderAttachZone();
 }
 
-// ── Photo Sharing ───────────────────────────────────────────────────────────
+// ── Photo Sharing (Cloudinary) ──────────────────────────────────────────────
 var _pendingImage = null;
+var _pendingPhotoFile = null;
+
+async function uploadPhoto(file) {
+  var formData = new FormData();
+  formData.append('photo', file);
+  var r = await fetch(API + '/api/upload', { method: 'POST', headers: { 'Authorization': 'Bearer ' + jwtToken }, body: formData });
+  var data = await r.json();
+  if (!data.url) throw new Error(data.error || 'Upload failed');
+  return data.url;
+}
 
 function openPhotoGallery() {
   var input = document.createElement('input');
@@ -1989,22 +1999,11 @@ function openPhotoGallery() {
     if (!file) return;
     console.log('фото выбрано', file.size);
     if (file.size > 10 * 1024 * 1024) { toast('Файл слишком большой (макс 10МБ)', 'error'); return; }
-    var img = new Image();
-    img.src = URL.createObjectURL(file);
-    img.onload = function() {
-      var canvas = document.createElement('canvas');
-      var w = img.width, h = img.height, max = 1200;
-      if (w > h && w > max) { h *= max / w; w = max; }
-      else if (h > max) { w *= max / h; h = max; }
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      _pendingImage = canvas.toDataURL('image/jpeg', 0.5);
-      console.log('base64 готов', _pendingImage.length);
-      URL.revokeObjectURL(img.src);
-      // Show preview in attachZone
-      _attachedPhoto = _pendingImage;
-      renderAttachZone();
-    };
+    _pendingPhotoFile = file;
+    // Preview from blob URL (no base64 needed)
+    _pendingImage = URL.createObjectURL(file);
+    _attachedPhoto = _pendingImage;
+    renderAttachZone();
   };
   input.click();
 }
@@ -2035,7 +2034,7 @@ function cancelImgPreview() {
   renderAttachZone();
 }
 
-function send() {
+async function send() {
   var inp = document.getElementById('mi');
   if (!inp) return;
   var text = inp.value.trim();
@@ -2075,16 +2074,28 @@ function send() {
     }).catch(function(){});
   } else if (cur) {
     var payload = { chatId: cur, text: text || '', replyTo: _replyTo ? _replyTo.text : undefined };
-    if (image) payload.image = image;
+    // Upload photo to Cloudinary if file exists, else use base64 fallback
+    if (_pendingPhotoFile) {
+      try {
+        var imageUrl = await uploadPhoto(_pendingPhotoFile);
+        payload.image = imageUrl;
+        console.log('[photo] uploaded to cloudinary:', imageUrl);
+      } catch(e) {
+        console.error('[photo] upload failed, using base64:', e.message);
+        if (image) payload.image = image;
+      }
+      _pendingPhotoFile = null;
+    } else if (image && image.startsWith('data:')) {
+      payload.image = image;
+    }
     if (socket && socket.connected) {
-      console.log('[photo] sending', image ? image.length : 'NO IMAGE');
       socket.emit('chat_msg', payload, function() { _pendingImage = null; });
     } else {
-      // Offline — save to outbox (IndexedDB)
       addToOutbox(payload).then(function() { _pendingImage = null; });
     }
   }
   _pendingImage = null;
+  _pendingPhotoFile = null;
   _attachedPhoto = null;
   renderAttachZone();
   cancelReply();
