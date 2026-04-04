@@ -2599,7 +2599,7 @@ async function startVoice() {
     _audioChunks = [];
     _mediaRecorder.ondataavailable = function(e) { _audioChunks.push(e.data); };
     _mediaRecorder.onstop = function() {
-      var blob = new Blob(_audioChunks, { type: 'audio/webm' });
+      var blob = new Blob(_audioChunks, { type: _mediaRecorder.mimeType });
       var reader = new FileReader();
       reader.onloadend = function() {
         if (socket && socket.connected && cur) {
