@@ -439,7 +439,7 @@ function openChat(id) {
           var ts = new Date(m.created_at * 1000);
           var time = ts.getHours().toString().padStart(2,'0') + ':' + ts.getMinutes().toString().padStart(2,'0');
           var from = currentUser && m.sender_id === currentUser.id ? 'me' : 'them';
-          return { id: m.id, from: from, text: m.text, time: time, sender: m.sender_username, image: m.image || null, audio: m.audio || null };
+          return { id: m.id, from: from, text: m.text, time: time, sender: m.sender_username, image: m.image || null, audio: m.audio || null, is_read: !!m.is_read };
         });
         if (lastMsgId) {
           // Incremental: append only new messages (dedup by id)
@@ -497,6 +497,10 @@ function openChat(id) {
   scrollBot();
   applyChatBg();
   showChatView();
+  // Mark messages as read
+  if (item.msgs.some(function(m) { return m.from !== 'me' && !m.is_read; })) {
+    fetch(API + '/api/messages/read', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken }, body: JSON.stringify({ chatId: id }) }).catch(function() {});
+  }
 }
 
 function mHTML(m) {
@@ -1764,7 +1768,7 @@ async function loadOlderMsgs() {
       var ts = new Date(m.created_at * 1000);
       var time = ts.getHours().toString().padStart(2,'0') + ':' + ts.getMinutes().toString().padStart(2,'0');
       var from = currentUser && m.sender_id === currentUser.id ? 'me' : 'them';
-      return { id: m.id, from: from, text: m.text, time: time, sender: m.sender_username, image: m.image || null, audio: m.audio || null };
+      return { id: m.id, from: from, text: m.text, time: time, sender: m.sender_username, image: m.image || null, audio: m.audio || null, is_read: !!m.is_read };
     });
     if (olderMsgs.length < 30) item.hasMore = false;
     item.firstMsgId = olderMsgs[0].id;

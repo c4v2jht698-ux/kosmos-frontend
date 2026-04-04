@@ -222,4 +222,15 @@ function initSocket() {
   socket.on('msg_reaction', function(data) {
     showReaction(data.msgId, data.emoji);
   });
+
+  socket.on('msgs_read', function(data) {
+    if (data.chatId !== cur) return;
+    document.querySelectorAll('.msg-status').forEach(function(el) {
+      el.textContent = '\u2713\u2713';
+      el.classList.add('read');
+    });
+    // Update local state
+    var item = findItem(cur);
+    if (item) item.msgs.forEach(function(m) { if (m.from === 'me') m.is_read = true; });
+  });
 }
