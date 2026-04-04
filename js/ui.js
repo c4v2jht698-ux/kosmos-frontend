@@ -237,7 +237,7 @@ async function saveInterests() {
     });
     if (currentUser) currentUser.interests = sel;
     localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
-  } catch(e) {}
+  } catch(e) { console.error('[Error]:', e.message || e); }
   document.getElementById('onboarding').classList.add('hidden');
   localStorage.setItem('kosmos_onboarded', '1');
   // Start onboarding tour for new users
@@ -407,7 +407,7 @@ async function leaveChannel(id) {
 }
 
 async function deleteDM(id) {
-  try { await apiFetch(API + '/chats/' + encodeURIComponent(id), { method: 'DELETE' }); } catch(e) {}
+  try { await apiFetch(API + '/chats/' + encodeURIComponent(id), { method: 'DELETE' }); } catch(e) { console.error('[Error]:', e.message || e); }
   var idx = dms.findIndex(function(d){return d.id===id});
   if (idx !== -1) dms.splice(idx, 1);
   if (cur === id) { cur = null; goBack(); }
@@ -500,10 +500,10 @@ function openChat(id) {
 }
 
 function mHTML(m) {
-  console.log('[photo-debug] base64 start:', m.image ? m.image.substring(0, 50) : 'null');
+  // photo debug removed — production ready
   var isMy = m.from === 'me';
   var hasPhoto = !!m.image;
-  var photoHtml = hasPhoto ? '<img src="' + m.image + '" style="display:block!important;width:250px!important;height:250px!important;border:5px solid yellow!important;background:red!important">' : '';
+  var photoHtml = hasPhoto ? '<img class="chat-photo" src="' + m.image + '" style="max-width:100%;border-radius:12px;margin-top:6px;cursor:pointer;display:block" loading="lazy" decode="async" onload="scrollBot()" onclick="openImgFull(this.src)">' : '';
   var audioHtml = '';
   if (m.audio) {
     audioHtml =
@@ -970,7 +970,7 @@ async function loadDatingStats() {
       '<div class="dating-stat"><div class="dating-stat-num" style="color:' + t.statNum + '">' + (s.matches || 0) + '</div><div class="dating-stat-lbl">\u041C\u044D\u0442\u0447\u0438</div></div>' +
       '<div class="dating-stat"><div class="dating-stat-num" style="color:' + t.statNum + '">' + (s.likes || 0) + '</div><div class="dating-stat-lbl">\u041B\u0430\u0439\u043A\u0438</div></div>' +
       '<div class="dating-stat"><div class="dating-stat-num" style="color:' + t.statNum + '">' + (s.online || 0) + '</div><div class="dating-stat-lbl">\u041E\u043D\u043B\u0430\u0439\u043D</div></div>';
-  } catch(e) {}
+  } catch(e) { console.error('[Error]:', e.message || e); }
 }
 
 function saveNote() {
@@ -1099,7 +1099,7 @@ async function loadFeed() {
     try {
       var cached = JSON.parse(localStorage.getItem('feed_cache') || '[]');
       if (cached.length) list.innerHTML = cached.map(function(p){return postCard(p)}).join('');
-    } catch(e) {}
+    } catch(e) { console.error('[Error]:', e.message || e); }
   }
   try {
     var ctrl = new AbortController();
@@ -1114,7 +1114,7 @@ async function loadFeed() {
     myFeedChannel = data.myFeedChannel || null;
     if (feedOffset === 0 && list) {
       list.innerHTML = '';
-      try { localStorage.setItem('feed_cache', JSON.stringify(posts.slice(0, 10))); } catch(e) {}
+      try { localStorage.setItem('feed_cache', JSON.stringify(posts.slice(0, 10))); } catch(e) { console.error('[Error]:', e.message || e); }
     }
     if (!posts.length) {
       var msg = feedOffset === 0 ? 'Нет постов. Напиши первый!' : 'Вы всё прочитали \u2713';
@@ -1250,7 +1250,7 @@ async function postReact(btn, postId, reaction) {
         btn.style.borderColor = 'var(--accent)';
       }
     }
-  } catch(e) {}
+  } catch(e) { console.error('[Error]:', e.message || e); }
 }
 
 // ── Comments Bottom Sheet ───────────────────────────────────────────────────
@@ -1290,7 +1290,7 @@ async function openComments(postId) {
           '</div></div>';
       }).join('');
     }
-  } catch(e) {}
+  } catch(e) { console.error('[Error]:', e.message || e); }
 }
 
 async function submitComment(postId) {
@@ -1330,7 +1330,7 @@ async function submitComment(postId) {
         ccBtn.innerHTML = ccBtn.innerHTML.replace(/>(\d*)<\/button>/, '>' + (num+1) + '</button>');
       }
     }
-  } catch(e) {}
+  } catch(e) { console.error('[Error]:', e.message || e); }
 }
 
 // ── Public Profile ──────────────────────────────────────────────────────────
@@ -1779,7 +1779,7 @@ async function loadOlderMsgs() {
         item.msgs.map(function(m){return mHTML(m)}).join('');
       area.scrollTop = area.scrollHeight - oldHeight;
     }
-  } catch(e) {}
+  } catch(e) { console.error('[Error]:', e.message || e); }
   item._loadingOlder = false;
 }
 function showChatView() {
@@ -2109,7 +2109,7 @@ async function loadStories(container) {
         '<div class="story-name">' + escHtml(g.username || '') + '</div></div>';
     });
     if (container) container.innerHTML = html;
-  } catch(e) {}
+  } catch(e) { console.error('[Error]:', e.message || e); }
 }
 
 function createStory() {
@@ -2169,7 +2169,7 @@ async function viewStory(userId) {
       '</div>';
     document.body.appendChild(viewer);
     setTimeout(function() { viewer.remove(); }, 5000);
-  } catch(e) {}
+  } catch(e) { console.error('[Error]:', e.message || e); }
 }
 
 // ── Badges ──────────────────────────────────────────────────────────────────

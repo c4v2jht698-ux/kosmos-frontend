@@ -89,6 +89,7 @@ async function loadMyChats(retries) {
     }
   } catch(e) {
     console.warn('[api] loadMyChats failed:', e.message);
+    if (e.name !== 'AbortError') toast('Ошибка соединения', 'error');
     if (retries < 3) {
       console.log('[api] retry in 5s... (' + (retries+1) + '/3)');
       setTimeout(() => loadMyChats(retries + 1), 5000);
