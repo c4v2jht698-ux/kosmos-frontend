@@ -1993,7 +1993,7 @@ function openPhotoGallery() {
       else if (h > max) { w *= max / h; h = max; }
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      _pendingImage = canvas.toDataURL('image/jpeg', 0.7);
+      _pendingImage = canvas.toDataURL('image/jpeg', 0.5);
       console.log('base64 готов', _pendingImage.length);
       URL.revokeObjectURL(img.src);
       // Show preview in attachZone
@@ -2022,7 +2022,7 @@ function handlePhotoSelect(input) {
     else if (h > max) { w *= max / h; h = max; }
     canvas.width = w; canvas.height = h;
     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-    _pendingImage = canvas.toDataURL('image/jpeg', 0.7);
+    _pendingImage = canvas.toDataURL('image/jpeg', 0.5);
     _attachedPhoto = _pendingImage;
     URL.revokeObjectURL(img.src);
     renderAttachZone();
@@ -2529,7 +2529,7 @@ function setChatBg(input) {
     else if (h > max) { w *= max / h; h = max; }
     canvas.width = w; canvas.height = h;
     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-    var compressed = canvas.toDataURL('image/jpeg', 0.7);
+    var compressed = canvas.toDataURL('image/jpeg', 0.5);
     URL.revokeObjectURL(img.src);
     try {
       localStorage.removeItem('chatBg');
@@ -2603,8 +2603,8 @@ async function startVoice() {
   if (!cur) { toast('Откройте чат для записи', 'error'); return; }
   try {
     _voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    var options = { mimeType: 'audio/webm' };
-    if (!MediaRecorder.isTypeSupported(options.mimeType)) options.mimeType = 'audio/mp4';
+    var options = { mimeType: 'audio/webm', audioBitsPerSecond: 64000 };
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) { options.mimeType = 'audio/mp4'; }
     _mediaRecorder = new MediaRecorder(_voiceStream, options);
     _audioChunks = [];
     _mediaRecorder.ondataavailable = function(e) { _audioChunks.push(e.data); };
