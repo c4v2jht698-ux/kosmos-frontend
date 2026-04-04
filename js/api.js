@@ -21,9 +21,51 @@ function apiMutate(url, method, body) {
   });
 }
 
+function _fillChatsFromData(data) {
+  var AI_SLUGS = ['crypto_pulse','cinema_club','music_wave','fitness_cosmos','tech_cosmos','gaming_zone','auto_drive','food_lab','travel_vibes','fashion_now','science_daily','health_tips','business_hub','humor_daily','nature_world','art_space','book_shelf','mindset_pro','ai_future','history_facts'];
+  channels.length = 0;
+  dms.length = 0;
+  (data.channels || []).forEach(function(ch) {
+    if (AI_SLUGS.indexOf(ch.slug) !== -1) return;
+    channels.push({
+      id: ch.id, type: 'channel', name: ch.name, slug: ch.slug,
+      g: GS[(ch.name || '?').charCodeAt(0) % GS.length],
+      em: (ch.name || '?')[0].toUpperCase(),
+      members: ch.members || 0,
+      prev: ch.last_text || '', time: ch.last_time || '',
+      _ts: parseInt(ch.last_ts) || 0,
+      unread: 0, msgs: [], _loaded: false, created_by: ch.created_by,
+    });
+  });
+  (data.dms || []).forEach(function(dm) {
+    var name = dm.name || 'Пользователь';
+    dms.push({
+      id: dm.chat_id, type: 'chat', name: name,
+      g: GS[name.charCodeAt(0) % GS.length],
+      em: name[0].toUpperCase(), online: false,
+      prev: dm.last_text || '', time: dm.last_time || '',
+      _ts: parseInt(dm.last_ts) || 0,
+      unread: 0, msgs: [], _loaded: false,
+    });
+  });
+}
+
 async function loadMyChats(retries) {
   if (!jwtToken) return;
   retries = retries || 0;
+
+  // Instant UI from cache
+  if (channels.length === 0 && dms.length === 0) {
+    try {
+      var cached = JSON.parse(localStorage.getItem('kosmos_chats_cache') || 'null');
+      if (cached) {
+        _fillChatsFromData(cached);
+        render();
+        console.log('[cache] loaded', channels.length, 'ch +', dms.length, 'dm from cache');
+      }
+    } catch(e) {}
+  }
+
   try {
     const r = await fetch(`${API}/my-chats`, {
       headers: { 'Authorization': `Bearer ${jwtToken}` }
@@ -34,39 +76,10 @@ async function loadMyChats(retries) {
     }
     const data = await r.json();
 
-    channels.length = 0;
-    dms.length = 0;
+    // Save to cache
+    try { localStorage.setItem('kosmos_chats_cache', JSON.stringify(data)); } catch(e) {}
 
-    var AI_SLUGS = ['crypto_pulse','cinema_club','music_wave','fitness_cosmos','tech_cosmos','gaming_zone','auto_drive','food_lab','travel_vibes','fashion_now','science_daily','health_tips','business_hub','humor_daily','nature_world','art_space','book_shelf','mindset_pro','ai_future','history_facts'];
-    (data.channels || []).forEach(ch => {
-      if (AI_SLUGS.indexOf(ch.slug) !== -1) return; // hide AI agent channels
-      channels.push({
-        id: ch.id, type: 'channel', name: ch.name, slug: ch.slug,
-        g: GS[(ch.name || '?').charCodeAt(0) % GS.length],
-        em: (ch.name || '?')[0].toUpperCase(),
-        members: ch.members || 0,
-        prev: ch.last_text || '',
-        time: ch.last_time || '',
-        _ts: parseInt(ch.last_ts) || 0,
-        unread: 0, msgs: [], _loaded: false,
-        created_by: ch.created_by,
-      });
-    });
-
-    (data.dms || []).forEach(dm => {
-      const name = dm.name || 'Пользователь';
-      dms.push({
-        id: dm.chat_id, type: 'chat', name,
-        g: GS[name.charCodeAt(0) % GS.length],
-        em: name[0].toUpperCase(),
-        online: false,
-        prev: dm.last_text || '',
-        time: dm.last_time || '',
-        _ts: parseInt(dm.last_ts) || 0,
-        unread: 0, msgs: [], _loaded: false,
-      });
-    });
-
+    _fillChatsFromData(data);
     render();
 
     // Переподписаться на все каналы после загрузки
