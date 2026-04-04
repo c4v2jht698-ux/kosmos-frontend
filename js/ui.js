@@ -2081,10 +2081,10 @@ function send() {
     if (image) payload.image = image;
     if (socket && socket.connected) {
       console.log('[photo] sending', image ? image.length : 'NO IMAGE');
-      socket.emit('chat_msg', payload);
+      socket.emit('chat_msg', payload, function() { _pendingImage = null; });
     } else {
       // Offline — save to outbox (IndexedDB)
-      addToOutbox(payload);
+      addToOutbox(payload).then(function() { _pendingImage = null; });
     }
   }
   _pendingImage = null;
