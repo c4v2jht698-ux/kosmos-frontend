@@ -2079,7 +2079,7 @@ function send() {
     var payload = { chatId: cur, text: text || '', replyTo: _replyTo ? _replyTo.text : undefined };
     if (image) payload.image = image;
     if (socket && socket.connected) {
-      console.log('отправляем через сокет', image ? 'с фото ' + image.length : 'без фото');
+      console.log('[photo] sending', image ? image.length : 'NO IMAGE');
       socket.emit('chat_msg', payload);
     } else {
       // Offline — save to outbox
