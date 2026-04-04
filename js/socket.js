@@ -66,6 +66,8 @@ function initSocket() {
     if (cur) socket.emit('join', cur);
     channels.forEach(function(c) { socket.emit('join', c.id); });
     dms.forEach(function(d) { socket.emit('join', d.id); });
+    // Flush outbox
+    flushOutbox();
   });
 
   socket.on('connect_error', function(e) {

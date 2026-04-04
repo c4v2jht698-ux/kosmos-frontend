@@ -2074,11 +2074,21 @@ function send() {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
       body: JSON.stringify({ prompt: text, chatId: cur })
     }).catch(function(){});
-  } else if (socket && socket.connected && cur) {
+  } else if (cur) {
     var payload = { chatId: cur, text: text || '', replyTo: _replyTo ? _replyTo.text : undefined };
     if (image) payload.image = image;
-    console.log('отправляем через сокет', image ? 'с фото ' + image.length : 'без фото');
-    socket.emit('chat_msg', payload);
+    if (socket && socket.connected) {
+      console.log('отправляем через сокет', image ? 'с фото ' + image.length : 'без фото');
+      socket.emit('chat_msg', payload);
+    } else {
+      // Offline — save to outbox
+      payload._outId = 'out-' + Date.now();
+      var outbox = JSON.parse(localStorage.getItem('_outbox') || '[]');
+      outbox.push(payload);
+      try { localStorage.setItem('_outbox', JSON.stringify(outbox)); } catch(e) {}
+      toast('Сохранено в очередь отправки', 'success');
+      console.log('[outbox] saved, queue:', outbox.length);
+    }
   }
   _pendingImage = null;
   var preview = document.getElementById('imgPreview');
@@ -2720,6 +2730,29 @@ function endCall(emitSignal) {
   var overlay = document.getElementById('callOverlay');
   if (overlay) overlay.remove();
   _callChatId = null; _pendingOffer = null;
+}
+
+// ── Outbox (offline message queue) ───────────────────────────────────────────
+function flushOutbox() {
+  var outbox = JSON.parse(localStorage.getItem('_outbox') || '[]');
+  if (!outbox.length || !socket || !socket.connected) return;
+  console.log('[outbox] flushing', outbox.length, 'messages');
+  outbox.forEach(function(msg) {
+    var outId = msg._outId;
+    delete msg._outId;
+    socket.emit('chat_msg', msg, function(ack) {
+      if (ack && ack.ok) {
+        removeMsgFromOutbox(outId);
+        console.log('[outbox] delivered:', outId);
+      }
+    });
+  });
+}
+
+function removeMsgFromOutbox(outId) {
+  var outbox = JSON.parse(localStorage.getItem('_outbox') || '[]');
+  outbox = outbox.filter(function(m) { return m._outId !== outId; });
+  try { localStorage.setItem('_outbox', JSON.stringify(outbox)); } catch(e) {}
 }
 
 // ── Typing Indicator ─────────────────────────────────────────────────────────
