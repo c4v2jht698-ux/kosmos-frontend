@@ -500,10 +500,10 @@ function openChat(id) {
 }
 
 function mHTML(m) {
-  if (m.image) console.log('[photo] rendering msg:', m.id, 'imageLen:', m.image.length);
+  console.log('[photo-debug] base64 start:', m.image ? m.image.substring(0, 50) : 'null');
   var isMy = m.from === 'me';
   var hasPhoto = !!m.image;
-  var photoHtml = hasPhoto ? '<img class="chat-photo" src="' + m.image + '" loading="lazy" decode="async" onload="scrollBot()" onclick="openImgFull(this.src)">' : '';
+  var photoHtml = hasPhoto ? '<img src="' + m.image + '" style="display:block!important;width:250px!important;height:250px!important;border:5px solid yellow!important;background:red!important">' : '';
   var audioHtml = '';
   if (m.audio) {
     audioHtml =
