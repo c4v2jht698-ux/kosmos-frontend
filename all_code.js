@@ -2602,12 +2602,14 @@ async function startVoice() {
       var blob = new Blob(_audioChunks, { type: _mediaRecorder.mimeType });
       var reader = new FileReader();
       reader.onloadend = function() {
-        if (socket && socket.connected && cur) {
+        if (reader.result.length > 10 * 1024 * 1024) {
+          toast('Голосовое слишком большое', 'error');
+        } else if (socket && socket.connected && cur) {
           socket.emit('chat_msg', { chatId: cur, type: 'audio', audio: reader.result, text: 'Голосовое сообщение' });
         }
+        if (_voiceStream) { _voiceStream.getTracks().forEach(function(t) { t.stop(); }); _voiceStream = null; }
       };
       reader.readAsDataURL(blob);
-      if (_voiceStream) { _voiceStream.getTracks().forEach(function(t) { t.stop(); }); _voiceStream = null; }
     };
     _mediaRecorder.start();
     _isRecording = true;
