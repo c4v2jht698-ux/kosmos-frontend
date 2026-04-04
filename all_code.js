@@ -885,7 +885,7 @@ function buildFeedView(main) {
           }
         }
       }).catch(function() {});
-  }, 60000);
+  }, 30000);
 }
 
 // ── Build Dating View ────────────────────────────────────────────────────────
@@ -1093,6 +1093,7 @@ var feedLoading = false;
 var myFeedChannel = null;
 
 async function loadFeed() {
+  console.log('[feed] loading...');
   if (feedLoading) return;
   feedLoading = true;
   var list = document.getElementById('feedList');
