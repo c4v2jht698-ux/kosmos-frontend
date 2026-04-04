@@ -567,7 +567,6 @@ function safePhotoUrl(url) {
 function inpHTML() {
   return '<div class="inp-wrap">' +
     '<div id="attachZone" style="display:flex;flex-direction:column;gap:8px;padding:0 4px"></div>' +
-    '<div class="img-preview" id="imgPreview" style="display:none"><img id="imgPreviewImg"><button class="img-preview-cancel" onclick="cancelImgPreview()">\u2715</button></div>' +
     '<div class="epanel glass-panel" id="ep" style="bottom:70px;border-radius:16px">' + EMOJIS.map(function(e){return '<span class="ep" onclick="insE(\'' + e + '\')">' + e + '</span>'}).join('') + '</div>' +
     '<div style="display:flex;align-items:flex-end;gap:8px">' +
       '<button class="action-btn" onclick="openPhotoGallery()">\uD83D\uDCCE</button>' +
@@ -2001,10 +2000,6 @@ function openPhotoGallery() {
       // Show preview in attachZone
       _attachedPhoto = _pendingImage;
       renderAttachZone();
-      // Also update old preview if exists
-      var preview = document.getElementById('imgPreview');
-      var prevImg = document.getElementById('imgPreviewImg');
-      if (preview && prevImg) { prevImg.src = _pendingImage; preview.style.display = 'flex'; }
     };
   };
   input.click();
@@ -2034,8 +2029,6 @@ function handlePhotoSelect(input) {
 function cancelImgPreview() {
   _pendingImage = null; _attachedPhoto = null;
   renderAttachZone();
-  var preview = document.getElementById('imgPreview');
-  if (preview) preview.style.display = 'none';
 }
 
 function send() {
@@ -2088,8 +2081,8 @@ function send() {
     }
   }
   _pendingImage = null;
-  var preview = document.getElementById('imgPreview');
-  if (preview) preview.style.display = 'none';
+  _attachedPhoto = null;
+  renderAttachZone();
   cancelReply();
   var cc = document.getElementById('charCount');
   if (cc) { cc.textContent = ''; cc.className = 'char-counter'; }
@@ -2581,7 +2574,7 @@ function renderAttachZone() {
     html += '<div class="reply-quote glass-panel" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-left:3px solid var(--accent);border-radius:6px;margin-top:8px;font-size:14px"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:12px">\u21A9 ' + escHtml(_replyTo.text) + '</span><button onclick="cancelReply()" class="action-btn" style="padding:0;font-size:16px">\u2716</button></div>';
   }
   if (_attachedPhoto) {
-    html += '<div style="position:relative;display:inline-block;margin-top:8px"><img src="' + _attachedPhoto + '" style="max-height:100px;border-radius:8px;border:1px solid var(--glass-border)"><button onclick="cancelAttach()" style="position:absolute;top:-8px;right:-8px;background:#ff3b30;color:#fff;border-radius:50%;border:none;width:24px;height:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.2)">\u2715</button></div>';
+    html += '<div style="position:relative;display:inline-block;margin-top:8px"><img src="' + _attachedPhoto + '" style="width:60px;height:60px;object-fit:cover;border-radius:8px"><button onclick="cancelAttach()" style="position:absolute;top:-6px;right:-6px;background:#ff4444;border:none;border-radius:50%;width:18px;height:18px;color:white;font-size:11px;cursor:pointer;padding:0">\u2715</button></div>';
   }
   z.innerHTML = html;
 }
