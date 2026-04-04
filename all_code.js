@@ -2083,13 +2083,8 @@ function send() {
       console.log('[photo] sending', image ? image.length : 'NO IMAGE');
       socket.emit('chat_msg', payload);
     } else {
-      // Offline — save to outbox
-      payload._outId = 'out-' + Date.now();
-      var outbox = JSON.parse(localStorage.getItem('_outbox') || '[]');
-      outbox.push(payload);
-      try { localStorage.setItem('_outbox', JSON.stringify(outbox)); } catch(e) {}
-      toast('Сохранено в очередь отправки', 'success');
-      console.log('[outbox] saved, queue:', outbox.length);
+      // Offline — save to outbox (IndexedDB)
+      addToOutbox(payload);
     }
   }
   _pendingImage = null;
@@ -2777,9 +2772,9 @@ function searchMessages(q) {
   }, 400);
 }
 
-// ── Outbox (offline message queue) ───────────────────────────────────────────
-function flushOutbox() {
-  var outbox = JSON.parse(localStorage.getItem('_outbox') || '[]');
+// ── Outbox (offline message queue — IndexedDB via localforage) ────────────────
+async function flushOutbox() {
+  var outbox = await localforage.getItem('_outbox') || [];
   if (!outbox.length || !socket || !socket.connected) return;
   console.log('[outbox] flushing', outbox.length, 'messages');
   outbox.forEach(function(msg) {
@@ -2794,10 +2789,19 @@ function flushOutbox() {
   });
 }
 
-function removeMsgFromOutbox(outId) {
-  var outbox = JSON.parse(localStorage.getItem('_outbox') || '[]');
+async function removeMsgFromOutbox(outId) {
+  var outbox = await localforage.getItem('_outbox') || [];
   outbox = outbox.filter(function(m) { return m._outId !== outId; });
-  try { localStorage.setItem('_outbox', JSON.stringify(outbox)); } catch(e) {}
+  await localforage.setItem('_outbox', outbox);
+}
+
+async function addToOutbox(payload) {
+  payload._outId = 'out-' + Date.now();
+  var outbox = await localforage.getItem('_outbox') || [];
+  outbox.push(payload);
+  await localforage.setItem('_outbox', outbox);
+  toast('Сохранено в очередь отправки', 'success');
+  console.log('[outbox] saved, queue:', outbox.length);
 }
 
 // ── Typing Indicator ─────────────────────────────────────────────────────────
