@@ -218,4 +218,8 @@ function initSocket() {
       endCall(false);
     }
   });
+
+  socket.on('msg_reaction', function(data) {
+    showReaction(data.msgId, data.emoji);
+  });
 }

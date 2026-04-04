@@ -523,8 +523,8 @@ function mHTML(m) {
   var textBlock = (m.text || '').trim();
   var textHtml = textBlock ? (hasPhoto ? '<div class="bbl-text-under-photo">' + escHtml(textBlock) + '</div>' : '<span style="white-space:pre-wrap">' + escHtml(textBlock) + '</span> ') : '';
   return '<div class="msg-row" style="display:flex;margin-bottom:12px;width:100%;justify-content:' + (isMy ? 'flex-end' : 'flex-start') + '">' +
-    '<div class="' + bblClass + '" id="msg-' + escAttr(m.id || Date.now()) + '">' +
-      nameHtml + photoHtml + audioHtml + textHtml + metaHtml +
+    '<div class="' + bblClass + '" id="msg-' + escAttr(m.id || Date.now()) + '" ondblclick="sendReaction(this,\'\u2764\uFE0F\')">' +
+      nameHtml + photoHtml + audioHtml + textHtml + '<span class="msg-reaction" id="react-' + escAttr(m.id || '') + '" style="font-size:16px;display:block;margin-top:2px"></span>' + metaHtml +
     '</div></div>';
 }
 
@@ -2733,6 +2733,18 @@ function endCall(emitSignal) {
   _callChatId = null; _pendingOffer = null;
 }
 
+// ── Reactions ────────────────────────────────────────────────────────────────
+function sendReaction(el, emoji) {
+  var msgId = el.id.replace('msg-', '');
+  if (socket && socket.connected) socket.emit('msg_reaction', { msgId: msgId, chatId: cur, emoji: emoji });
+  showReaction(msgId, emoji);
+}
+
+function showReaction(msgId, emoji) {
+  var el = document.getElementById('react-' + msgId);
+  if (el) el.textContent = el.textContent === emoji ? '' : emoji;
+}
+
 // ── In-Chat Search ───────────────────────────────────────────────────────────
 function toggleSearch() {
   var bar = document.getElementById('search-bar');
@@ -3307,6 +3319,10 @@ function initSocket() {
     } else if (data.type === 'end') {
       endCall(false);
     }
+  });
+
+  socket.on('msg_reaction', function(data) {
+    showReaction(data.msgId, data.emoji);
   });
 }
 // ── Config & State ──────────────────────────────────────────────────────────
