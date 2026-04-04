@@ -482,8 +482,9 @@ function openChat(id) {
       '<button class="back-btn" onclick="goBack()">\u2039</button>' +
       avHtml +
       '<div class="hinfo"><div class="hname">' + escHtml(item.name) + '</div><div class="hsub">' + sub + '</div></div>' +
-      '<div class="hacts"><button onclick="startVideoCall()" style="background:none;border:none;color:var(--accent);font-size:24px;cursor:pointer">\uD83D\uDCDE</button><button class="hb">\uD83D\uDD0D</button></div>' +
+      '<div class="hacts"><button onclick="startVideoCall()" style="background:none;border:none;color:var(--accent);font-size:24px;cursor:pointer">\uD83D\uDCDE</button><button onclick="toggleSearch()" class="hb" title="Поиск">\uD83D\uDD0D</button></div>' +
     '</div>' +
+    '<div id="search-bar" style="display:none;padding:8px 12px;background:var(--bg2);border-bottom:1px solid var(--sep)"><input id="search-input" placeholder="\uD83D\uDD0D Поиск по сообщениям..." oninput="searchMessages(this.value)" style="width:100%;padding:8px 12px;border-radius:20px;border:none;background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;outline:none"></div>' +
     (isCh && item.slug ? '<div style="display:flex;align-items:center;gap:8px;padding:6px 16px;background:var(--bg2);font-size:13px;border-bottom:0.5px solid var(--sep)">' +
       '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--accent)">https://c4v2jht698-ux.github.io/kosmos-frontend/?channel=' + encodeURIComponent(item.slug) + '</span>' +
       '<button onclick="copyChannelLink(\'' + escSearch(item.slug) + '\')" style="background:var(--accent);border:none;border-radius:8px;color:#fff;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Скопировать</button>' +
@@ -2730,6 +2731,37 @@ function endCall(emitSignal) {
   var overlay = document.getElementById('callOverlay');
   if (overlay) overlay.remove();
   _callChatId = null; _pendingOffer = null;
+}
+
+// ── In-Chat Search ───────────────────────────────────────────────────────────
+function toggleSearch() {
+  var bar = document.getElementById('search-bar');
+  if (!bar) return;
+  var isHidden = bar.style.display === 'none';
+  bar.style.display = isHidden ? 'block' : 'none';
+  if (isHidden) { var inp = document.getElementById('search-input'); if (inp) inp.focus(); }
+  else { var inp = document.getElementById('search-input'); if (inp) inp.value = ''; }
+}
+
+var _searchMsgTimer = null;
+function searchMessages(q) {
+  clearTimeout(_searchMsgTimer);
+  if (!q || q.length < 2 || !cur) return;
+  _searchMsgTimer = setTimeout(function() {
+    fetch(API + '/api/messages/search?q=' + encodeURIComponent(q) + '&chat_id=' + encodeURIComponent(cur), {
+      headers: { 'Authorization': 'Bearer ' + jwtToken }
+    }).then(function(r) { return r.ok ? r.json() : []; })
+      .then(function(msgs) {
+        if (!msgs.length) return;
+        var el = document.getElementById('msg-' + msgs[0].id);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.style.transition = 'background 0.3s';
+          el.style.background = 'rgba(255,215,0,0.25)';
+          setTimeout(function() { el.style.background = ''; }, 2000);
+        }
+      }).catch(function() {});
+  }, 400);
 }
 
 // ── Outbox (offline message queue) ───────────────────────────────────────────
