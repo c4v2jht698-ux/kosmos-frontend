@@ -3259,7 +3259,18 @@ function initSocket() {
       }
       if (localIdx !== -1) {
         if (item.msgs[localIdx].image && !m.image) m.image = item.msgs[localIdx].image;
-        item.msgs[localIdx] = m; render(); return;
+        var oldId = item.msgs[localIdx].id;
+        item.msgs[localIdx] = m;
+        // Patch DOM: swap fake ID for real server ID
+        var msgEl = document.getElementById('msg-' + oldId);
+        if (msgEl) {
+          msgEl.id = 'msg-' + m.id;
+          var status = msgEl.querySelector('.msg-status');
+          if (status) status.dataset.msgId = m.id;
+          var react = msgEl.querySelector('.msg-reaction');
+          if (react) react.id = 'react-' + m.id;
+        }
+        render(); return;
       }
     }
     item.msgs.push(m);
