@@ -2438,14 +2438,54 @@ function generateMyQR() {
 var qrStream = null;
 var qrScanInterval = null;
 
-function startQRScan() {
+function handleQRResult(data) {
+  var match = data.match(/[?&]u=([^&]+)/);
+  if (match) {
+    var qrOverlay = document.getElementById('qrOverlay');
+    if (qrOverlay) qrOverlay.style.display = 'none';
+    if (typeof showTab === 'function') showTab('chats');
+    fetch(API + '/users?search=' + encodeURIComponent(match[1]), {
+      headers: { 'Authorization': 'Bearer ' + jwtToken }
+    }).then(function(r) { return r.json(); })
+      .then(function(users) {
+        if (users && users.length > 0) startDM(users[0].id, users[0].username, users[0].handle);
+        else toast('Пользователь не найден', 'error');
+      }).catch(function() { toast('Ошибка поиска', 'error'); });
+  }
+}
+
+var _qrScanning = false;
+async function startQRScan() {
   var video = document.getElementById('qrVideo');
   var result = document.getElementById('qrScanResult');
   result.textContent = 'Наведите камеру на QR-код...';
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-    .then(function(stream) {
-      qrStream = stream;
-      video.srcObject = stream;
+
+  try {
+    var stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    qrStream = stream;
+    video.srcObject = stream;
+    _qrScanning = true;
+
+    if ('BarcodeDetector' in window) {
+      // Native API — fast and accurate
+      var detector = new BarcodeDetector({ formats: ['qr_code'] });
+      video.onloadedmetadata = function() {
+        video.play();
+        (function scan() {
+          if (!_qrScanning) return;
+          detector.detect(video).then(function(codes) {
+            if (codes.length > 0) {
+              result.textContent = 'Найден: ' + codes[0].rawValue;
+              stopQRScan();
+              handleQRResult(codes[0].rawValue);
+              return;
+            }
+            if (_qrScanning) requestAnimationFrame(scan);
+          }).catch(function() { if (_qrScanning) requestAnimationFrame(scan); });
+        })();
+      };
+    } else {
+      // Fallback — jsQR
       video.play();
       qrScanInterval = setInterval(function() {
         if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
@@ -2460,27 +2500,15 @@ function startQRScan() {
         if (code) {
           result.textContent = 'Найден: ' + code.data;
           stopQRScan();
-          var match = code.data.match(/[?&]u=([^&]+)/);
-          if (match) {
-            var qrOverlay = document.getElementById('qrOverlay');
-            if (qrOverlay) qrOverlay.style.display = 'none';
-            if (typeof showTab === 'function') showTab('chats');
-            fetch(API + '/users?search=' + encodeURIComponent(match[1]), {
-              headers: { 'Authorization': 'Bearer ' + jwtToken }
-            }).then(function(r) { return r.json(); })
-              .then(function(users) {
-                if (users && users.length > 0) {
-                  startDM(users[0].id, users[0].username, users[0].handle);
-                } else { toast('Пользователь не найден', 'error'); }
-              }).catch(function() { toast('Ошибка поиска', 'error'); });
-          }
+          handleQRResult(code.data);
         }
       }, 300);
-    })
-    .catch(function() { result.textContent = 'Нет доступа к камере'; });
+    }
+  } catch(e) { result.textContent = 'Нет доступа к камере'; }
 }
 
 function stopQRScan() {
+  _qrScanning = false;
   if (qrStream) { qrStream.getTracks().forEach(function(t) { t.stop(); }); qrStream = null; }
   if (qrScanInterval) { clearInterval(qrScanInterval); qrScanInterval = null; }
 }
@@ -2526,7 +2554,7 @@ function renderQRScreen() {
   var username = u.username || u.handle || 'unknown';
   var name = u.name || username;
   document.getElementById('qrScreenUsername').textContent = '@' + username;
-  document.getElementById('qrScanLabel').textContent = 'Scan to chat with @' + username;
+  document.getElementById('qrScanLabel').innerHTML = 'Наведи камеру телефона или используй сканер<br><span style="color:var(--text3);font-size:12px">@' + escHtml(username) + '</span>';
   document.getElementById('qrAvatarCenter').textContent = (name || '?')[0].toUpperCase();
   var div = document.getElementById('qrCodeDiv');
   div.innerHTML = '';
