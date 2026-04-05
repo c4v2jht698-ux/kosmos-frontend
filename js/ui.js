@@ -2431,7 +2431,7 @@ function generateMyQR() {
     height: 220,
     colorDark: '#000',
     colorLight: '#fff',
-    correctLevel: QRCode.CorrectLevel.H
+    correctLevel: QRCode.CorrectLevel.M
   });
 }
 
@@ -2450,11 +2450,13 @@ function startQRScan() {
       qrScanInterval = setInterval(function() {
         if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
         var canvas = document.getElementById('qrCanvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
-        var imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-        var code = jsQR(imageData.data, imageData.width, imageData.height);
+        var scale = video.videoWidth > 0 ? Math.min(1, 400 / video.videoWidth) : 1;
+        canvas.width = video.videoWidth * scale;
+        canvas.height = video.videoHeight * scale;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
         if (code) {
           result.textContent = 'Найден: ' + code.data;
           stopQRScan();
@@ -2528,7 +2530,7 @@ function renderQRScreen() {
   document.getElementById('qrAvatarCenter').textContent = (name || '?')[0].toUpperCase();
   var div = document.getElementById('qrCodeDiv');
   div.innerHTML = '';
-  new QRCode(div, { text: 'https://c4v2jht698-ux.github.io/kosmos-frontend/?u=' + encodeURIComponent(username), width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
+  new QRCode(div, { text: 'https://c4v2jht698-ux.github.io/kosmos-frontend/?u=' + encodeURIComponent(username), width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.M });
 }
 
 function renderSettingsScreen() {
