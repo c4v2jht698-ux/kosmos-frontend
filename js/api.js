@@ -57,7 +57,7 @@ async function loadMyChats(retries) {
   // Instant UI from cache
   if (channels.length === 0 && dms.length === 0) {
     try {
-      var cached = JSON.parse(localStorage.getItem('kosmos_chats_cache') || 'null');
+      var cached = await localforage.getItem('kosmos_chats_cache');
       if (cached) {
         _fillChatsFromData(cached);
         render();
@@ -77,7 +77,7 @@ async function loadMyChats(retries) {
     const data = await r.json();
 
     // Save to cache
-    try { localStorage.setItem('kosmos_chats_cache', JSON.stringify(data)); } catch(e) {}
+    try { await localforage.setItem('kosmos_chats_cache', data); } catch(e) {}
 
     _fillChatsFromData(data);
     render();

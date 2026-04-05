@@ -766,12 +766,12 @@ async function saveEditProfile() {
 }
 
 // ── Pinned sections ──────────────────────────────────────────────────────────
-function openPinned(type) {
+async function openPinned(type) {
   cur = null; render();
   var main = document.getElementById('mainArea');
 
   if (type === 'important') {
-    var saved = JSON.parse(localStorage.getItem('kosmos_notes') || '[]');
+    var saved = await localforage.getItem('kosmos_notes') || [];
     main.innerHTML =
       '<div class="chat-hdr">' +
         '<button class="back-btn" onclick="goBack()">\u2039</button>' +
@@ -787,7 +787,7 @@ function openPinned(type) {
       '</div><button class="sbtn" onclick="saveNote()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9H4l4 4-2 7 6-4 6 4-2-7 4-4h-5z"/></svg></button></div>';
     scrollBot(); showChatView();
   } else if (type === 'ai') {
-    aiMessages = JSON.parse(localStorage.getItem('kosmos_ai_history') || '[]');
+    aiMessages = await localforage.getItem('kosmos_ai_history') || [];
     main.innerHTML =
       '<div class="chat-hdr">' +
         '<button class="back-btn" onclick="goBack()">\u2039</button>' +
@@ -976,7 +976,7 @@ async function loadDatingStats() {
   } catch(e) { console.error('[Error]:', e.message || e); }
 }
 
-function saveNote() {
+async function saveNote() {
   var inp = document.getElementById('mi');
   if (!inp) return;
   var text = inp.value.trim();
@@ -984,9 +984,9 @@ function saveNote() {
   inp.value = ''; inp.style.height = 'auto';
   var now = new Date();
   var time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-  var saved = JSON.parse(localStorage.getItem('kosmos_notes') || '[]');
+  var saved = await localforage.getItem('kosmos_notes') || [];
   saved.push({ text: text, time: time });
-  localStorage.setItem('kosmos_notes', JSON.stringify(saved));
+  localforage.setItem('kosmos_notes', saved);
   var area = document.getElementById('msgArea');
   var d = document.createElement('div');
   d.innerHTML = '<div class="msg me"><div class="bbl">' + escHtml(text) + '<div class="bf"><span class="mt">' + time + '</span></div></div></div>';
@@ -1066,7 +1066,7 @@ async function sendAI() {
     }
 
     scrollBot();
-    localStorage.setItem('kosmos_ai_history', JSON.stringify(aiMessages.slice(-50)));
+    localforage.setItem('kosmos_ai_history', aiMessages.slice(-50));
 
   } catch(e) {
     loading.remove();
@@ -1101,7 +1101,7 @@ async function loadFeed() {
   if (loader) loader.textContent = '';
   if (feedOffset === 0 && list) {
     try {
-      var cached = JSON.parse(localStorage.getItem('feed_cache') || '[]');
+      var cached = await localforage.getItem('feed_cache') || [];
       if (cached.length) list.innerHTML = cached.map(function(p){return postCard(p)}).join('');
     } catch(e) { console.error('[Error]:', e.message || e); }
   }
@@ -1118,7 +1118,7 @@ async function loadFeed() {
     myFeedChannel = data.myFeedChannel || null;
     if (feedOffset === 0 && list) {
       list.innerHTML = '';
-      try { localStorage.setItem('feed_cache', JSON.stringify(posts.slice(0, 10))); } catch(e) { console.error('[Error]:', e.message || e); }
+      try { await localforage.setItem('feed_cache', posts.slice(0, 10)); } catch(e) { console.error('[Error]:', e.message || e); }
     }
     if (!posts.length) {
       var msg = feedOffset === 0 ? 'Нет постов. Напиши первый!' : 'Вы всё прочитали \u2713';
@@ -1202,10 +1202,10 @@ async function feedShare(postId) {
   if (choice === '2') {
     var post = document.querySelector('[data-pid="' + postId + '"]');
     var text = post ? (post.querySelector('div[style*="pre-wrap"]') || {}).textContent || '' : '';
-    var saved = JSON.parse(localStorage.getItem('kosmos_notes') || '[]');
+    var saved = await localforage.getItem('kosmos_notes') || [];
     var time = new Date().getHours().toString().padStart(2,'0') + ':' + new Date().getMinutes().toString().padStart(2,'0');
     saved.push({ text: '\uD83D\uDCCC ' + text, time: time });
-    localStorage.setItem('kosmos_notes', JSON.stringify(saved));
+    localforage.setItem('kosmos_notes', saved);
     toast('Сохранено в Важное!', 'success');
   } else if (choice === '1') {
     var handle = prompt('Введите @username друга:');
@@ -2516,8 +2516,7 @@ function setChatBg(input) {
   // Support both file input element and direct base64 string
   if (typeof input === 'string') {
     try {
-      localStorage.removeItem('chatBg');
-      localStorage.setItem('chatBg', input);
+      localforage.setItem('chatBg', input);
       applyChatBg(input);
       toast('Фон сохранен', 'success');
     } catch(e) { toast('Ошибка: недостаточно памяти', 'error'); }
@@ -2538,16 +2537,15 @@ function setChatBg(input) {
     var compressed = canvas.toDataURL('image/jpeg', 0.5);
     URL.revokeObjectURL(img.src);
     try {
-      localStorage.removeItem('chatBg');
-      localStorage.setItem('chatBg', compressed);
+      localforage.setItem('chatBg', compressed);
       applyChatBg(compressed);
       toast('Фон установлен!', 'success');
     } catch(e) { toast('Ошибка: недостаточно памяти', 'error'); }
   };
 }
 
-function applyChatBg(base64) {
-  var bg = base64 || localStorage.getItem('chatBg');
+async function applyChatBg(base64) {
+  var bg = base64 || await localforage.getItem('chatBg');
   var areas = document.querySelectorAll('.msg-area');
   areas.forEach(function(area) {
     if (bg) {
@@ -2883,7 +2881,7 @@ async function loadMyChats(retries) {
   // Instant UI from cache
   if (channels.length === 0 && dms.length === 0) {
     try {
-      var cached = JSON.parse(localStorage.getItem('kosmos_chats_cache') || 'null');
+      var cached = await localforage.getItem('kosmos_chats_cache');
       if (cached) {
         _fillChatsFromData(cached);
         render();
@@ -2903,7 +2901,7 @@ async function loadMyChats(retries) {
     const data = await r.json();
 
     // Save to cache
-    try { localStorage.setItem('kosmos_chats_cache', JSON.stringify(data)); } catch(e) {}
+    try { await localforage.setItem('kosmos_chats_cache', data); } catch(e) {}
 
     _fillChatsFromData(data);
     render();
@@ -3660,7 +3658,7 @@ function logout() {
   if (qr) qr.style.display = 'none';
   var st = document.getElementById('settingsScreen');
   if (st) st.style.display = 'none';
-  localStorage.removeItem('chatBg');
+  localforage.removeItem('chatBg');
   localStorage.removeItem('kosmos_token');
   localStorage.removeItem('kosmos_refresh');
   localStorage.removeItem('kosmos_user');

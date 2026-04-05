@@ -307,7 +307,7 @@ function logout() {
   if (qr) qr.style.display = 'none';
   var st = document.getElementById('settingsScreen');
   if (st) st.style.display = 'none';
-  localStorage.removeItem('chatBg');
+  localforage.removeItem('chatBg');
   localStorage.removeItem('kosmos_token');
   localStorage.removeItem('kosmos_refresh');
   localStorage.removeItem('kosmos_user');
