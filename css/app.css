@@ -8,20 +8,34 @@ body{padding-top:env(safe-area-inset-top,0px)}
 html{position:fixed;width:100%;height:100dvh;overflow:hidden;overscroll-behavior:none}
 @supports not (height:100dvh){html{height:100%}}
 
-/* ── Цветовая палитра (Gold & Black Premium) ── */
+/* ── Цветовая палитра (Dark — default) ── */
 :root{
-  --bg:#111318;--bg2:#1a1d24;--card:rgba(26,29,36,0.85);
+  --bg:#1a1a1a;--bg2:#242424;--card:#2c2c2e;
   --accent:#dcb344;--accent2:#B8962D;--accent-hover:#B8962D;--green:#34C759;--pink:#F43F5E;
   --accent-gradient:linear-gradient(135deg,#F9D976 0%,#E1B24B 50%,#B8962D 100%);
-  --text:#e0e0e0;--text2:#b0b0b0;--text3:rgba(255,255,255,0.5);--muted:rgba(255,255,255,0.5);
-  --sep:rgba(212,175,55,0.12);
-  --bubble-them:rgba(30,30,36,0.85);--bubble-me:#E6C27A;
-  --msg-my-bg:#E6C27A;--msg-my-text:#1A1A1A;--msg-other-bg:#1a1d24;--msg-other-text:#e0e0e0;
+  --text:#ffffff;--text2:#b0b0b0;--text3:rgba(255,255,255,0.5);--muted:#8e8e93;
+  --sep:#3a3a3c;
+  --bubble-them:#2c2c2e;--bubble-me:#E6C27A;
+  --msg-my-bg:#E6C27A;--msg-my-text:#1A1A1A;--msg-other-bg:#2c2c2e;--msg-other-text:#ffffff;
   --search-bg:rgba(212,175,55,0.08);
-  --hover:rgba(212,175,55,0.06);--shadow:0 8px 32px rgba(0,0,0,0.5);
-  --online:#D4AF37;--tab-bg:#121212;--nav-bg:rgba(10,10,10,0.92);
-  --glass-bg:rgba(10,10,10,0.75);--glass-border:rgba(212,175,55,0.2);
-  --msg-my:#E6C27A;--msg-other:rgba(30,30,32,0.85);
+  --hover:rgba(255,255,255,0.06);--shadow:0 8px 32px rgba(0,0,0,0.5);
+  --online:#dcb344;--tab-bg:#1c1c1e;--nav-bg:rgba(26,26,26,0.92);
+  --glass-bg:rgba(26,26,26,0.75);--glass-border:rgba(255,255,255,0.08);
+  --msg-my:#E6C27A;--msg-other:#2c2c2e;
+}
+
+/* ── Light Theme ── */
+[data-theme="light"]{
+  --bg:#ffffff;--bg2:#f2f2f7;--card:#ffffff;
+  --text:#000000;--text2:#3c3c43;--text3:rgba(60,60,67,0.6);--muted:#8e8e93;
+  --sep:#d1d1d6;
+  --bubble-them:#e9e9eb;--bubble-me:#dcb344;
+  --msg-my-bg:#dcb344;--msg-my-text:#1A1A1A;--msg-other-bg:#e9e9eb;--msg-other-text:#000000;
+  --search-bg:rgba(118,118,128,0.12);
+  --hover:rgba(0,0,0,0.04);--shadow:0 4px 16px rgba(0,0,0,0.08);
+  --online:#34C759;--tab-bg:#f9f9f9;--nav-bg:rgba(255,255,255,0.92);
+  --glass-bg:rgba(255,255,255,0.75);--glass-border:rgba(0,0,0,0.08);
+  --msg-my:#dcb344;--msg-other:#e9e9eb;
 }
 
 /* ── Glassmorphism ── */

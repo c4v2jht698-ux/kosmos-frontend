@@ -1,3 +1,6 @@
+// ── Theme (apply before render) ──────────────────────────────────────────────
+(function() { var t = localStorage.getItem('theme') || 'dark'; document.documentElement.setAttribute('data-theme', t); })();
+
 // ── Config & State ──────────────────────────────────────────────────────────
 var API = 'https://kosmos-backend-1.onrender.com';
 var EMOJIS = ['\u2764\uFE0F','\uD83D\uDE02','\uD83D\uDC4D','\uD83D\uDD25','\uD83D\uDE2E','\uD83D\uDC4F','\uD83C\uDF89','\uD83D\uDE4F'];
@@ -60,7 +63,7 @@ function switchTab(mode) {
   document.getElementById('authToggleBtn').onclick = function() { switchTab(mode === 'register' ? 'login' : 'register'); };
   document.getElementById('authToggleBtn').style.display = '';
   clearAuthMessages();
-  applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
+  applyTheme(localStorage.getItem('theme') || 'dark');
 }
 
 function buildSeedGrid() {
@@ -320,7 +323,7 @@ function logout() {
   document.getElementById('authBtn').style.display = '';
   switchTab('login');
   document.getElementById('mainArea').innerHTML = '<div class="empty"><div class="empty-card"><div class="empty-icon">\uD83D\uDE80</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>';
-  applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
+  applyTheme(localStorage.getItem('theme') || 'dark');
 }
 
 var _splashDone = false;
@@ -345,13 +348,13 @@ function closeSplash() {
 
 // ── Theme ────────────────────────────────────────────────────────────────────
 function applyTheme(theme) {
-  if (theme !== 'blue' && theme !== 'pink') theme = 'blue';
+  if (theme !== 'dark' && theme !== 'light') theme = 'dark';
   document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('theme', theme);
 }
 function toggleTheme() {
-  var cur = document.documentElement.getAttribute('data-theme') || 'blue';
-  var next = cur === 'blue' ? 'pink' : 'blue';
-  localStorage.setItem('kosmos_theme', next);
+  var cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  var next = cur === 'dark' ? 'light' : 'dark';
   applyTheme(next);
 }
 
@@ -404,7 +407,7 @@ function openTelegramAuth() {
 var _refCode = new URLSearchParams(window.location.search).get('ref') || '';
 
 // ── Init on load ─────────────────────────────────────────────────────────────
-applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
+applyTheme(localStorage.getItem('theme') || 'dark');
 buildSeedGrid();
 
 document.getElementById('overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
