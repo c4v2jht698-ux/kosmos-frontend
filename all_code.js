@@ -2459,7 +2459,19 @@ function startQRScan() {
           result.textContent = 'Найден: ' + code.data;
           stopQRScan();
           var match = code.data.match(/[?&]u=([^&]+)/);
-          if (match) searchUsers(match[1]);
+          if (match) {
+            var qrOverlay = document.getElementById('qrOverlay');
+            if (qrOverlay) qrOverlay.style.display = 'none';
+            if (typeof showTab === 'function') showTab('chats');
+            fetch(API + '/users?search=' + encodeURIComponent(match[1]), {
+              headers: { 'Authorization': 'Bearer ' + jwtToken }
+            }).then(function(r) { return r.json(); })
+              .then(function(users) {
+                if (users && users.length > 0) {
+                  startDM(users[0].id, users[0].username, users[0].handle);
+                } else { toast('Пользователь не найден', 'error'); }
+              }).catch(function() { toast('Ошибка поиска', 'error'); });
+          }
         }
       }, 300);
     })
@@ -2515,7 +2527,7 @@ function renderQRScreen() {
   document.getElementById('qrScanLabel').textContent = 'Scan to chat with @' + username;
   document.getElementById('qrAvatarCenter').textContent = (name || '?')[0].toUpperCase();
   var div = document.getElementById('qrCodeDiv');
-  div.innerHTML = '<div style="width:200px;height:200px;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:13px">Генерация...</div>';
+  div.innerHTML = '';
   new QRCode(div, { text: 'https://c4v2jht698-ux.github.io/kosmos-frontend/?u=' + encodeURIComponent(username), width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
 }
 
