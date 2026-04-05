@@ -2889,3 +2889,8 @@ document.addEventListener('input', function(e) {
   _typingTimer = setTimeout(function() { _isTypingNow = false; socket.emit('typing', { chatId: cur, isTyping: false }); }, 2000);
 });
 
+// ── Service Worker ───────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/kosmos-frontend/sw.js').catch(function() {});
+}
+

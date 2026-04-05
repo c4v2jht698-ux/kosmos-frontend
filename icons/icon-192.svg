@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="42.24" fill="#0a0a1a"/>
+  <ellipse cx="96" cy="96" rx="67.19999999999999" ry="21.12" transform="rotate(-20 96 96)" fill="none" stroke="#4a90e2" stroke-width="2.3040000000000003" opacity="0.5"/>
+  <circle cx="96" cy="96" r="36.480000000000004" fill="#0f0f25"/>
+  <text x="96" y="109.44" text-anchor="middle" fill="#4a90e2" font-family="-apple-system,system-ui,sans-serif" font-size="40.32">К</text>
+  <circle cx="163.2" cy="63.36" r="5.376" fill="#4a90e2" opacity="0.9"/>
+</svg>
