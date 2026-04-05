@@ -847,12 +847,7 @@ function buildFeedView(main) {
       '<div style="font-weight:700;font-size:18px;color:var(--text)">Стена</div>' +
       '<button class="hb" onclick="openGlobalSearch()">\uD83D\uDD0D</button>' +
     '</div>' +
-    '<div style="display:flex;gap:6px;padding:8px 12px;background:var(--card);border-bottom:0.5px solid var(--sep);overflow-x:auto">' +
-      '<button class="feed-filter active" data-f="all" onclick="setFeedFilter(\'all\',this)">Все</button>' +
-      '<button class="feed-filter" data-f="interests" onclick="setFeedFilter(\'interests\',this)">По интересам</button>' +
-      '<button class="feed-filter" data-f="new" onclick="setFeedFilter(\'new\',this)">Новое</button>' +
-    '</div>' +
-    '<div id="feedArea" style="flex:1;overflow-y:auto;padding:0">' +
+    '<div id="feedArea" style="flex:1;overflow-y:auto;padding:0;overscroll-behavior-y:contain">' +
       '<div class="stories-row" id="storiesRow"></div>' +
       '<div id="feedList">' + skeletonCards(3) + '</div>' +
       '<div id="feedLoader" style="text-align:center;padding:16px;color:var(--text3)"></div>' +
@@ -867,26 +862,27 @@ function buildFeedView(main) {
   feedArea.addEventListener('scroll', function() {
     if (this.scrollTop + this.clientHeight >= this.scrollHeight - 200 && !feedLoading) loadFeed();
   });
-  // Pull-to-refresh
-  var _ptrStart = 0, _ptrActive = false;
-  feedArea.addEventListener('touchstart', function(e) { if (feedArea.scrollTop <= 0) _ptrStart = e.touches[0].clientY; else _ptrStart = 0; }, { passive: true });
+  // Pull-to-refresh with visual indicator
+  var _ptrStart = 0;
+  var pullIndicator = document.createElement('div');
+  pullIndicator.style.cssText = 'text-align:center;padding:10px;color:var(--accent);display:none;font-size:13px';
+  pullIndicator.textContent = '\u2193 Потяните для обновления';
+  feedArea.insertBefore(pullIndicator, feedArea.firstChild);
+  feedArea.addEventListener('touchstart', function(e) { _ptrStart = e.touches[0].clientY; }, { passive: true });
   feedArea.addEventListener('touchmove', function(e) {
-    if (!_ptrStart) return;
     var diff = e.touches[0].clientY - _ptrStart;
-    if (diff > 60 && !_ptrActive) {
-      _ptrActive = true;
-      var ptr = document.getElementById('ptrIndicator');
-      if (ptr) ptr.classList.add('active');
-    }
+    if (diff > 40 && feedArea.scrollTop === 0) {
+      pullIndicator.style.display = 'block';
+      pullIndicator.textContent = diff > 80 ? '\u2191 Отпустите' : '\u2193 Потяните для обновления';
+    } else { pullIndicator.style.display = 'none'; }
   }, { passive: true });
-  feedArea.addEventListener('touchend', function() {
-    if (_ptrActive) {
-      _ptrActive = false;
+  feedArea.addEventListener('touchend', function(e) {
+    var diff = e.changedTouches[0].clientY - _ptrStart;
+    pullIndicator.style.display = 'none';
+    if (diff > 80 && feedArea.scrollTop === 0) {
+      toast('Обновляем ленту...', 'success');
       feedOffset = 0; feedLoading = false;
-      var list = document.getElementById('feedList');
-      if (list) list.innerHTML = skeletonCards(3);
       loadFeed();
-      setTimeout(function() { var ptr = document.getElementById('ptrIndicator'); if (ptr) ptr.classList.remove('active'); }, 1000);
     }
     _ptrStart = 0;
   });
