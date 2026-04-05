@@ -277,7 +277,32 @@ function render() {
       }
       chList.innerHTML = pinned + skelHtml;
     } else {
-      chList.innerHTML = pinned + all.map(function(c){return itm(c)}).join('');
+      // DOM patching — reuse existing nodes
+      var existingNodes = {};
+      chList.querySelectorAll('.ci-wrap[data-id]').forEach(function(node) { existingNodes[node.dataset.id] = node; });
+      chList.innerHTML = pinned;
+      all.forEach(function(c) {
+        var existing = existingNodes[String(c.id)];
+        if (existing) {
+          var prev = existing.querySelector('.ci-prev');
+          var time = existing.querySelector('.ci-time');
+          var meta = existing.querySelector('.ci-meta');
+          var ci = existing.querySelector('.ci');
+          if (prev) prev.textContent = c.prev || '';
+          if (time) time.textContent = c.time || '';
+          var badge = existing.querySelector('.badge');
+          if (c.unread > 0) {
+            if (!badge) { badge = document.createElement('div'); badge.className = 'badge'; if (meta) meta.appendChild(badge); }
+            badge.textContent = c.unread;
+          } else { if (badge) badge.remove(); }
+          if (ci) ci.classList.toggle('active', cur === c.id);
+          chList.appendChild(existing);
+        } else {
+          var temp = document.createElement('div');
+          temp.innerHTML = itm(c);
+          if (temp.firstElementChild) chList.appendChild(temp.firstElementChild);
+        }
+      });
     }
   }
 
