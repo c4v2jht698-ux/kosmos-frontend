@@ -1,5 +1,10 @@
 /* ── Reset ── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+/* ── iOS Safe Area ── */
+body{padding-top:env(safe-area-inset-top,0px)}
+.app-header,.chat-hdr,#hdr{padding-top:env(safe-area-inset-top,20px)}
+.bottom-bar,#bottomNav,.bottom-nav,.tab-bar{padding-bottom:env(safe-area-inset-bottom,20px)}
 html{position:fixed;width:100%;height:100dvh;overflow:hidden;overscroll-behavior:none}
 @supports not (height:100dvh){html{height:100%}}
 
