@@ -63,9 +63,9 @@ function initSocket() {
       var sub = document.getElementById('logoSub');
       if (sub) sub.textContent = currentUser.handle ? '@' + currentUser.handle : currentUser.username;
     }
-    if (cur) socket.emit('join', cur);
-    channels.forEach(function(c) { socket.emit('join', c.id); });
-    dms.forEach(function(d) { socket.emit('join', d.id); });
+    var allRooms = channels.map(function(c) { return c.id; }).concat(dms.map(function(d) { return d.id; }));
+    if (cur && allRooms.indexOf(cur) === -1) allRooms.push(cur);
+    if (allRooms.length > 0) socket.emit('join_all', allRooms);
     // Flush outbox
     flushOutbox();
   });
@@ -76,9 +76,9 @@ function initSocket() {
 
   socket.on('reconnect', function(attempt) {
     console.log('[socket] reconnected after', attempt, 'attempts');
-    if (cur) socket.emit('join', cur);
-    channels.forEach(function(c) { socket.emit('join', c.id); });
-    dms.forEach(function(d) { socket.emit('join', d.id); });
+    var allRooms = channels.map(function(c) { return c.id; }).concat(dms.map(function(d) { return d.id; }));
+    if (cur && allRooms.indexOf(cur) === -1) allRooms.push(cur);
+    if (allRooms.length > 0) socket.emit('join_all', allRooms);
   });
 
   keepaliveInterval = setInterval(function() {
