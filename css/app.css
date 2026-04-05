@@ -10,13 +10,13 @@ html{position:fixed;width:100%;height:100dvh;overflow:hidden;overscroll-behavior
 
 /* ── Цветовая палитра (Gold & Black Premium) ── */
 :root{
-  --bg:#050505;--bg2:#121212;--card:rgba(18,18,18,0.85);
-  --accent:#D4AF37;--accent2:#B8962D;--accent-hover:#B8962D;--green:#34C759;--pink:#F43F5E;
+  --bg:#111318;--bg2:#1a1d24;--card:rgba(26,29,36,0.85);
+  --accent:#dcb344;--accent2:#B8962D;--accent-hover:#B8962D;--green:#34C759;--pink:#F43F5E;
   --accent-gradient:linear-gradient(135deg,#F9D976 0%,#E1B24B 50%,#B8962D 100%);
-  --text:#ffffff;--text2:#cccccc;--text3:rgba(255,255,255,0.5);--muted:rgba(255,255,255,0.5);
-  --sep:rgba(212,175,55,0.15);
-  --bubble-them:rgba(30,30,32,0.85);--bubble-me:#E6C27A;
-  --msg-my-bg:#E6C27A;--msg-my-text:#1A1A1A;--msg-other-bg:rgba(30,30,32,0.85);--msg-other-text:#EBEBF5;
+  --text:#e0e0e0;--text2:#b0b0b0;--text3:rgba(255,255,255,0.5);--muted:rgba(255,255,255,0.5);
+  --sep:rgba(212,175,55,0.12);
+  --bubble-them:rgba(30,30,36,0.85);--bubble-me:#E6C27A;
+  --msg-my-bg:#E6C27A;--msg-my-text:#1A1A1A;--msg-other-bg:#1a1d24;--msg-other-text:#e0e0e0;
   --search-bg:rgba(212,175,55,0.08);
   --hover:rgba(212,175,55,0.06);--shadow:0 8px 32px rgba(0,0,0,0.5);
   --online:#D4AF37;--tab-bg:#121212;--nav-bg:rgba(10,10,10,0.92);
@@ -509,3 +509,8 @@ body.dating-open .bottom-nav{display:none!important}
 .typing-dots span:nth-child(1){animation-delay:-.32s}
 .typing-dots span:nth-child(2){animation-delay:-.16s}
 @keyframes typing-bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}
+
+/* ── Dark theme readability ── */
+body,.bbl,.minput{line-height:1.45}
+.bbl:not(.my){background:var(--bg2)}
+.action-btn,.btn-subscribe{background:var(--accent);color:#111318}
