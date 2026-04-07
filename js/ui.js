@@ -728,6 +728,25 @@ function openChat(id) {
   scrollBot();
   applyChatBg();
   showChatView();
+  // Load cached messages from IndexedDB
+  if (typeof KosmosDB !== 'undefined' && !item.msgs.length) {
+    KosmosDB.getMessages(id).then(function(cached) {
+      if (!cached.length || cur !== id) return;
+      var existingIds = {};
+      item.msgs.forEach(function(m) { existingIds[m.id] = true; });
+      cached.forEach(function(m) {
+        if (existingIds[m.id]) return;
+        var ts = new Date(m.timestamp);
+        var time = ts.getHours().toString().padStart(2,'0') + ':' + ts.getMinutes().toString().padStart(2,'0');
+        item.msgs.push({ id: m.id, from: m.sender === 'me' ? 'me' : 'them', text: m.text || '', image: m.content && m.type === 'image' ? m.content : null, audio: m.content && m.type === 'audio' ? m.content : null, time: time, sender: m.sender || '' });
+      });
+      var area = document.getElementById('msgArea');
+      if (area && item.msgs.length) {
+        area.innerHTML = '<div class="datediv"><span>Сегодня</span></div>' + item.msgs.map(function(m) { return mHTML(m); }).join('');
+        scrollBot();
+      }
+    }).catch(function() {});
+  }
   // Mark messages as read
   if (item.msgs.some(function(m) { return m.from !== 'me' && !m.is_read; })) {
     fetch(API + '/api/messages/read', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken }, body: JSON.stringify({ chatId: id }) }).catch(function() {});
