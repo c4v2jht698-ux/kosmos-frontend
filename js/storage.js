@@ -70,3 +70,57 @@ var KosmosDB = (function() {
   init();
   return { saveMessage: saveMessage, getMessages: getMessages, clearChat: clearChat };
 })();
+
+// Оффлайн-очередь сообщений (отдельная мини-БД)
+KosmosDB.addToQueue = function(msg) {
+    return new Promise(function(resolve, reject) {
+        var request = indexedDB.open('KosmosQueueDB', 1);
+        request.onupgradeneeded = function(e) {
+            var db = e.target.result;
+            if (!db.objectStoreNames.contains('queue')) {
+                db.createObjectStore('queue', { keyPath: 'id' });
+            }
+        };
+        request.onsuccess = function(e) {
+            var db = e.target.result;
+            var tx = db.transaction('queue', 'readwrite');
+            var store = tx.objectStore('queue');
+            msg.id = msg.id || 'local_' + Date.now().toString();
+            store.put(msg);
+            tx.oncomplete = function() { resolve(msg); };
+            tx.onerror = function() { reject(tx.error); };
+        };
+    });
+};
+
+KosmosDB.getQueue = function() {
+    return new Promise(function(resolve, reject) {
+        var request = indexedDB.open('KosmosQueueDB', 1);
+        request.onupgradeneeded = function(e) {
+            var db = e.target.result;
+            if (!db.objectStoreNames.contains('queue')) db.createObjectStore('queue', { keyPath: 'id' });
+        };
+        request.onsuccess = function(e) {
+            var db = e.target.result;
+            if (!db.objectStoreNames.contains('queue')) return resolve([]);
+            var tx = db.transaction('queue', 'readonly');
+            var store = tx.objectStore('queue');
+            var req = store.getAll();
+            req.onsuccess = function() { resolve(req.result); };
+            req.onerror = function() { reject(req.error); };
+        };
+    });
+};
+
+KosmosDB.removeFromQueue = function(msgId) {
+    return new Promise(function(resolve, reject) {
+        var request = indexedDB.open('KosmosQueueDB', 1);
+        request.onsuccess = function(e) {
+            var db = e.target.result;
+            var tx = db.transaction('queue', 'readwrite');
+            var store = tx.objectStore('queue');
+            store.delete(msgId);
+            tx.oncomplete = function() { resolve(); };
+        };
+    });
+};
