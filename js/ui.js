@@ -687,7 +687,7 @@ function openChat(id) {
           var area = document.getElementById('msgArea');
           if (area) {
             var loader = item.hasMore !== false ? '<div id="loadMoreBtn" style="text-align:center;padding:10px"><button onclick="loadOlderMsgs()" style="background:var(--bg2);border:1px solid var(--sep);border-radius:20px;padding:6px 16px;color:var(--text3);font-size:13px;cursor:pointer">Загрузить старые</button></div>' : '';
-            area.innerHTML = loader + '<div class="datediv"><span>Сегодня</span></div>' +
+            area.innerHTML = loader + '<div class="chat-date"><span>Сегодня</span></div>' +
               item.msgs.map(function(m){return mHTML(m)}).join('');
             scrollBot();
             initScrollListener(id);
@@ -709,19 +709,19 @@ function openChat(id) {
   var avHtml = isCh ? defaultAvSq(item.name, 36) : defaultAv(item.name, 36);
 
   document.getElementById('mainArea').innerHTML =
-    '<div class="chat-hdr">' +
-      '<button class="back-btn" onclick="goBack()">\u2039</button>' +
-      avHtml +
-      '<div class="hinfo"><div class="hname">' + escHtml(item.name) + '</div><div class="hsub">' + sub + '</div></div>' +
-      '<div class="hacts"><button onclick="startVideoCall()" style="background:none;border:none;color:var(--accent);font-size:24px;cursor:pointer">\uD83D\uDCDE</button><button onclick="toggleSearch()" class="hb" title="Поиск">\uD83D\uDD0D</button></div>' +
+    '<div class="chat-nav">' +
+      '<button class="chat-back" onclick="goBack()">\u2039</button>' +
+      '<div class="chat-nav-info">' + avHtml +
+      '<div><div class="chat-nav-name">' + escHtml(item.name) + '</div><div class="chat-nav-status">' + sub + '</div></div></div>' +
+      '<div class="hacts"><button onclick="startVideoCall()" class="chat-nav-btn">\uD83D\uDCDE</button><button onclick="toggleSearch()" class="chat-nav-btn" title="Поиск">\uD83D\uDD0D</button></div>' +
     '</div>' +
     '<div id="search-bar" style="display:none;padding:8px 12px;background:var(--bg2);border-bottom:1px solid var(--sep)"><input id="search-input" placeholder="\uD83D\uDD0D Поиск по сообщениям..." oninput="searchMessages(this.value)" style="width:100%;padding:8px 12px;border-radius:20px;border:none;background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;outline:none"></div>' +
     (isCh && item.slug ? '<div style="display:flex;align-items:center;gap:8px;padding:6px 16px;background:var(--bg2);font-size:13px;border-bottom:0.5px solid var(--sep)">' +
       '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--accent)">https://c4v2jht698-ux.github.io/kosmos-frontend/?channel=' + encodeURIComponent(item.slug) + '</span>' +
       '<button onclick="copyChannelLink(\'' + escSearch(item.slug) + '\')" style="background:var(--accent);border:none;border-radius:8px;color:#fff;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Скопировать</button>' +
     '</div>' : '') +
-    '<div class="msg-area" id="msgArea">' +
-      '<div class="datediv"><span>Сегодня</span></div>' +
+    '<div class="chat-messages" id="msgArea">' +
+      '<div class="chat-date"><span>Сегодня</span></div>' +
       item.msgs.map(function(m){return mHTML(m)}).join('') +
     '</div>' +
     (isCh && String(item.created_by) !== String(currentUser && currentUser.id) ? '<div class="ro-bar">Канал только для чтения</div>' : inpHTML());
@@ -742,7 +742,7 @@ function openChat(id) {
       });
       var area = document.getElementById('msgArea');
       if (area && item.msgs.length) {
-        area.innerHTML = '<div class="datediv"><span>Сегодня</span></div>' + item.msgs.map(function(m) { return mHTML(m); }).join('');
+        area.innerHTML = '<div class="chat-date"><span>Сегодня</span></div>' + item.msgs.map(function(m) { return mHTML(m); }).join('');
         scrollBot();
       }
     }).catch(function() {});
@@ -773,11 +773,11 @@ function mHTML(m) {
   var timeStr = m.time || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
   var tickMark = m.is_read ? '\u2713\u2713' : '\u2713';
   var tickClass = m.is_read ? 'msg-status read' : 'msg-status';
-  var metaHtml = '<span class="msg-meta">' + timeStr + (isMy ? ' <span class="' + tickClass + '" data-msg-id="' + escAttr(m.id) + '">' + tickMark + '</span>' : '') + '</span>';
-  var bblClass = (isMy ? 'bbl my' : 'bbl') + (hasPhoto ? ' bbl-photo' : '');
+  var metaHtml = '<div class="msg-meta"><span class="msg-time">' + timeStr + '</span>' + (isMy ? '<span class="' + tickClass + '" data-msg-id="' + escAttr(m.id) + '">' + tickMark + '</span>' : '') + '</div>';
+  var bblClass = (isMy ? 'bbl me' : 'bbl them') + (hasPhoto ? ' bbl-photo' : '');
   var textBlock = (m.text || '').trim();
   var textHtml = textBlock ? (hasPhoto ? '<div class="bbl-text-under-photo">' + escHtml(textBlock) + '</div>' : '<span style="white-space:pre-wrap">' + escHtml(textBlock) + '</span> ') : '';
-  return '<div class="msg-row" style="display:flex;margin-bottom:12px;width:100%;justify-content:' + (isMy ? 'flex-end' : 'flex-start') + '">' +
+  return '<div class="msg-row ' + (isMy ? 'me' : 'them') + '">' +
     '<div class="' + bblClass + '" id="msg-' + escAttr(m.id || Date.now()) + '" ondblclick="sendReaction(this,\'\u2764\uFE0F\')">' +
       nameHtml + photoHtml + audioHtml + textHtml + '<span class="msg-reaction" id="react-' + escAttr(m.id || '') + '" style="font-size:16px;display:block;margin-top:2px"></span>' + metaHtml +
     '</div></div>';
@@ -819,7 +819,7 @@ function safePhotoUrl(url) {
 }
 
 function inpHTML() {
-  return '<div class="inp-wrap">' +
+  return '<div class="chat-input">' +
     '<div id="attachZone" style="display:flex;flex-direction:column;gap:8px;padding:0 4px"></div>' +
     '<div class="epanel glass-panel" id="ep" style="bottom:70px;border-radius:16px">' + EMOJIS.map(function(e){return '<span class="ep" onclick="insE(\'' + e + '\')">' + e + '</span>'}).join('') + '</div>' +
     '<div style="display:flex;align-items:flex-end;gap:8px">' +
@@ -1030,7 +1030,7 @@ async function openPinned(type) {
         '<div class="hinfo"><div class="hname">Важное</div><div class="hsub">Заметки для себя</div></div>' +
       '</div>' +
       '<div class="msg-area" id="msgArea">' +
-        '<div class="datediv"><span>Заметки</span></div>' +
+        '<div class="chat-date"><span>Заметки</span></div>' +
         saved.map(function(n){return '<div class="msg me"><div class="bbl">' + escHtml(n.text) + '<div class="bf"><span class="mt">' + n.time + '</span></div></div></div>'}).join('') +
       '</div>' +
       '<div class="inp-zone"><div class="inp-box">' +
@@ -1046,7 +1046,7 @@ async function openPinned(type) {
         '<div class="hinfo"><div class="hname">ГигаЧАТ AI</div><div class="hsub">Llama 3.3 \u00B7 Groq</div></div>' +
       '</div>' +
       '<div class="msg-area" id="msgArea">' +
-        '<div class="datediv"><span>AI Ассистент</span></div>' +
+        '<div class="chat-date"><span>AI Ассистент</span></div>' +
         (aiMessages.length ? aiMessages.map(function(m){return '<div class="msg '+(m.role==='user'?'me':'them')+'"><div class="bbl">'+escHtml(m.content)+'<div class="bf"><span class="mt">'+(m.time||'')+'</span></div></div></div>'}).join('') :
           '<div class="msg them"><div class="bbl">Привет! Я AI-ассистент Космоса. Спрашивай что угодно \uD83D\uDE80<div class="bf"><span class="mt">\u2014</span></div></div></div>') +
       '</div>' +
@@ -2041,7 +2041,7 @@ async function loadOlderMsgs() {
     if (area) {
       var oldHeight = area.scrollHeight;
       var loader = item.hasMore !== false ? '<div id="loadMoreBtn" style="text-align:center;padding:10px"><button onclick="loadOlderMsgs()" style="background:var(--bg2);border:1px solid var(--sep);border-radius:20px;padding:6px 16px;color:var(--text3);font-size:13px;cursor:pointer">Загрузить старые</button></div>' : '';
-      area.innerHTML = loader + '<div class="datediv"><span>Сегодня</span></div>' +
+      area.innerHTML = loader + '<div class="chat-date"><span>Сегодня</span></div>' +
         item.msgs.map(function(m){return mHTML(m)}).join('');
       area.scrollTop = area.scrollHeight - oldHeight;
     }
