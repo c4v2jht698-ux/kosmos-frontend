@@ -777,7 +777,8 @@ function mHTML(m) {
   var bblClass = (isMy ? 'bbl me' : 'bbl them') + (hasPhoto ? ' bbl-photo' : '');
   var textBlock = (m.text || '').trim();
   var textHtml = textBlock ? (hasPhoto ? '<div class="bbl-text-under-photo">' + escHtml(textBlock) + '</div>' : '<span style="white-space:pre-wrap">' + escHtml(textBlock) + '</span> ') : '';
-  return '<div class="msg-row ' + (isMy ? 'me' : 'them') + '">' +
+  var avHtml = isMy ? '' : '<div class="msg-av">' + escHtml((m.sender || '?')[0].toUpperCase()) + '</div>';
+  return '<div class="msg-row ' + (isMy ? 'me' : 'them') + '">' + avHtml +
     '<div class="' + bblClass + '" id="msg-' + escAttr(m.id || Date.now()) + '" ondblclick="sendReaction(this,\'\u2764\uFE0F\')">' +
       nameHtml + photoHtml + audioHtml + textHtml + '<span class="msg-reaction" id="react-' + escAttr(m.id || '') + '" style="font-size:16px;display:block;margin-top:2px"></span>' + metaHtml +
     '</div></div>';
