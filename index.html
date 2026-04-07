@@ -28,6 +28,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 </head>
 <body>
 
@@ -314,14 +315,11 @@
         <div class='change-photo-text'>Изменить фото</div>
         <input type='file' id='avatar-input' accept='image/jpeg, image/png' style='display:none;'>
       </div>
-      <div class='profile-info'>
-        <input type='text' id='profile-nickname' class='nickname-input' placeholder='Твой никнейм'>
+      <div class='profile-info' style='width: 100%; text-align: center; position: relative; margin-top: 16px;'>
+        <input type='text' id='profile-nickname' class='nickname-input' placeholder='Твоё имя' style='background: transparent; border: none; color: white; font-size: 22px; font-weight: 600; text-align: center; width: 80%; outline: none; padding: 0; margin-bottom: 4px; font-family: inherit;'>
+        <div id='settingsHandle' style='color: #8E8E93; font-size: 15px;'>@username</div>
+        <div class='qr-trigger' onclick='showMyQR()' style='position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-size: 24px; cursor: pointer;'>📱</div>
       </div>
-    </div>
-
-    <div class='settings-quick-actions'>
-      <button class='action-btn' data-action='create_chat'><span class='icon'>💬</span> Создать чат</button>
-      <button class='action-btn' data-action='create_channel'><span class='icon'>📢</span> Создать канал</button>
     </div>
 
     <div class='settings-group'>
@@ -367,9 +365,33 @@
   <div class="action-sheet-group">
     <button class="action-sheet-btn" onclick="initNewDialog('chat')">Создать чат</button>
     <button class="action-sheet-btn" onclick="initNewDialog('channel')">Создать канал</button>
+    <button class="action-sheet-btn" onclick="openQRScanner()">Отсканировать QR</button>
   </div>
   <div class="action-sheet-group">
     <button class="action-sheet-btn cancel" onclick="closeActionSheet()">Отмена</button>
+  </div>
+</div>
+
+<div id="my-qr-overlay" class="modal-overlay" onclick="closeMyQR()">
+  <div class="qr-card" onclick="event.stopPropagation()">
+    <div style="text-align: right; margin-bottom: 10px;"><span onclick="closeMyQR()" style="font-size: 20px; color: var(--text3); cursor: pointer;">✕</span></div>
+    <h3 style="text-align: center; margin-bottom: 20px;">Твой QR-код</h3>
+    <div style="text-align: center; background: #fff; padding: 15px; border-radius: 12px; display: inline-block;">
+      <img id="my-qr-img" src="" alt="QR" style="width: 200px; height: 200px; display: block;">
+    </div>
+    <div id="my-qr-name" style="text-align: center; margin-top: 16px; font-weight: 600; font-size: 18px;"></div>
+    <div style="text-align: center; color: var(--text3); font-size: 14px; margin-top: 4px;">Покажи код для добавления в контакты</div>
+  </div>
+</div>
+
+<div id="qr-scanner-overlay" class="scanner-overlay">
+  <div class="scanner-header">
+    <button class="back-btn" onclick="closeQRScanner()">‹ Отмена</button>
+    <h2>Наведи камеру</h2>
+    <div style="width:60px;"></div>
+  </div>
+  <div class="scanner-viewport">
+    <div id="qr-reader" style="width: 100%; border-radius: 16px; overflow: hidden;"></div>
   </div>
 </div>
 
