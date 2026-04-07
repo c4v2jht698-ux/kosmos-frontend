@@ -643,3 +643,21 @@ window.addEventListener('online', function() {
     if (document.body.classList.contains('chat-open')) goBack();
   });
 })();
+
+// ── Settings helpers ────────────────────────────────────────────────────────
+function showCreateMenu() {
+  if (typeof showTab === 'function') showTab('chats');
+}
+
+function openPinned(type) {
+  if (type === 'ai') {
+    // Open DM with AI assistant (autonomous-cto)
+    if (typeof openChat === 'function') {
+      var myId = window.myUser && window.myUser.id;
+      if (myId) {
+        var ids = ['autonomous-cto', myId].sort();
+        openChat('dm-' + ids[0] + '-' + ids[1]);
+      }
+    }
+  }
+}
