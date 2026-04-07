@@ -828,10 +828,6 @@ html[data-theme=dark] .msg-status.sent{color:rgba(255,255,255,.3)}
 .msg-fwd{background:rgba(0,122,255,.08);border-left:3px solid #007aff;padding:4px 8px;border-radius:4px;margin-bottom:5px;font-size:13px}
 .msg-fwd-name{color:#007aff;font-weight:600;font-size:12px;margin-bottom:1px}
 
-.msg-reply{border-left:3px solid #007aff;padding:4px 8px;border-radius:4px;margin-bottom:5px;font-size:13px;background:rgba(0,122,255,.06)}
-.msg-reply.me{border-color:rgba(0,0,0,.25);background:rgba(0,0,0,.05)}
-.msg-reply-name{color:#007aff;font-weight:600;font-size:12px;margin-bottom:1px}
-
 .typing-row{display:none;padding:1px 10px;align-items:flex-end;gap:6px;flex-shrink:0}
 .typing-row.show{display:flex}
 .typing-bbl{background:#fff;border-radius:18px 18px 18px 5px;padding:10px 14px;display:inline-flex;gap:4px;align-items:center}
@@ -850,5 +846,5 @@ html[data-theme=dark] .chat-input{background:rgba(28,28,30,.97);border-top:.5px 
 html[data-theme=dark] .chat-input-wrap{background:#1c1c1e;border-color:#38383a}
 .chat-input-field{flex:1;border:none;outline:none;font-size:15px;color:#000;background:transparent;resize:none;max-height:100px;line-height:1.45;padding:2px 0}
 html[data-theme=dark] .chat-input-field{color:#fff}
-.chat-send{width:36px;height:36px;border-radius:50%;background:#4caf50;border:none;cursor:pointer;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .1s}
+.chat-send{width:36px;height:36px;border-radius:50%;background:#007aff;border:none;cursor:pointer;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .1s}
 .chat-send:active{transform:scale(.88)}
