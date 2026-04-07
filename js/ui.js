@@ -2379,11 +2379,28 @@ async function send() {
     } else if (image && image.startsWith('data:')) {
       payload.image = image;
     }
-    if (typeof P2PManager !== 'undefined' && P2PManager.getPeers().indexOf(cur) !== -1) {
+    var dbMsg = { id: localMsg.id, chatId: cur, sender: 'me', type: payload.image ? 'image' : 'text', content: payload.text || payload.image || '', timestamp: Date.now() };
+
+    if (!navigator.onLine) {
+      console.log('[Sync] Нет сети. Кладем в локальную очередь.');
+      if (typeof KosmosDB !== 'undefined') {
+        KosmosDB.saveMessage(dbMsg);
+        if (KosmosDB.addToQueue) KosmosDB.addToQueue(dbMsg);
+      }
+      var offEl = document.getElementById('msg-' + localMsg.id);
+      if (offEl) {
+        offEl.style.opacity = '0.6';
+        var offTime = offEl.querySelector('.msg-meta');
+        if (offTime) offTime.innerText += ' ⏳';
+      }
+      _pendingImage = null;
+    } else if (typeof P2PManager !== 'undefined' && P2PManager.getPeers().indexOf(cur) !== -1) {
       P2PManager.send(cur, { type: payload.image ? 'image' : 'text', text: payload.text, image: payload.image || null, sender: currentUser ? currentUser.username : '' });
+      if (typeof KosmosDB !== 'undefined') KosmosDB.saveMessage(dbMsg);
       _pendingImage = null;
     } else if (socket && socket.connected) {
       socket.emit('chat_msg', payload, function() { _pendingImage = null; });
+      if (typeof KosmosDB !== 'undefined') KosmosDB.saveMessage(dbMsg);
     } else {
       addToOutbox(payload).then(function() { _pendingImage = null; });
     }
