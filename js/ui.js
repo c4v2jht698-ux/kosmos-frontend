@@ -26,10 +26,37 @@ async function nukeCache() {
       var keys = await caches.keys();
       await Promise.all(keys.map(function(k) { return caches.delete(k); }));
     }
+    if (typeof KosmosDB !== 'undefined') {
+      await new Promise(function(resolve, reject) {
+        var req = indexedDB.deleteDatabase('KosmosDB');
+        req.onsuccess = resolve;
+        req.onerror = reject;
+      });
+    }
     if (typeof localforage !== 'undefined') await localforage.clear();
+    var el = document.getElementById('storage-used');
+    if (el) el.textContent = '0 МБ';
     if (typeof toast === 'function') toast('Кэш очищен', 'success');
+    if (typeof haptic === 'function') haptic('medium');
+    updateStorageMetabolism();
   } catch(e) {
-    if (typeof toast === 'function') toast('Ошибка очистки: ' + e.message, 'error');
+    if (typeof toast === 'function') toast('Ошибка: ' + e.message, 'error');
+  }
+}
+
+async function updateStorageMetabolism() {
+  var el = document.getElementById('storage-used');
+  if (!el) return;
+  try {
+    if (!navigator.storage || !navigator.storage.estimate) {
+      el.textContent = 'н/д';
+      return;
+    }
+    var est = await navigator.storage.estimate();
+    var mb = ((est.usage || 0) / 1024 / 1024).toFixed(1);
+    el.textContent = mb + ' МБ';
+  } catch(e) {
+    el.textContent = 'н/д';
   }
 }
 
@@ -3337,6 +3364,7 @@ var SettingsController = (function() {
     target.classList.add('active');
     if (targetId === 'view-settings-archive') renderArchiveList();
     if (targetId === 'view-settings-devices') renderDevicesList();
+    if (targetId === 'view-settings-data') updateStorageMetabolism();
     if (typeof haptic === 'function') haptic('light');
   }
 
