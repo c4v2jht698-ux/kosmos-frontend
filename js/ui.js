@@ -12,6 +12,90 @@ function haptic(type) {
 // ── Init: compact mode ──────────────────────────────────────────────────────
 if (localStorage.getItem('kosmos_compact') === 'on') document.body.classList.add('compact-mode');
 
+(function initCameraNerve() {
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('#camera-btn');
+    if (!btn) return;
+    if (typeof haptic === 'function') haptic('light');
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+      .then(function(stream) {
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center';
+
+        var video = document.createElement('video');
+        video.autoplay = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+        video.style.cssText = 'width:100%;max-height:80vh;object-fit:cover';
+
+        var controls = document.createElement('div');
+        controls.style.cssText = 'display:flex;gap:24px;align-items:center;padding:24px';
+
+        var cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Отмена';
+        cancelBtn.style.cssText = 'background:none;border:none;color:#fff;font-size:17px;padding:12px 20px;cursor:pointer;opacity:.7';
+
+        var snapBtn = document.createElement('button');
+        snapBtn.style.cssText = 'width:72px;height:72px;border-radius:50%;background:#fff;border:4px solid rgba(255,255,255,.4);cursor:pointer;flex-shrink:0';
+
+        function cleanup() {
+          stream.getTracks().forEach(function(t) { t.stop(); });
+          if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        }
+
+        cancelBtn.addEventListener('click', cleanup);
+
+        snapBtn.addEventListener('click', function() {
+          if (typeof haptic === 'function') haptic('medium');
+          var canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth || 640;
+          canvas.height = video.videoHeight || 480;
+          canvas.getContext('2d').drawImage(video, 0, 0);
+          var b64 = canvas.toDataURL('image/jpeg', 0.85);
+          cleanup();
+
+          var msgObj = {
+            id: 'local-' + Date.now(),
+            from: 'me',
+            image: b64,
+            text: '',
+            time: new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
+          };
+
+          if (typeof appendMsg === 'function') {
+            var isCh = false;
+            var item = typeof findItem === 'function' && cur ? findItem(cur) : null;
+            if (item) isCh = item.type === 'channel';
+            appendMsg(msgObj, isCh);
+          }
+
+          if (typeof KosmosDB !== 'undefined') {
+            KosmosDB.saveMessage({ id: msgObj.id, chatId: cur, type: 'image', content: b64, timestamp: Date.now() });
+          }
+
+          if (typeof socket !== 'undefined' && socket && socket.connected && cur) {
+            socket.emit('chat_msg', { chatId: cur, text: '', image: b64 });
+          }
+        });
+
+        controls.appendChild(cancelBtn);
+        controls.appendChild(snapBtn);
+        overlay.appendChild(video);
+        overlay.appendChild(controls);
+        document.body.appendChild(overlay);
+
+        history.pushState({ modal: 'camera' }, '');
+        window.addEventListener('popstate', function onPop() {
+          cleanup();
+          window.removeEventListener('popstate', onPop);
+        }, { once: true });
+      })
+      .catch(function() {
+        if (typeof toast === 'function') toast('Нет доступа к камере', 'error');
+      });
+  });
+})();
+
 function toggleCompact() {
   var isCompact = document.body.classList.toggle('compact-mode');
   localStorage.setItem('kosmos_compact', isCompact ? 'on' : 'off');
@@ -667,6 +751,7 @@ function inpHTML() {
       '</div>' +
       '<div style="display:flex;gap:6px;align-items:flex-end;padding-bottom:4px">' +
         '<button id="micBtn" class="action-btn" onmousedown="startVoice()" onmouseup="stopVoice()" ontouchstart="startVoice()" ontouchend="stopVoice()" style="background:rgba(255,255,255,0.1);border-radius:50%;width:40px;height:40px">\uD83C\uDFA4</button>' +
+        '<button id="camera-btn" type="button" style="background:none;border:none;padding:8px;cursor:pointer;color:var(--text3);font-size:20px;flex-shrink:0;transition:color .2s" title="Камера">\uD83D\uDCF7</button>' +
         '<button class="sbtn" onclick="send()">' +
           '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>' +
         '</button>' +
