@@ -3770,6 +3770,36 @@ function processInfectionVector() {
 
 processInfectionVector();
 
+// ── Offline Queue Sync ──────────────────────────────────────────────────────
+window.addEventListener('online', async function() {
+    console.log('[Sync] Соединение восстановлено. Проверяем оффлайн-очередь...');
+
+    if (typeof KosmosDB === 'undefined' || !KosmosDB.getQueue) return;
+
+    var queue = await KosmosDB.getQueue();
+    if (queue.length > 0) {
+        console.log('[Sync] Найдено ' + queue.length + ' сообщений. Отправляем...');
+
+        for (var i = 0; i < queue.length; i++) {
+            var msg = queue[i];
+            if (typeof P2PManager !== 'undefined' && P2PManager.getPeers().indexOf(msg.chatId) !== -1) {
+                P2PManager.send(msg.chatId, msg);
+            } else if (socket && socket.connected) {
+                socket.emit('chat_msg', msg);
+            }
+
+            await KosmosDB.removeFromQueue(msg.id);
+
+            var msgEl = document.getElementById('msg-' + msg.id);
+            if (msgEl) {
+                msgEl.style.opacity = '1';
+                var timeEl = msgEl.querySelector('.msg-meta');
+                if (timeEl) timeEl.innerText = timeEl.innerText.replace('⏳', '').trim();
+            }
+        }
+    }
+});
+
 // ── Service Worker ───────────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/kosmos-frontend/sw.js').catch(function() {});
