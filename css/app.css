@@ -10,18 +10,19 @@ html{position:fixed;width:100%;height:100dvh;overflow:hidden;overscroll-behavior
 
 /* ── Цветовая палитра (Dark — default) ── */
 :root{
-  --bg:#1a1a1a;--bg2:#242424;--card:#2c2c2e;
+  --bg:#000000;--bg2:#0a0a0a;--card:#121212;
   --accent:#dcb344;--accent2:#B8962D;--accent-hover:#B8962D;--green:#34C759;--pink:#F43F5E;
   --accent-gradient:linear-gradient(135deg,#F9D976 0%,#E1B24B 50%,#B8962D 100%);
   --text:#ffffff;--text2:#b0b0b0;--text3:rgba(255,255,255,0.5);--muted:#8e8e93;
-  --sep:#3a3a3c;
-  --bubble-them:#2c2c2e;--bubble-me:#E6C27A;
-  --msg-my-bg:#E6C27A;--msg-my-text:#1A1A1A;--msg-other-bg:#2c2c2e;--msg-other-text:#ffffff;
+  --sep:#1f1f1f;
+  --bubble-them:#121212;--bubble-me:#E6C27A;
+  --msg-my-bg:linear-gradient(135deg,#E6C27A 0%,#D4AF37 100%);--msg-my-text:#000000;--msg-other-bg:#121212;--msg-other-text:#ffffff;
   --search-bg:rgba(212,175,55,0.08);
-  --hover:rgba(255,255,255,0.06);--shadow:0 8px 32px rgba(0,0,0,0.5);
-  --online:#dcb344;--tab-bg:#1c1c1e;--nav-bg:rgba(26,26,26,0.92);
-  --glass-bg:rgba(26,26,26,0.75);--glass-border:rgba(255,255,255,0.08);
-  --msg-my:#E6C27A;--msg-other:#2c2c2e;
+  --hover:rgba(255,255,255,0.06);--shadow:0 8px 32px rgba(0,0,0,0.7);
+  --online:#dcb344;--tab-bg:#0a0a0a;--nav-bg:rgba(0,0,0,0.92);
+  --glass-bg:rgba(0,0,0,0.75);--glass-border:rgba(255,255,255,0.06);
+  --msg-my:#E6C27A;--msg-other:#121212;
+  --spring:cubic-bezier(0.175,0.885,0.32,1.15);--fluid:cubic-bezier(0.25,1,0.5,1);
 }
 
 /* ── Light Theme ── */
@@ -192,7 +193,7 @@ body{
 .msg-area::-webkit-scrollbar{width:0}
 .datediv{text-align:center;margin:16px 0 8px}
 .datediv span{color:var(--text3);font-size:12px;font-weight:500;background:var(--card);padding:4px 12px;border-radius:8px}
-.msg{display:flex;flex-direction:column;max-width:85%;animation:slideUp .3s cubic-bezier(.25,1,.5,1)}
+.msg{display:flex;flex-direction:column;max-width:85%;animation:slideUp .4s var(--spring)}
 @keyframes slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 .msg.me{align-self:flex-end;align-items:flex-end}
 .msg.them{align-self:flex-start;align-items:flex-start}
@@ -267,7 +268,7 @@ body{
 /* ── MODAL ── */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:200}
 .overlay.open{display:flex}
-.modal{background:var(--bg2);border:1px solid var(--glass-border);border-radius:16px;padding:24px;width:360px;box-shadow:var(--shadow);animation:popIn .25s cubic-bezier(.175,.885,.32,1.275)}
+.modal{background:var(--bg2);border:1px solid var(--glass-border);border-radius:16px;padding:24px;width:360px;box-shadow:var(--shadow);animation:mopen .35s var(--spring)}
 @keyframes popIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
 @keyframes mopen{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:none}}
 .modal-title{font-size:22px;font-weight:600;margin-bottom:4px;color:var(--text)}
@@ -523,6 +524,11 @@ body.dating-open .bottom-nav{display:none!important}
 .typing-dots span:nth-child(1){animation-delay:-.32s}
 .typing-dots span:nth-child(2){animation-delay:-.16s}
 @keyframes typing-bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}
+
+/* ── Spring physics ── */
+.sbtn,.action-btn,.dating-btn,.ci,.auth-btn,.ob-btn,.ctx-btn,.feed-filter{transition:transform .15s var(--fluid),background .15s ease}
+.sbtn:active,.action-btn:active,.dating-btn:active,.ci:active,.auth-btn:active,.ob-btn:active,.ctx-btn:active,.feed-filter:active{transform:scale(0.92)}
+.auth-card{animation:mopen .35s var(--spring)}
 
 /* ── Dark theme readability ── */
 body,.bbl,.minput{line-height:1.45}

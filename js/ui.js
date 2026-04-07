@@ -1,3 +1,13 @@
+// ── Haptic Feedback ──────────────────────────────────────────────────────────
+function haptic(type) {
+  if (!navigator.vibrate) return;
+  try {
+    if (type === 'light') navigator.vibrate(10);
+    else if (type === 'medium') navigator.vibrate(20);
+    else if (type === 'heavy') navigator.vibrate([15, 30, 15]);
+  } catch(e) {}
+}
+
 // ── UI: Render, chat open, message HTML, input helpers ──────────────────────
 
 function toast(msg, type) {
@@ -1254,6 +1264,7 @@ function setFeedFilter(f, btn) {
 
 // ── Post Reactions ──────────────────────────────────────────────────────────
 async function postReact(btn, postId, reaction) {
+  haptic('light');
   btn.style.animation = 'likeBounce .4s ease';
   setTimeout(function() { btn.style.animation = ''; }, 400);
   try {
@@ -1619,6 +1630,7 @@ function showDatingCard() {
 }
 
 async function datingAction(targetId, action) {
+  haptic('light');
   var card = document.getElementById('datingCardEl');
   if (card) card.classList.add(action === 'like' || action === 'super' ? 'swipe-right' : 'swipe-left');
   var t = DT[datingTheme] || DT.pink;
@@ -1633,6 +1645,7 @@ async function datingAction(targetId, action) {
 
     setTimeout(function() {
       if (data.match) {
+        haptic('heavy');
         var area = document.getElementById('datingArea');
         if (area) {
           area.innerHTML =
@@ -2062,6 +2075,7 @@ async function send() {
   var text = inp.value.trim();
   var image = _pendingImage;
   if (!text && !image) return;
+  haptic('medium');
   inp.value = ''; inp.style.height = 'auto';
 
   // Local echo — show message immediately without waiting for server
