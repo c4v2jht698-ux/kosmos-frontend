@@ -3638,6 +3638,24 @@ var SettingsController = (function() {
 
 document.addEventListener('DOMContentLoaded', function() { SettingsController.init(); });
 
+// ── Share Invite Link ────────────────────────────────────────────────────────
+function shareInviteLink() {
+  var user = window.currentUser;
+  if (!user) { if (typeof toast === 'function') toast('Сначала войдите в аккаунт', 'error'); return; }
+  var myId = btoa(JSON.stringify({ uid: user.id, name: user.username }));
+  var url = window.location.origin + window.location.pathname + '?invite=' + myId;
+  if (navigator.share) {
+    navigator.share({ title: 'Космос', text: 'Присоединяйся: ' + (user.username || ''), url: url }).catch(function() {});
+  } else {
+    navigator.clipboard.writeText(url).then(function() {
+      if (typeof toast === 'function') toast('Ссылка скопирована', 'success');
+    }).catch(function() {
+      if (typeof toast === 'function') toast(url, 'success');
+    });
+  }
+  if (typeof haptic === 'function') haptic('light');
+}
+
 // ── Deep Link Invite ────────────────────────────────────────────────────────
 function processInfectionVector() {
   var params = new URLSearchParams(window.location.search);
