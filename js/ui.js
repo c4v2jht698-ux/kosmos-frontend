@@ -12,6 +12,27 @@ function haptic(type) {
 // ── Init: compact mode ──────────────────────────────────────────────────────
 if (localStorage.getItem('kosmos_compact') === 'on') document.body.classList.add('compact-mode');
 
+function toggleCompact() {
+  var isCompact = document.body.classList.toggle('compact-mode');
+  localStorage.setItem('kosmos_compact', isCompact ? 'on' : 'off');
+  var ui = document.getElementById('toggle-compact-ui');
+  if (ui) ui.classList.toggle('active', isCompact);
+  if (typeof haptic === 'function') haptic('light');
+}
+
+async function nukeCache() {
+  try {
+    if ('caches' in window) {
+      var keys = await caches.keys();
+      await Promise.all(keys.map(function(k) { return caches.delete(k); }));
+    }
+    if (typeof localforage !== 'undefined') await localforage.clear();
+    if (typeof toast === 'function') toast('Кэш очищен', 'success');
+  } catch(e) {
+    if (typeof toast === 'function') toast('Ошибка очистки: ' + e.message, 'error');
+  }
+}
+
 // ── UI: Render, chat open, message HTML, input helpers ──────────────────────
 
 function toast(msg, type) {
@@ -3030,9 +3051,77 @@ document.addEventListener('input', function(e) {
 // ── Settings Controller ─────────────────────────────────────────────────────
 var SettingsController = (function() {
   var _stack = [];
+
+  function initAllSwitches() {
+    var switches = [
+      { id: 'toggle-auto-download', key: 'kosmos_auto_dl', default: true },
+      { id: 'toggle-data-saver', key: 'kosmos_data_saver', default: false },
+      { id: 'toggle-online-status', key: 'kosmos_online_status', default: true },
+      { id: 'toggle-read-receipts', key: 'kosmos_read_receipts', default: true },
+      { id: 'toggle-sound', key: 'kosmos_sound', default: true },
+      { id: 'toggle-channel-notif', key: 'kosmos_channel_notif', default: false }
+    ];
+    switches.forEach(function(sw) {
+      var el = document.getElementById(sw.id);
+      if (!el) return;
+      var saved = localStorage.getItem(sw.key);
+      var isActive = saved !== null ? saved === 'true' : sw.default;
+      el.classList.toggle('active', isActive);
+      if (!el.dataset.bound) {
+        el.dataset.bound = 'true';
+        el.addEventListener('click', function() {
+          var on = !this.classList.contains('active');
+          this.classList.toggle('active', on);
+          localStorage.setItem(sw.key, on ? 'true' : 'false');
+          if (typeof haptic === 'function') haptic('light');
+        });
+      }
+    });
+    var themeUi = document.getElementById('toggle-dark-mode-ui');
+    if (themeUi) {
+      var isDark = localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      themeUi.classList.toggle('active', isDark);
+    }
+    var themeItem = document.querySelector('[onclick*="toggle-dark-mode"]');
+    if (themeItem && !themeItem.dataset.themeBound) {
+      themeItem.dataset.themeBound = 'true';
+      var hiddenToggle = document.getElementById('toggle-dark-mode');
+      if (hiddenToggle) {
+        hiddenToggle.addEventListener('change', function() {
+          var ui = document.getElementById('toggle-dark-mode-ui');
+          if (ui) ui.classList.toggle('active', this.checked);
+        });
+      }
+    }
+    var hapticUi = document.getElementById('toggle-haptic-ui');
+    if (hapticUi) hapticUi.classList.toggle('active', localStorage.getItem('kosmos_haptic') !== 'off');
+    var compactUi = document.getElementById('toggle-compact-ui');
+    if (compactUi) compactUi.classList.toggle('active', document.body.classList.contains('compact-mode'));
+  }
+
+  function syncToggles() {
+    var themeToggle = document.getElementById('toggle-dark-mode');
+    if (themeToggle) {
+      var saved = localStorage.getItem('theme');
+      themeToggle.checked = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    var hapticToggle = document.getElementById('toggle-haptic');
+    if (hapticToggle) hapticToggle.checked = localStorage.getItem('kosmos_haptic') !== 'off';
+  }
+
+  function resetStack() {
+    _stack = [];
+    document.querySelectorAll('#settingsScreen .settings-page').forEach(function(p) {
+      var isMain = p.id === 'view-settings-main';
+      p.classList.toggle('active', isMain);
+      p.classList.toggle('right', !isMain);
+      p.classList.remove(isMain ? 'right' : 'left');
+    });
+  }
+
   function navigate(targetId) {
     var target = document.getElementById(targetId);
-    if (!target) { toast('Раздел в разработке', 'error'); return; }
+    if (!target) { if (typeof toast === 'function') toast('Раздел в разработке', 'error'); return; }
     var prevId = _stack.length ? _stack[_stack.length - 1] : 'view-settings-main';
     var prev = document.getElementById(prevId);
     _stack.push(targetId);
@@ -3041,6 +3130,7 @@ var SettingsController = (function() {
     target.classList.add('active');
     if (typeof haptic === 'function') haptic('light');
   }
+
   function back() {
     if (_stack.length === 0) return;
     var currentId = _stack.pop();
@@ -3051,47 +3141,44 @@ var SettingsController = (function() {
     if (prev) { prev.classList.remove('left'); prev.classList.add('active'); }
     if (typeof haptic === 'function') haptic('light');
   }
-  function resetStack() {
-    _stack = [];
-    document.querySelectorAll('#settingsScreen .settings-page').forEach(function(p) {
-      p.classList.remove('active', 'left', 'right');
-    });
-    var main = document.getElementById('view-settings-main');
-    if (main) { main.classList.remove('left', 'right'); main.classList.add('active'); }
-  }
-  function syncToggles() {
-    var themeToggle = document.getElementById('toggle-dark-mode');
-    if (themeToggle) {
-      var saved = localStorage.getItem('theme');
-      var isDark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-      themeToggle.checked = isDark;
-    }
-    var hapticToggle = document.getElementById('toggle-haptic');
-    if (hapticToggle) {
-      hapticToggle.checked = localStorage.getItem('kosmos_haptic') !== 'off';
-    }
-  }
+
   function saveNickname(val) {
     if (!val || !val.trim()) return;
     val = val.trim();
     if (window.currentUser) {
       window.currentUser.username = val;
       try {
-        var raw = localStorage.getItem('kosmos_user');
-        var u = raw ? JSON.parse(raw) : {};
+        var u = JSON.parse(localStorage.getItem('kosmos_user') || '{}');
         u.username = val;
         localStorage.setItem('kosmos_user', JSON.stringify(u));
       } catch(e) {}
     }
-    if (window.socket && window.socket.connected) {
-      window.socket.emit('update_profile', { username: val });
-    }
+    if (window.socket && window.socket.connected) window.socket.emit('update_profile', { username: val });
     var logoSub = document.getElementById('logoSub');
-    if (logoSub && window.currentUser) {
-      logoSub.textContent = window.currentUser.handle ? '@' + window.currentUser.handle : val;
-    }
-    toast('Никнейм сохранён', 'success');
+    if (logoSub && window.currentUser) logoSub.textContent = window.currentUser.handle ? '@' + window.currentUser.handle : val;
+    if (typeof toast === 'function') toast('Никнейм сохранён', 'success');
   }
+
+  function bindAvatarUpload() {
+    var trigger = document.getElementById('avatar-upload-trigger');
+    var input = document.getElementById('avatar-input');
+    var img = document.getElementById('user-avatar-img');
+    var placeholder = document.querySelector('.settings-stack .avatar-placeholder');
+    if (!trigger || !input) return;
+    trigger.addEventListener('click', function() { if (typeof haptic === 'function') haptic('light'); input.click(); });
+    input.addEventListener('change', function() {
+      var file = this.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var b64 = e.target.result;
+        if (img && placeholder) { img.src = b64; img.style.cssText = 'display:block;width:100%;height:100%;border-radius:50%;object-fit:cover'; placeholder.style.display = 'none'; }
+        if (window.socket) window.socket.emit('upload_avatar', { avatarBase64: b64 });
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
   function bind() {
     document.querySelectorAll('#settingsScreen .settings-item[data-route]').forEach(function(item) {
       item.addEventListener('click', function() { navigate(this.dataset.route); });
@@ -3102,35 +3189,33 @@ var SettingsController = (function() {
     document.querySelectorAll('#settingsScreen .action-btn[data-action]').forEach(function(btn) {
       btn.addEventListener('click', function() {
         if (this.dataset.action === 'create_chat' && typeof showTab === 'function') showTab('chats');
-        else toast('Функция ' + this.dataset.action + ' в разработке', 'error');
+        else if (typeof toast === 'function') toast('Функция ' + this.dataset.action + ' в разработке', 'error');
       });
     });
     var themeToggle = document.getElementById('toggle-dark-mode');
-    if (themeToggle) {
-      themeToggle.addEventListener('change', function() {
-        if (typeof applyTheme === 'function') applyTheme(this.checked ? 'dark' : 'light');
-      });
-    }
+    if (themeToggle) themeToggle.addEventListener('change', function() { if (typeof applyTheme === 'function') applyTheme(this.checked ? 'dark' : 'light'); });
     var hapticToggle = document.getElementById('toggle-haptic');
-    if (hapticToggle) {
-      hapticToggle.addEventListener('change', function() {
-        localStorage.setItem('kosmos_haptic', this.checked ? 'on' : 'off');
-        if (this.checked && typeof haptic === 'function') haptic('medium');
-      });
-    }
+    if (hapticToggle) hapticToggle.addEventListener('change', function() { localStorage.setItem('kosmos_haptic', this.checked ? 'on' : 'off'); if (this.checked && typeof haptic === 'function') haptic('medium'); });
     var nicknameInput = document.getElementById('profile-nickname');
     if (nicknameInput) {
       nicknameInput.addEventListener('blur', function() { saveNickname(this.value); });
-      nicknameInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { this.blur(); } });
+      nicknameInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') this.blur(); });
     }
+    bindAvatarUpload();
   }
+
   return {
     init: function() { bind(); },
     open: function() {
       resetStack();
       syncToggles();
+      initAllSwitches();
       var nicknameInput = document.getElementById('profile-nickname');
-      if (nicknameInput && window.currentUser) { nicknameInput.value = window.currentUser.username || ''; }
+      if (nicknameInput && window.currentUser) nicknameInput.value = window.currentUser.username || '';
+      var settingsAvatar = document.getElementById('settingsAvatar');
+      if (settingsAvatar && window.currentUser) settingsAvatar.textContent = (window.currentUser.username || '?')[0].toUpperCase();
+      var settingsHandle = document.getElementById('settingsHandle');
+      if (settingsHandle && window.currentUser) settingsHandle.textContent = window.currentUser.handle ? '@' + window.currentUser.handle : '';
     },
     back: back,
     navigate: navigate,
