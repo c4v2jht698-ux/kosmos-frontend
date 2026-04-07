@@ -1854,53 +1854,76 @@ function goBack() {
 }
 
 // ── Context Menu (long press on message) ────────────────────────────────────
+// Glass overlay (created once)
+var _glassOverlay = document.querySelector('.glass-overlay');
+if (!_glassOverlay) {
+  _glassOverlay = document.createElement('div');
+  _glassOverlay.className = 'glass-overlay';
+  document.body.appendChild(_glassOverlay);
+}
+_glassOverlay.addEventListener('click', dismissContextMenu);
+
 var _longPressTimer = null;
+var _lpStartX = 0, _lpStartY = 0;
+var _elevatedRow = null;
+
 var _mainAreaNode = document.getElementById('mainArea');
 if (_mainAreaNode) {
   _mainAreaNode.addEventListener('touchstart', startPress, { passive: true });
   _mainAreaNode.addEventListener('touchend', cancelPress);
-  _mainAreaNode.addEventListener('touchmove', cancelPress);
+  _mainAreaNode.addEventListener('touchmove', function(e) {
+    if (!_longPressTimer) return;
+    var t = e.touches[0];
+    if (Math.abs(t.clientX - _lpStartX) > 10 || Math.abs(t.clientY - _lpStartY) > 10) cancelPress();
+  });
   _mainAreaNode.addEventListener('mousedown', startPress);
   _mainAreaNode.addEventListener('mouseup', cancelPress);
-  _mainAreaNode.addEventListener('mousemove', cancelPress);
   _mainAreaNode.addEventListener('contextmenu', function(e) {
     var bbl = e.target.closest('.bbl');
-    if (bbl) {
-      e.preventDefault();
-      var x = e.clientX, y = e.clientY;
-      showContextMenu(bbl, x, y);
-    }
+    if (bbl) { e.preventDefault(); showContextMenu(bbl, e.clientX, e.clientY); }
   });
 }
+
 function startPress(e) {
   var bbl = e.target.closest('.bbl');
   if (!bbl) return;
-  var x = e.touches ? e.touches[0].clientX : e.clientX;
-  var y = e.touches ? e.touches[0].clientY : e.clientY;
+  _lpStartX = e.touches ? e.touches[0].clientX : e.clientX;
+  _lpStartY = e.touches ? e.touches[0].clientY : e.clientY;
   _longPressTimer = setTimeout(function() {
     _longPressTimer = null;
-    showContextMenu(bbl, x, y);
-  }, 500);
+    showContextMenu(bbl, _lpStartX, _lpStartY);
+  }, 400);
 }
 function cancelPress() {
   if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
 }
-document.addEventListener('click', function() { var m = document.querySelector('.ctx-menu'); if (m) m.remove(); });
-document.addEventListener('scroll', function(e) { if (e.target.id === 'msgArea' || (e.target.classList && e.target.classList.contains('msg-area'))) { var m = document.querySelector('.ctx-menu'); if (m) m.remove(); } }, true);
+
+function dismissContextMenu() {
+  var menu = document.querySelector('.ctx-menu');
+  if (menu) { menu.classList.remove('active'); setTimeout(function() { menu.remove(); }, 200); }
+  if (_elevatedRow) { _elevatedRow.classList.remove('elevated'); _elevatedRow = null; }
+  _glassOverlay.classList.remove('active');
+  haptic('light');
+}
 
 function showContextMenu(bbl, x, y) {
-  console.log('Меню должно открыться в:', x, y);
-  var old = document.querySelector('.ctx-menu');
-  if (old) old.remove();
+  dismissContextMenu();
+  haptic('heavy');
 
-  // Find msg ID — bbl itself has id="msg-..." in new layout, or check parent
+  // Elevate the message row
+  var row = bbl.closest('.msg-row');
+  if (row) { row.classList.add('elevated'); _elevatedRow = row; }
+
+  // Show glass overlay
+  _glassOverlay.classList.add('active');
+
+  // Find msg ID
   var msgId = bbl.id ? bbl.id.replace('msg-', '') : null;
   if (!msgId) { var msgEl = bbl.closest('[id^="msg-"]'); if (msgEl) msgId = msgEl.id.replace('msg-', ''); }
   var isMine = bbl.classList.contains('my');
   if (!isMine) { var p = bbl.closest('.msg-row,.msg'); if (p) isMine = p.style.justifyContent === 'flex-end' || p.classList.contains('me'); }
-  console.log('Контекстное меню вызвано для сообщения:', msgId, 'isMine:', isMine);
 
-  // Extract clean text (try text, then content, then innerText)
+  // Extract clean text
   var clone = bbl.cloneNode(true);
   var meta = clone.querySelector('.msg-meta');
   if (meta) meta.remove();
@@ -1908,29 +1931,33 @@ function showContextMenu(bbl, x, y) {
   if (!txt && bbl.dataset && bbl.dataset.content) txt = bbl.dataset.content;
 
   var menu = document.createElement('div');
-  menu.className = 'ctx-menu glass-panel';
-  var menuX = x > window.innerWidth - 180 ? window.innerWidth - 180 : x;
-  menu.style.cssText = 'position:fixed;top:' + y + 'px;left:' + menuX + 'px;z-index:9999;display:flex;flex-direction:column;min-width:170px';
+  menu.className = 'ctx-menu';
   menu.dataset.text = txt;
   menu.dataset.msgId = msgId || '';
 
-  var html = '<button class="ctx-btn" onclick="setReply(this)"><span>\u21A9</span> Ответить</button>';
-  html += '<button class="ctx-btn" onclick="copyMsgText(this)"><span>\uD83D\uDCCB</span> Копировать</button>';
-  html += '<button class="ctx-btn" onclick="copyFullMsg(\'' + escSearch(msgId || '') + '\')"><span>\uD83D\uDCCB</span> Копировать всё</button>';
+  var html = '<button class="ctx-btn" onclick="setReply(this)">Ответить</button>';
+  html += '<div class="ctx-divider"></div>';
+  html += '<button class="ctx-btn" onclick="copyMsgText(this)">Копировать</button>';
   if (isMine && msgId) {
-    html += '<hr style="margin:0;border:none;border-top:1px solid var(--glass-border)">';
-    html += '<button class="ctx-btn" onclick="editMessage(\'' + escSearch(msgId) + '\',this)"><span>\u270F\uFE0F</span> Изменить</button>';
-    html += '<button class="ctx-btn danger" onclick="deleteMessage(\'' + escSearch(msgId) + '\',this)"><span>\uD83D\uDDD1</span> Удалить</button>';
+    html += '<div class="ctx-divider"></div>';
+    html += '<button class="ctx-btn danger" onclick="deleteMessage(\'' + escSearch(msgId) + '\',this)">Удалить</button>';
   }
   menu.innerHTML = html;
+
+  // Position near the message
   document.body.appendChild(menu);
-  var rect = menu.getBoundingClientRect();
-  if (rect.bottom > window.innerHeight) menu.style.top = (y - rect.height) + 'px';
+  var menuRect = menu.getBoundingClientRect();
+  var menuX = x > window.innerWidth - 170 ? window.innerWidth - 170 : x;
+  var menuY = y;
+  if (menuY + menuRect.height > window.innerHeight - 20) menuY = y - menuRect.height;
+  menu.style.cssText = 'position:fixed;top:' + menuY + 'px;left:' + menuX + 'px';
+
+  // Animate in
+  requestAnimationFrame(function() { menu.classList.add('active'); });
 }
 
 function deleteMessage(msgId, el) {
-  var menu = el.closest('.ctx-menu');
-  if (menu) menu.remove();
+  dismissContextMenu();
   if (!msgId || !socket || !socket.connected || !cur) return;
   socket.emit('delete_msg', { chatId: cur, msgId: msgId });
   // Optimistic: remove from DOM immediately
@@ -1944,7 +1971,7 @@ function deleteMessage(msgId, el) {
 function editMessage(msgId, el) {
   var menu = el.closest('.ctx-menu');
   var oldText = menu ? menu.dataset.text : '';
-  if (menu) menu.remove();
+  dismissContextMenu();
   if (!msgId || !socket || !socket.connected || !cur) return;
   var newText = prompt('Редактировать сообщение:', oldText);
   if (newText === null || newText.trim() === oldText) return;
@@ -1980,12 +2007,11 @@ function copyMsgText(el) {
   navigator.clipboard.writeText(text).then(function() {
     toast('Скопировано', 'success');
   }).catch(function() {});
-  if (menu) menu.remove();
+  dismissContextMenu();
 }
 
 function copyFullMsg(msgId) {
-  var menu = document.querySelector('.ctx-menu');
-  if (menu) menu.remove();
+  dismissContextMenu();
   var msgEl = msgId ? document.getElementById('msg-' + msgId) : null;
   var fullText = '';
   if (msgEl) {
@@ -2005,7 +2031,7 @@ var _replyTo = null;
 function setReply(el) {
   var menu = el.closest('.ctx-menu');
   var text = menu ? menu.dataset.text : '';
-  if (menu) menu.remove();
+  dismissContextMenu();
   _replyTo = { text: text.substring(0, 80) };
 
   var zone = document.getElementById('attachZone');

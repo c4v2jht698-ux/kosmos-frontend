@@ -450,10 +450,15 @@ body.dating-open .bottom-nav{display:none!important}
 .toast-text{font-size:13px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
 
 /* ── CONTEXT MENU ── */
-.ctx-menu{position:fixed;z-index:10000!important;background:var(--bg2);border:1px solid var(--glass-border);border-radius:16px;padding:6px 0;box-shadow:var(--shadow);min-width:160px;animation:popIn .2s cubic-bezier(.175,.885,.32,1.275);overflow:hidden}
-.ctx-item,.ctx-btn{padding:14px 16px;font-size:16px;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:12px;transition:background .2s;background:none;border:none;width:100%;text-align:left}
-.ctx-item:active,.ctx-btn:active{background:rgba(255,255,255,0.1)}
-.ctx-item.danger,.ctx-btn.danger{color:#FF3B30}
+.glass-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);z-index:999;opacity:0;transition:opacity 0.2s ease;pointer-events:none}
+.glass-overlay.active{opacity:1;pointer-events:auto}
+.msg-row.elevated{position:relative;z-index:1000;transform:scale(1.02);transition:transform 0.2s var(--spring)}
+.ctx-menu{position:absolute;background:var(--sep);border-radius:14px;padding:4px;z-index:1000;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,0.5);opacity:0;transform:scale(0.9);transition:all 0.2s var(--spring);transform-origin:top left}
+.ctx-menu.active{opacity:1;transform:scale(1)}
+.ctx-btn{padding:12px 16px;color:#fff;font-size:16px;border-radius:10px;text-align:left;transition:background 0.1s;border:none;background:transparent;width:150px}
+.ctx-btn:active{background:rgba(255,255,255,0.1)}
+.ctx-btn.danger{color:#FF3B30}
+.ctx-divider{height:1px;background:rgba(255,255,255,0.1);margin:2px 8px}
 
 /* ── TAB BADGE ── */
 .nav-tab{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 12px;border:none;background:none;cursor:pointer;color:var(--text3);transition:color .15s;font-family:inherit}
