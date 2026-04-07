@@ -1,5 +1,6 @@
 // ── Haptic Feedback ──────────────────────────────────────────────────────────
 function haptic(type) {
+  if (localStorage.getItem('kosmos_haptic') === 'off') return;
   if (!navigator.vibrate) return;
   try {
     if (type === 'light') navigator.vibrate(10);
@@ -7,6 +8,9 @@ function haptic(type) {
     else if (type === 'heavy') navigator.vibrate([15, 30, 15]);
   } catch(e) {}
 }
+
+// ── Init: compact mode ──────────────────────────────────────────────────────
+if (localStorage.getItem('kosmos_compact') === 'on') document.body.classList.add('compact-mode');
 
 // ── UI: Render, chat open, message HTML, input helpers ──────────────────────
 
@@ -2588,9 +2592,89 @@ function renderSettingsScreen() {
   var u = currentUser || {};
   var name = u.name || u.username || 'Пользователь';
   var username = u.username || u.handle || '';
+  document.getElementById('settingsAvatar').textContent = (name || '?')[0].toUpperCase();
   document.getElementById('settingsName').textContent = name;
   document.getElementById('settingsHandle').textContent = '@' + username;
-  document.getElementById('settingsAvatar').textContent = (name || '?')[0].toUpperCase();
+
+  var curTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+  var themeLabel = curTheme === 'light' ? 'Светлая' : 'Тёмная';
+  var hapticOn = localStorage.getItem('kosmos_haptic') !== 'off';
+  var compactOn = localStorage.getItem('kosmos_compact') === 'on';
+
+  var container = document.querySelector('#settingsScreen .settings-actions');
+  if (!container) {
+    container = document.createElement('div');
+    container.className = 'settings-actions';
+    container.style.cssText = 'background:var(--card);border-radius:14px;overflow:hidden';
+    var parent = document.querySelector('#settingsScreen > div');
+    // insert after the avatar card
+    if (parent.children.length > 1) parent.insertBefore(container, parent.children[1]);
+    else parent.appendChild(container);
+  }
+
+  container.innerHTML =
+    '<div class="ci" onclick="cycleTheme()" style="display:flex;align-items:center;gap:12px;padding:14px;border-bottom:.5px solid var(--sep);cursor:pointer;min-height:48px">' +
+      '<div style="width:32px;height:32px;border-radius:8px;background:#f5f0ff;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9b6ab5" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2"/></svg></div>' +
+      '<span style="flex:1;font-size:15px;color:var(--text)">Тема оформления</span>' +
+      '<span style="font-size:13px;color:var(--text2)">' + escHtml(themeLabel) + '</span>' +
+      '<span style="color:#c7c7cc">›</span>' +
+    '</div>' +
+    '<div class="ci" onclick="toggleHaptic()" style="display:flex;align-items:center;gap:12px;padding:14px;border-bottom:.5px solid var(--sep);cursor:pointer;min-height:48px">' +
+      '<div style="width:32px;height:32px;border-radius:8px;background:#f0fff4;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>' +
+      '<span style="flex:1;font-size:15px;color:var(--text)">Taptic Engine</span>' +
+      '<div class="toggle-switch' + (hapticOn ? ' active' : '') + '"></div>' +
+    '</div>' +
+    '<div class="ci" onclick="toggleCompact()" style="display:flex;align-items:center;gap:12px;padding:14px;border-bottom:.5px solid var(--sep);cursor:pointer;min-height:48px">' +
+      '<div style="width:32px;height:32px;border-radius:8px;background:#f0f6ff;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5b8dd9" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg></div>' +
+      '<span style="flex:1;font-size:15px;color:var(--text)">Компактный режим</span>' +
+      '<div class="toggle-switch' + (compactOn ? ' active' : '') + '"></div>' +
+    '</div>' +
+    '<div class="ci" onclick="nukeCache()" style="display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer;min-height:48px">' +
+      '<div style="width:32px;height:32px;border-radius:8px;background:#fff0f0;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></div>' +
+      '<span style="flex:1;font-size:15px;color:var(--text)">Очистка кэша</span>' +
+      '<span style="color:#c7c7cc">›</span>' +
+    '</div>';
+}
+
+function cycleTheme() {
+  var cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  var next = cur === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  haptic('light');
+  renderSettingsScreen();
+}
+
+function toggleHaptic() {
+  var isOff = localStorage.getItem('kosmos_haptic') === 'off';
+  localStorage.setItem('kosmos_haptic', isOff ? 'on' : 'off');
+  haptic('light');
+  renderSettingsScreen();
+}
+
+function toggleCompact() {
+  var isOn = localStorage.getItem('kosmos_compact') === 'on';
+  if (isOn) {
+    localStorage.removeItem('kosmos_compact');
+    document.body.classList.remove('compact-mode');
+  } else {
+    localStorage.setItem('kosmos_compact', 'on');
+    document.body.classList.add('compact-mode');
+  }
+  haptic('medium');
+  renderSettingsScreen();
+}
+
+function nukeCache() {
+  if (caches) {
+    caches.keys().then(function(names) {
+      names.forEach(function(n) { caches.delete(n); });
+    });
+  }
+  localStorage.clear();
+  if (window.localforage) localforage.clear();
+  haptic('medium');
+  toast('Кэш очищен!', 'success');
+  setTimeout(function() { location.reload(); }, 600);
 }
 
 function shareQR() {

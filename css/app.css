@@ -531,6 +531,18 @@ body.dating-open .bottom-nav{display:none!important}
 .sbtn:active,.action-btn:active,.dating-btn:active,.ci:active,.auth-btn:active,.ob-btn:active,.ctx-btn:active,.feed-filter:active{transform:scale(0.92)}
 .auth-card{animation:mopen .35s var(--spring)}
 
+/* ── Toggle Switch ── */
+.toggle-switch{width:42px;height:24px;background:var(--sep);border-radius:12px;position:relative;transition:background 0.25s var(--fluid);pointer-events:none}
+.toggle-switch.active{background:var(--green)}
+.toggle-switch::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:transform 0.25s var(--spring);box-shadow:0 2px 5px rgba(0,0,0,0.2)}
+.toggle-switch.active::after{transform:translateX(18px)}
+
+/* ── Compact Mode ── */
+body.compact-mode .ci{padding:8px 12px;min-height:52px}
+body.compact-mode .av{width:40px !important;height:40px !important;font-size:16px !important}
+body.compact-mode .bbl{padding:6px 12px;font-size:14px}
+body.compact-mode .msg-row{margin-bottom:4px !important}
+
 /* ── Dark theme readability ── */
 body,.bbl,.minput{line-height:1.45}
 .bbl:not(.my){background:var(--bg2)}
