@@ -759,3 +759,24 @@ html[data-theme='dark'] .settings-profile-card { background: #1c1c1e; }
 .profile-info { flex: 1; display: flex; flex-direction: column; justify-content: center; }
 .nickname-input { background: transparent; border: none; color: #000; font-size: 19px; font-weight: 600; outline: none; padding: 0; margin-bottom: 2px; width: 100%; font-family: inherit; }
 html[data-theme='dark'] .nickname-input { color: #fff; }
+
+.install-overlay{position:fixed;inset:0;z-index:10002;display:none;align-items:flex-end;background:rgba(0,0,0,.4)}
+.install-overlay.show{display:flex}
+.install-sheet{width:100%;padding:0 8px 12px;animation:sheetUp .35s cubic-bezier(.175,.885,.32,1) forwards}
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.install-card{background:rgba(255,255,255,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:14px;overflow:hidden;margin-bottom:8px}
+html[data-theme=dark] .install-card{background:rgba(28,28,30,.85)}
+.install-header{padding:20px 20px 12px;text-align:center;border-bottom:.5px solid rgba(0,0,0,.1)}
+html[data-theme=dark] .install-header{border-bottom:.5px solid rgba(255,255,255,.1)}
+.install-icon{width:64px;height:64px;border-radius:14px;background:#0a0a1a;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:32px}
+.install-title{font-size:17px;font-weight:600;color:#000;margin-bottom:4px}
+html[data-theme=dark] .install-title{color:#fff}
+.install-sub{font-size:13px;color:#8e8e93;line-height:1.4}
+.install-ios-hint{padding:16px 20px;display:flex;align-items:center;gap:12px;font-size:14px;color:#3c3c43;border-bottom:.5px solid rgba(0,0,0,.1)}
+html[data-theme=dark] .install-ios-hint{color:#ebebf5;border-bottom:.5px solid rgba(255,255,255,.1)}
+.install-btn{display:block;width:100%;padding:16px;background:transparent;border:none;font-size:17px;cursor:pointer;text-align:center;border-bottom:.5px solid rgba(0,0,0,.08)}
+.install-btn:last-child{border-bottom:none}
+.install-btn:active{background:rgba(0,0,0,.05)}
+.install-btn.primary{color:#007aff;font-weight:600}
+.install-btn.cancel{color:#ff3b30;font-weight:400}
+html[data-theme=dark] .install-btn{border-bottom:.5px solid rgba(255,255,255,.08)}

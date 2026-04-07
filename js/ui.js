@@ -96,6 +96,66 @@ if (localStorage.getItem('kosmos_compact') === 'on') document.body.classList.add
   });
 })();
 
+(function initSymbiosis() {
+  var deferredPrompt = null;
+  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+  function buildSheet() {
+    var el = document.createElement('div');
+    el.className = 'install-overlay';
+    el.id = 'install-overlay';
+    var iosHint = isIOS ? '<div class="install-ios-hint"><span style="font-size:22px">⬆️</span><span>Нажми <b>Поделиться</b> → <b>На экран Домой</b></span></div>' : '';
+    var actionBtn = isIOS ? '' : '<button class="install-btn primary" id="install-confirm">Установить</button>';
+    el.innerHTML = '<div class="install-sheet"><div class="install-card"><div class="install-header"><div class="install-icon">К</div><div class="install-title">Установить Космос</div><div class="install-sub">Добавить на главный экран для быстрого доступа</div></div>' + iosHint + actionBtn + '<button class="install-btn cancel" id="install-cancel">Не сейчас</button></div></div>';
+    document.body.appendChild(el);
+    document.getElementById('install-cancel').addEventListener('click', function() {
+      el.classList.remove('show');
+      localStorage.setItem('kosmos_install_dismissed', Date.now());
+    });
+    if (!isIOS) {
+      var confirmBtn = document.getElementById('install-confirm');
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', function() {
+          el.classList.remove('show');
+          if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(function() { deferredPrompt = null; }); }
+        });
+      }
+    }
+    el.addEventListener('click', function(e) { if (e.target === el) el.classList.remove('show'); });
+    return el;
+  }
+
+  function showInstallPrompt() {
+    var dismissed = localStorage.getItem('kosmos_install_dismissed');
+    if (dismissed && Date.now() - parseInt(dismissed) < 7 * 24 * 60 * 60 * 1000) return;
+    var overlay = document.getElementById('install-overlay') || buildSheet();
+    setTimeout(function() { overlay.classList.add('show'); }, 500);
+  }
+
+  if (!isStandalone) {
+    window.addEventListener('beforeinstallprompt', function(e) {
+      e.preventDefault();
+      deferredPrompt = e;
+      setTimeout(showInstallPrompt, 3000);
+    });
+    if (isIOS) setTimeout(showInstallPrompt, 4000);
+  }
+
+  var urlParams = new URLSearchParams(window.location.search);
+  var sharedText = urlParams.get('text') || urlParams.get('url') || urlParams.get('title');
+  if (sharedText) {
+    window.addEventListener('load', function() {
+      var input = document.getElementById('mi') || document.querySelector('.msg-input input') || document.querySelector('textarea');
+      if (input) {
+        input.value = sharedText;
+        input.focus();
+        if (typeof toast === 'function') toast('Данные получены из Поделиться', 'success');
+      }
+    });
+  }
+})();
+
 function toggleCompact() {
   var isCompact = document.body.classList.toggle('compact-mode');
   localStorage.setItem('kosmos_compact', isCompact ? 'on' : 'off');
