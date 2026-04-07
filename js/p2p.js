@@ -37,10 +37,10 @@ var P2PManager = (function() {
       console.warn('[P2P] Канал закрыт:', peerId);
     };
     channel.onmessage = function(e) {
-      if (typeof onMessage === 'function') {
-        try { onMessage(peerId, JSON.parse(e.data)); }
-        catch(err) { onMessage(peerId, e.data); }
-      }
+      var parsed;
+      try { parsed = JSON.parse(e.data); } catch(err) { parsed = e.data; }
+      if (typeof onMessage === 'function') onMessage(peerId, parsed);
+      document.dispatchEvent(new CustomEvent('p2p_msg', { detail: { peerId: peerId, payload: parsed } }));
     };
   }
 

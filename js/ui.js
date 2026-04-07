@@ -3215,6 +3215,11 @@ function initP2PForChat(chatId) {
   P2PManager.createOffer(chatId, function(signal) { socket.emit('p2p_signal', { target: chatId, payload: signal }); }, function(pid, msg) { handleP2PMessage(pid, msg); });
 }
 
+document.addEventListener('p2p_msg', function(e) {
+  if (!e.detail || !e.detail.peerId || !e.detail.payload) return;
+  handleP2PMessage(e.detail.peerId, e.detail.payload);
+});
+
 // ── Outbox (offline message queue — IndexedDB via localforage) ────────────────
 async function flushOutbox() {
   var outbox = await localforage.getItem('_outbox') || [];
