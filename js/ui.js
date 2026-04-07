@@ -3638,6 +3638,68 @@ var SettingsController = (function() {
 
 document.addEventListener('DOMContentLoaded', function() { SettingsController.init(); });
 
+// ── Deep Link Invite ────────────────────────────────────────────────────────
+function processInfectionVector() {
+  var params = new URLSearchParams(window.location.search);
+  var invite = params.get('invite');
+  if (!invite) return;
+
+  history.replaceState({}, '', window.location.pathname);
+
+  var inviterId;
+  try {
+    var decoded = atob(invite);
+    var data = JSON.parse(decoded);
+    inviterId = data.uid || data.id || decoded;
+  } catch(e) {
+    inviterId = invite;
+  }
+
+  if (!inviterId) return;
+
+  function tryOpenInvite() {
+    if (!window.currentUser || !window.jwtToken) {
+      setTimeout(tryOpenInvite, 500);
+      return;
+    }
+
+    var myId = window.currentUser.id;
+    var ids = [myId, inviterId].sort();
+    var chatId = 'dm-' + ids[0] + '-' + ids[1];
+
+    if (typeof KosmosDB !== 'undefined') {
+      KosmosDB.saveMessage({
+        id: 'invite-' + Date.now(),
+        chatId: chatId,
+        type: 'system',
+        text: 'Вы перешли по приглашению',
+        timestamp: Date.now()
+      });
+    }
+
+    fetch(window.API + '/chats/dm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + window.jwtToken },
+      body: JSON.stringify({ targetUserId: inviterId })
+    }).then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(d) {
+        var finalChatId = (d && (d.chatId || d.id)) || chatId;
+        if (typeof startDM === 'function') {
+          startDM(inviterId, 'Пользователь', '');
+        } else if (typeof openChat === 'function') {
+          openChat(finalChatId);
+        }
+        if (typeof toast === 'function') toast('Чат открыт по приглашению', 'success');
+      }).catch(function() {
+        if (typeof openChat === 'function') openChat(chatId);
+      });
+  }
+
+  tryOpenInvite();
+}
+
+processInfectionVector();
+
 // ── Service Worker ───────────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/kosmos-frontend/sw.js').catch(function() {});
