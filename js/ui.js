@@ -920,7 +920,7 @@ function buildFeedView(main) {
 }
 
 // ── Build Dating View ────────────────────────────────────────────────────────
-var datingTheme = localStorage.getItem('dating_theme') || 'pink';
+var datingTheme = localStorage.getItem('dating_theme') || 'oled';
 
 var DT = {
   pink: {
@@ -944,6 +944,17 @@ var DT = {
     skipBorder: '#fecdd3', superBorder: '#7dd3fc',
     tagBg: '#e0f2fe', tagColor: '#0369a1',
     commonColor: '#0369a1', statNum: '#0369a1',
+  },
+  oled: {
+    bg: '#000000',
+    title: '\u0417\u043D\u0430\u043A\u043E\u043C\u0441\u0442\u0432\u0430 \uD83D\uDDA4',
+    titleColor: '#ffffff', subColor: '#dcb344',
+    cardShadow: '0 8px 32px rgba(220,179,68,0.15)',
+    photoBg: '#121212',
+    likeBg: 'linear-gradient(135deg,#E6C27A,#D4AF37)', likeShadow: '0 6px 20px rgba(212,175,55,0.4)',
+    skipBorder: '#333333', superBorder: '#3b82f6',
+    tagBg: '#1a1a1a', tagColor: '#dcb344',
+    commonColor: '#dcb344', statNum: '#dcb344',
   }
 };
 
@@ -976,6 +987,7 @@ function buildDatingView(main) {
           '<div class="dt-toggle">' +
             '<div class="dt-toggle-item' + (datingTheme === 'pink' ? ' active' : '') + '" onclick="setDatingTheme(\'pink\')">\uD83C\uDF38</div>' +
             '<div class="dt-toggle-item' + (datingTheme === 'sky' ? ' active' : '') + '" onclick="setDatingTheme(\'sky\')">\uD83C\uDF24</div>' +
+            '<div class="dt-toggle-item' + (datingTheme === 'oled' ? ' active' : '') + '" onclick="setDatingTheme(\'oled\')">\uD83D\uDDA4</div>' +
           '</div>' +
           '<div class="dt-toggle-item" style="width:32px;height:32px;background:rgba(255,255,255,0.6);border-radius:50%;border:1px solid rgba(255,255,255,0.9);cursor:pointer" onclick="openDatingProfile()">\u2699\uFE0F</div>' +
         '</div>' +
@@ -1870,6 +1882,7 @@ function cancelPress() {
   if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
 }
 document.addEventListener('click', function() { var m = document.querySelector('.ctx-menu'); if (m) m.remove(); });
+document.addEventListener('scroll', function(e) { if (e.target.id === 'msgArea' || (e.target.classList && e.target.classList.contains('msg-area'))) { var m = document.querySelector('.ctx-menu'); if (m) m.remove(); } }, true);
 
 function showContextMenu(bbl, x, y) {
   console.log('Меню должно открыться в:', x, y);
