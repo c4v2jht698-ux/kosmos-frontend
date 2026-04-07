@@ -304,46 +304,73 @@
 
 <!-- НАСТРОЙКИ ЭКРАН -->
 <div id="settingsScreen" style="display:none;position:fixed;inset:0;bottom:72px;background:var(--bg);overflow-y:auto;z-index:99">
-<div id='settings-main-view'>
-  <div class='settings-header'><h2>Настройки</h2></div>
-  <div class='settings-profile-card'>
-    <div class='profile-avatar-container'>
-      <div class='avatar-large'><span class='avatar-placeholder'>W</span></div>
-      <div class='change-photo-text'>Изменить фото</div>
+<div class='settings-stack'>
+  <div id='view-settings-main' class='settings-page active'>
+    <div class='settings-header'><h2>Настройки</h2></div>
+
+    <div class='settings-profile-card'>
+      <div class='profile-avatar-container' id='avatar-upload-trigger'>
+        <div class='avatar-large'><img src='' id='user-avatar-img' style='display:none;'><span class='avatar-placeholder'>W</span></div>
+        <div class='change-photo-text'>Изменить фото</div>
+        <input type='file' id='avatar-input' accept='image/jpeg, image/png' style='display:none;'>
+      </div>
+      <div class='profile-info'>
+        <input type='text' id='profile-nickname' class='nickname-input' placeholder='Твой никнейм'>
+      </div>
     </div>
-    <div class='profile-info'>
-      <input type='text' id='profile-nickname' class='nickname-input' value='@workeo7' placeholder='Твой никнейм'>
+
+    <div class='settings-quick-actions'>
+      <button class='action-btn' data-action='create_chat'><span class='icon'>💬</span> Создать чат</button>
+      <button class='action-btn' data-action='create_channel'><span class='icon'>📢</span> Создать канал</button>
+    </div>
+
+    <div class='settings-group'>
+      <div class='settings-item' data-route='view-settings-data'><div class='item-left'><span class='icon'>💾</span> <span class='label'>Данные и память</span></div><div class='chevron'>›</div></div>
+      <div class='settings-item' data-route='view-settings-privacy'><div class='item-left'><span class='icon'>🔒</span> <span class='label'>Конфиденциальность</span></div><div class='chevron'>›</div></div>
+      <div class='settings-item' data-route='view-settings-archive'><div class='item-left'><span class='icon'>📦</span> <span class='label'>Архив</span></div><div class='chevron'>›</div></div>
+      <div class='settings-item' data-route='view-settings-devices'><div class='item-left'><span class='icon'>📱</span> <span class='label'>Устройства</span></div><div class='chevron'>›</div></div>
+    </div>
+
+    <div class='settings-group'>
+      <div class='settings-item' data-route='view-settings-appearance'><div class='item-left'><span class='icon'>🎨</span> <span class='label'>Оформление</span></div><div class='chevron'>›</div></div>
+      <div class='settings-item' data-route='view-settings-notifications'><div class='item-left'><span class='icon'>🔔</span> <span class='label'>Уведомления</span></div><div class='chevron'>›</div></div>
+    </div>
+
+    <div class='settings-group'>
+      <div class='settings-item' data-route='view-settings-help'><div class='item-left'><span class='icon'>❓</span> <span class='label'>Помощь</span></div><div class='chevron'>›</div></div>
+      <div class='settings-item' data-route='view-settings-about'><div class='item-left'><span class='icon'>🚀</span> <span class='label'>О Космосе</span></div><div class='chevron'>›</div></div>
     </div>
   </div>
-  <div class='settings-quick-actions'>
-    <button class='action-btn' data-action='create_chat'><span class='icon'>💬</span> Создать чат</button>
-    <button class='action-btn' data-action='create_channel'><span class='icon'>📢</span> Создать канал</button>
+
+  <div id='view-settings-appearance' class='settings-page right'>
+    <div class='settings-header nav-header'>
+      <button class='back-btn' data-back>‹ Назад</button>
+      <h2>Оформление</h2>
+      <div style='width: 60px;'></div>
+    </div>
+    <div class='settings-group' style='margin-top: 20px;'>
+      <div class='settings-item toggle-item'>
+        <div class='item-left'><span class='label'>Тёмная тема</span></div>
+        <label class='switch'><input type='checkbox' id='toggle-dark-mode'><span class='slider round'></span></label>
+      </div>
+      <div class='settings-item toggle-item'>
+        <div class='item-left'><span class='label'>Haptic (Вибрация)</span></div>
+        <label class='switch'><input type='checkbox' id='toggle-haptic'><span class='slider round'></span></label>
+      </div>
+    </div>
   </div>
-  <div class='settings-group'>
-    <div class='settings-item' data-target='data'><div class='item-left'><span class='icon'>💾</span> <span class='label'>Данные и память</span></div><div class='chevron'>›</div></div>
-    <div class='settings-item' data-target='privacy'><div class='item-left'><span class='icon'>🔒</span> <span class='label'>Конфиденциальность</span></div><div class='chevron'>›</div></div>
-    <div class='settings-item' data-target='archive'><div class='item-left'><span class='icon'>📦</span> <span class='label'>Архив</span></div><div class='chevron'>›</div></div>
-    <div class='settings-item' data-target='devices'><div class='item-left'><span class='icon'>📱</span> <span class='label'>Устройства</span></div><div class='chevron'>›</div></div>
-  </div>
-  <div class='settings-group'>
-    <div class='settings-item' data-target='appearance'><div class='item-left'><span class='icon'>🎨</span> <span class='label'>Оформление</span></div><div class='chevron'>›</div></div>
-    <div class='settings-item' data-target='notifications'><div class='item-left'><span class='icon'>🔔</span> <span class='label'>Уведомления</span></div><div class='chevron'>›</div></div>
-  </div>
-  <div class='settings-group'>
-    <div class='settings-item' data-target='help'><div class='item-left'><span class='icon'>❓</span> <span class='label'>Помощь</span></div><div class='chevron'>›</div></div>
-    <div class='settings-item' data-target='about'><div class='item-left'><span class='icon'>🚀</span> <span class='label'>О Космосе</span></div><div class='chevron'>›</div></div>
-  </div>
+</div>
 </div>
 
-<div id='appearance-view' style='display: none;'>
-  <div class='settings-header' style='display: flex; align-items: center; gap: 15px;'>
-    <button id='back-from-appearance' class='back-btn'>‹ Назад</button>
-    <h2 style='margin: 0;'>Оформление</h2>
+<div id="action-sheet-overlay" class="action-sheet-overlay" onclick="closeActionSheet()"></div>
+<div id="create-action-sheet" class="action-sheet">
+  <div class="action-sheet-group">
+    <button class="action-sheet-btn" onclick="initNewDialog('chat')">Создать чат</button>
+    <button class="action-sheet-btn" onclick="initNewDialog('channel')">Создать канал</button>
   </div>
-  <div class='settings-group' style='margin-top: 20px;'>
-    <div class='settings-item'><span class='label'>Здесь скоро будут тумблеры темы</span></div>
+  <div class="action-sheet-group">
+    <button class="action-sheet-btn cancel" onclick="closeActionSheet()">Отмена</button>
   </div>
-</div>
 </div>
 
 <script src="js/ui.js?v=2"></script>

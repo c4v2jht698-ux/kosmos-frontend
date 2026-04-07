@@ -3048,6 +3048,99 @@ document.addEventListener('input', function(e) {
   _typingTimer = setTimeout(function() { _isTypingNow = false; socket.emit('typing', { chatId: cur, isTyping: false }); }, 2000);
 });
 
+// ── Action Sheet & Settings Helpers ──────────────────────────────────────────
+function closeActionSheet() {
+  var overlay = document.getElementById('action-sheet-overlay');
+  var sheet = document.getElementById('create-action-sheet');
+  if (overlay) overlay.classList.remove('active');
+  if (sheet) sheet.classList.remove('active');
+}
+
+function initNewDialog(type) {
+  closeActionSheet();
+  setTimeout(function() {
+    if (type === 'channel' && typeof showModal === 'function') {
+        showModal('newChat');
+    } else if (typeof showModal === 'function') {
+        showModal('newChat');
+    }
+  }, 300);
+}
+
+function renderArchiveList() {
+  var container = document.getElementById('archive-list');
+  if (!container) return;
+
+  var archivedChats = [
+    { id: 1, name: "Спам-рассылка", msg: "Купите наши курсы!", time: "14:20", unread: 5, avatar: "С" },
+    { id: 2, name: "Старый проект", msg: "Правки приняты, спасибо.", time: "Вчера", unread: 0, avatar: "П" }
+  ];
+
+  if (archivedChats.length === 0) return;
+
+  var html = '';
+  archivedChats.forEach(function(chat) {
+    var unreadBadge = chat.unread > 0 ? '<div class="badge">' + chat.unread + '</div>' : '';
+    var safeName = typeof escHtml === 'function' ? escHtml(chat.name) : chat.name;
+    var safeMsg = typeof escHtml === 'function' ? escHtml(chat.msg) : chat.msg;
+    var safeTime = typeof escHtml === 'function' ? escHtml(chat.time) : chat.time;
+    var safeAvatar = typeof escHtml === 'function' ? escHtml(chat.avatar) : chat.avatar;
+
+    html += '<div class="chat-item" onclick="unarchiveChat(' + chat.id + ')" style="display:flex; padding: 12px 16px; border-bottom: 1px solid var(--border-color); align-items: center; cursor:pointer;">' +
+      '<div class="avatar" style="width: 46px; height: 46px; border-radius: 50%; background: #5AC8FA; color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-right: 12px;">' + safeAvatar + '</div>' +
+      '<div class="chat-info" style="flex: 1; overflow: hidden;">' +
+        '<div style="display: flex; justify-content: space-between; margin-bottom: 4px;">' +
+          '<span style="font-weight: 600; font-size: 16px;">' + safeName + '</span>' +
+          '<span style="color: var(--text3); font-size: 13px;">' + safeTime + '</span>' +
+        '</div>' +
+        '<div style="color: var(--text2); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + safeMsg + '</div>' +
+      '</div>' +
+      '<div style="margin-left: 10px;">' + unreadBadge + '</div>' +
+    '</div>';
+  });
+
+  html += '<div onclick="if(typeof toast === \'function\') toast(\'Все чаты возвращены!\', \'success\')" style="padding: 16px; text-align: center; color: #007AFF; cursor: pointer; font-weight: 500;">Вернуть все чаты</div>';
+  container.innerHTML = html;
+}
+
+function renderDevicesList() {
+  var container = document.getElementById('view-settings-devices');
+  if (!container) return;
+
+  var oldSessionsDiv = document.getElementById('other-sessions');
+  if (!oldSessionsDiv) {
+    oldSessionsDiv = document.createElement('div');
+    oldSessionsDiv.id = 'other-sessions';
+    oldSessionsDiv.className = 'settings-group';
+    container.insertBefore(oldSessionsDiv, container.lastElementChild);
+  }
+
+  var sessions = [
+    { os: "macOS", browser: "Safari", location: "Бангкок, Таиланд", time: "Активен вчера" },
+    { os: "iOS", browser: "Kosmos App", location: "Бангкок, Таиланд", time: "Активен 2 часа назад" }
+  ];
+
+  var html = '<div style="padding: 8px 16px; font-size: 13px; color: var(--text3); text-transform: uppercase;">Другие устройства</div>';
+  sessions.forEach(function(s) {
+    var safeOs = typeof escHtml === 'function' ? escHtml(s.os) : s.os;
+    var safeBrowser = typeof escHtml === 'function' ? escHtml(s.browser) : s.browser;
+    var safeLoc = typeof escHtml === 'function' ? escHtml(s.location) : s.location;
+    var safeTime = typeof escHtml === 'function' ? escHtml(s.time) : s.time;
+
+    html += '<div class="settings-item" style="flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px 16px; cursor: pointer;" onclick="if(typeof toast === \'function\') toast(\'Сеанс ' + safeOs + ' завершен\', \'success\')">' +
+      '<div style="font-weight: 500;">' + safeOs + ' · ' + safeBrowser + '</div>' +
+      '<div style="font-size: 13px; color: var(--text2);">' + safeLoc + '</div>' +
+      '<div style="font-size: 13px; color: var(--text3);">' + safeTime + '</div>' +
+    '</div>';
+  });
+  oldSessionsDiv.innerHTML = html;
+}
+
+function unarchiveChat(id) {
+  if (typeof haptic === 'function') haptic('light');
+  if (typeof toast === 'function') toast("Чат " + id + " восстановлен из архива.", "success");
+}
+
 // ── Settings Controller ─────────────────────────────────────────────────────
 var SettingsController = (function() {
   var _stack = [];
@@ -3128,6 +3221,8 @@ var SettingsController = (function() {
     if (prev) { prev.classList.remove('active'); prev.classList.add('left'); }
     target.classList.remove('right');
     target.classList.add('active');
+    if (targetId === 'view-settings-archive') renderArchiveList();
+    if (targetId === 'view-settings-devices') renderDevicesList();
     if (typeof haptic === 'function') haptic('light');
   }
 
