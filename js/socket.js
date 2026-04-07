@@ -234,6 +234,16 @@ function initSocket() {
     showReaction(data.msgId, data.emoji);
   });
 
+  socket.on('p2p_signal', function(data) {
+    if (!data || !data.payload || !data.from) return;
+    var peerId = data.from;
+    function onSignal(signal) { socket.emit('p2p_signal', { target: peerId, payload: signal }); }
+    function onMessage(pid, msg) { handleP2PMessage(pid, msg); }
+    if (data.payload.type === 'offer') P2PManager.handleOffer(peerId, data.payload.sdp, onSignal, onMessage);
+    else if (data.payload.type === 'answer') P2PManager.handleAnswer(peerId, data.payload.sdp);
+    else if (data.payload.type === 'ice') P2PManager.handleIce(peerId, data.payload.candidate);
+  });
+
   socket.on('msgs_read', function(data) {
     if (data.chatId !== cur) return;
     document.querySelectorAll('.msg-status').forEach(function(el) {

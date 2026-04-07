@@ -2360,7 +2360,10 @@ async function send() {
     } else if (image && image.startsWith('data:')) {
       payload.image = image;
     }
-    if (socket && socket.connected) {
+    if (typeof P2PManager !== 'undefined' && P2PManager.getPeers().indexOf(cur) !== -1) {
+      P2PManager.send(cur, { type: payload.image ? 'image' : 'text', text: payload.text, image: payload.image || null, sender: currentUser ? currentUser.username : '' });
+      _pendingImage = null;
+    } else if (socket && socket.connected) {
       socket.emit('chat_msg', payload, function() { _pendingImage = null; });
     } else {
       addToOutbox(payload).then(function() { _pendingImage = null; });
@@ -3185,6 +3188,31 @@ function searchMessages(q) {
         }
       }).catch(function() {});
   }, 400);
+}
+
+// ── P2P Message Handling ─────────────────────────────────────────────────────
+function handleP2PMessage(peerId, msg) {
+  if (!msg || !msg.type) return;
+  var item = typeof findItem === 'function' ? findItem(peerId) : null;
+  if (msg.type !== 'text' && msg.type !== 'image') return;
+  var ts = new Date();
+  var time = ts.getHours().toString().padStart(2,'0') + ':' + ts.getMinutes().toString().padStart(2,'0');
+  var m = { id: 'p2p-' + Date.now(), from: 'them', text: msg.text || '', image: msg.image || null, time: time, sender: msg.sender || peerId };
+  if (item) {
+    item.msgs.push(m);
+    item.prev = m.text || 'Фото';
+    item.time = time;
+    if (cur === peerId) { if (typeof appendMsg === 'function') appendMsg(m, item.type === 'channel'); }
+    else { item.unread = (item.unread || 0) + 1; }
+    if (typeof render === 'function') render();
+  }
+  if (typeof KosmosDB !== 'undefined') KosmosDB.saveMessage({ id: m.id, chatId: peerId, type: msg.type, text: m.text, timestamp: Date.now() });
+}
+
+function initP2PForChat(chatId) {
+  if (typeof P2PManager === 'undefined' || !socket || !socket.connected) return;
+  if (P2PManager.getPeers().indexOf(chatId) !== -1) return;
+  P2PManager.createOffer(chatId, function(signal) { socket.emit('p2p_signal', { target: chatId, payload: signal }); }, function(pid, msg) { handleP2PMessage(pid, msg); });
 }
 
 // ── Outbox (offline message queue — IndexedDB via localforage) ────────────────
