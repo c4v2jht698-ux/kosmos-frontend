@@ -2873,6 +2873,16 @@ async function startVoice() {
           toast('Голосовое слишком большое', 'error');
         } else if (socket && socket.connected && cur) {
           socket.emit('chat_msg', { chatId: cur, type: 'audio', audio: reader.result, text: 'Голосовое сообщение' });
+          if (typeof KosmosDB !== 'undefined' && KosmosDB.saveMessage) {
+            KosmosDB.saveMessage({
+              id: Date.now() + '-voice',
+              chatId: cur,
+              sender: 'me',
+              type: 'audio',
+              content: reader.result,
+              timestamp: Date.now()
+            });
+          }
         }
         if (_voiceStream) { _voiceStream.getTracks().forEach(function(t) { t.stop(); }); _voiceStream = null; }
       };
