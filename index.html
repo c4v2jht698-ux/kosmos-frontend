@@ -307,36 +307,73 @@
 <div id="settingsScreen" style="display:none;position:fixed;inset:0;bottom:72px;background:var(--bg);overflow-y:auto;z-index:99">
 <div class='settings-stack'>
   <div id='view-settings-main' class='settings-page active'>
-    <div class='settings-header'><h2>Настройки</h2></div>
+    <div class='settings-header nav-header'><h2>Настройки</h2></div>
 
     <div class='settings-profile-card'>
       <div class='profile-avatar-container' id='avatar-upload-trigger'>
-        <div class='avatar-large'><img src='' id='user-avatar-img' style='display:none;'><span class='avatar-placeholder'>W</span></div>
-        <div class='change-photo-text'>Изменить фото</div>
+        <img src='' id='user-avatar-img' style='display:none; width:100%; height:100%; border-radius:50%; object-fit:cover;'>
+        <span class='avatar-placeholder' id="settingsAvatar">W</span>
         <input type='file' id='avatar-input' accept='image/jpeg, image/png' style='display:none;'>
       </div>
-      <div class='profile-info' style='width: 100%; text-align: center; position: relative; margin-top: 16px;'>
-        <input type='text' id='profile-nickname' class='nickname-input' placeholder='Твоё имя' style='background: transparent; border: none; color: white; font-size: 22px; font-weight: 600; text-align: center; width: 80%; outline: none; padding: 0; margin-bottom: 4px; font-family: inherit;'>
-        <div id='settingsHandle' style='color: #8E8E93; font-size: 15px;'>@username</div>
-        <div class='qr-trigger' onclick='showMyQR()' style='position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-size: 24px; cursor: pointer;'>📱</div>
+      <div class='profile-info'>
+        <input type='text' id='profile-nickname' class='nickname-input' placeholder='Твоё имя'>
+        <div id="settingsHandle" style="color: #8e8e93; font-size: 14px;">@username · Мой профиль</div>
+      </div>
+      <div class='qr-trigger' onclick='showMyQR()' style='font-size: 24px; cursor: pointer; padding-left: 10px;'>📱</div>
+    </div>
+
+    <div class='settings-group'>
+      <div class='settings-item' onclick='showCreateMenu()'>
+        <div class='item-left'><div class='set-icon' style='background:#007aff'>✏️</div> <span class='label'>Создать</span></div>
+        <div class='chev'>›</div>
       </div>
     </div>
 
     <div class='settings-group'>
-      <div class='settings-item' data-route='view-settings-data'><div class='item-left'><span class='icon'>💾</span> <span class='label'>Данные и память</span></div><div class='chevron'>›</div></div>
-      <div class='settings-item' data-route='view-settings-privacy'><div class='item-left'><span class='icon'>🔒</span> <span class='label'>Конфиденциальность</span></div><div class='chevron'>›</div></div>
-      <div class='settings-item' data-route='view-settings-archive'><div class='item-left'><span class='icon'>📦</span> <span class='label'>Архив</span></div><div class='chevron'>›</div></div>
-      <div class='settings-item' data-route='view-settings-devices'><div class='item-left'><span class='icon'>📱</span> <span class='label'>Устройства</span></div><div class='chevron'>›</div></div>
+      <div class='settings-item' data-route='view-settings-data'>
+        <div class='item-left'><div class='set-icon' style='background:#34c759'>💾</div> <span class='label'>Данные и память</span></div>
+        <div class='chev'>›</div>
+      </div>
+      <div class='settings-item' data-route='view-settings-privacy'>
+        <div class='item-left'><div class='set-icon' style='background:#636366'>🔒</div> <span class='label'>Конфиденциальность</span></div>
+        <div class='chev'>›</div>
+      </div>
+      <div class='settings-item' data-route='view-settings-archive'>
+        <div class='item-left'><div class='set-icon' style='background:#5ac8fa'>📦</div> <span class='label'>Архив</span></div>
+        <div class='chev'>›</div>
+      </div>
+      <div class='settings-item' data-route='view-settings-devices'>
+        <div class='item-left'><div class='set-icon' style='background:#ff9500'>📱</div> <span class='label'>Устройства</span></div>
+        <div class='chev'>›</div>
+      </div>
     </div>
 
     <div class='settings-group'>
-      <div class='settings-item' data-route='view-settings-appearance'><div class='item-left'><span class='icon'>🎨</span> <span class='label'>Оформление</span></div><div class='chevron'>›</div></div>
-      <div class='settings-item' data-route='view-settings-notifications'><div class='item-left'><span class='icon'>🔔</span> <span class='label'>Уведомления</span></div><div class='chevron'>›</div></div>
+      <div class='settings-item' data-route='view-settings-appearance'>
+        <div class='item-left'><div class='set-icon' style='background:#5856d6'>🎨</div> <span class='label'>Оформление</span></div>
+        <div class='chev'>›</div>
+      </div>
+      <div class='settings-item' data-route='view-settings-notifications'>
+        <div class='item-left'><div class='set-icon' style='background:#ff3b30'>🔔</div> <span class='label'>Уведомления</span></div>
+        <div class='chev'>›</div>
+      </div>
     </div>
 
     <div class='settings-group'>
-      <div class='settings-item' data-route='view-settings-help'><div class='item-left'><span class='icon'>❓</span> <span class='label'>Помощь</span></div><div class='chevron'>›</div></div>
-      <div class='settings-item' data-route='view-settings-about'><div class='item-left'><span class='icon'>🚀</span> <span class='label'>О Космосе</span></div><div class='chevron'>›</div></div>
+      <div class='settings-item' data-route='view-settings-help'>
+        <div class='item-left'><div class='set-icon' style='background:#af52de'>❓</div> <span class='label'>Помощь</span></div>
+        <div class='chev'>›</div>
+      </div>
+      <div class='settings-item' data-route='view-settings-about'>
+        <div class='item-left'><div class='set-icon' style='background:#007aff'>🚀</div> <span class='label'>О Космосе</span></div>
+        <div class='chev'>›</div>
+      </div>
+    </div>
+
+    <div class='settings-group' style='margin-bottom: 40px;'>
+      <div class='settings-item' onclick='if(typeof logout==="function") logout();' style='justify-content: center;'>
+        <span class='label' style='color: #ff3b30; font-weight: 500;'>Выйти</span>
+      </div>
     </div>
   </div>
 

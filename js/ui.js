@@ -3141,6 +3141,120 @@ function unarchiveChat(id) {
   if (typeof toast === 'function') toast("Чат " + id + " восстановлен из архива.", "success");
 }
 
+// ── QR & Action Sheet Logic ─────────────────────────────────────────────────
+var html5QrCode = null;
+
+window.addEventListener('popstate', function(e) {
+  var qrOverlay = document.getElementById('qr-scanner-overlay');
+  var actionSheet = document.getElementById('action-sheet-overlay');
+  var myQrOverlay = document.getElementById('my-qr-overlay');
+
+  if (qrOverlay && qrOverlay.classList.contains('active')) closeQRScanner(true);
+  if (actionSheet && actionSheet.classList.contains('active')) closeActionSheet(true);
+  if (myQrOverlay && myQrOverlay.classList.contains('active')) closeMyQR(true);
+});
+
+window.showCreateMenu = function() {
+  history.pushState({ modal: 'actionsheet' }, '');
+  var overlay = document.getElementById('action-sheet-overlay');
+  var sheet = document.getElementById('create-action-sheet');
+  if (overlay) overlay.classList.add('active');
+  if (sheet) sheet.classList.add('active');
+  if (typeof haptic === 'function') haptic('light');
+};
+
+window.closeActionSheet = function(fromPopState) {
+  var overlay = document.getElementById('action-sheet-overlay');
+  var sheet = document.getElementById('create-action-sheet');
+  if (overlay) overlay.classList.remove('active');
+  if (sheet) sheet.classList.remove('active');
+  if (fromPopState !== true) history.back();
+};
+
+window.showMyQR = function() {
+  history.pushState({ modal: 'myqr' }, '');
+  var overlay = document.getElementById('my-qr-overlay');
+  var nameDiv = document.getElementById('my-qr-name');
+  var img = document.getElementById('my-qr-img');
+
+  var username = (window.currentUser && window.currentUser.username) ? window.currentUser.username : 'User';
+  var handle = (window.currentUser && window.currentUser.handle) ? window.currentUser.handle : ('@' + username.toLowerCase().replace(/\s+/g, ''));
+
+  img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=kosmos://add/' + encodeURIComponent(handle);
+  nameDiv.innerText = handle;
+
+  if (overlay) overlay.classList.add('active');
+  if (typeof haptic === 'function') haptic('light');
+};
+
+window.closeMyQR = function(fromPopState) {
+  var overlay = document.getElementById('my-qr-overlay');
+  if (overlay) overlay.classList.remove('active');
+  if (fromPopState !== true) history.back();
+};
+
+window.openQRScanner = function() {
+  var sheetOverlay = document.getElementById('action-sheet-overlay');
+
+  if (sheetOverlay && sheetOverlay.classList.contains('active')) {
+      sheetOverlay.classList.remove('active');
+      var sheet = document.getElementById('create-action-sheet');
+      if (sheet) sheet.classList.remove('active');
+      history.replaceState({ modal: 'qr' }, '');
+  } else {
+      history.pushState({ modal: 'qr' }, '');
+  }
+
+  if (typeof Html5Qrcode === 'undefined') {
+    if (typeof toast === 'function') toast('Библиотека сканера еще загружается...', 'error');
+    if (sheetOverlay) history.back();
+    return;
+  }
+
+  var overlay = document.getElementById('qr-scanner-overlay');
+  if (overlay) overlay.classList.add('active');
+
+  html5QrCode = new Html5Qrcode("qr-reader");
+
+  setTimeout(function() {
+    html5QrCode.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      function(decodedText) {
+        if (typeof haptic === 'function') haptic('success');
+        closeQRScanner();
+
+        if (decodedText.startsWith('kosmos://add/')) {
+          var handle = decodedText.split('kosmos://add/')[1];
+          if (typeof toast === 'function') toast('Найден контакт: ' + handle, 'success');
+        } else {
+          if (typeof toast === 'function') toast('Отсканировано: ' + decodedText, 'success');
+        }
+      },
+      function(err) {
+        // Ошибки сканирования кадра игнорируются
+      }
+    ).catch(function(err) {
+      if (typeof toast === 'function') toast('Ошибка камеры: проверьте разрешения HTTPS', 'error');
+      closeQRScanner();
+    });
+  }, 400);
+};
+
+window.closeQRScanner = function(fromPopState) {
+  var overlay = document.getElementById('qr-scanner-overlay');
+  if (overlay) overlay.classList.remove('active');
+  if (html5QrCode) {
+    html5QrCode.stop().then(function() {
+      html5QrCode.clear();
+      html5QrCode = null;
+    }).catch(function(e) {
+      console.error("Ошибка закрытия камеры", e);
+    });
+  }
+  if (fromPopState !== true) history.back();
+};
+
 // ── Settings Controller ─────────────────────────────────────────────────────
 var SettingsController = (function() {
   var _stack = [];
@@ -3255,20 +3369,41 @@ var SettingsController = (function() {
   }
 
   function bindAvatarUpload() {
-    var trigger = document.getElementById('avatar-upload-trigger');
-    var input = document.getElementById('avatar-input');
-    var img = document.getElementById('user-avatar-img');
-    var placeholder = document.querySelector('.settings-stack .avatar-placeholder');
-    if (!trigger || !input) return;
-    trigger.addEventListener('click', function() { if (typeof haptic === 'function') haptic('light'); input.click(); });
-    input.addEventListener('change', function() {
-      var file = this.files[0];
+    var avatarTrigger = document.getElementById('avatar-upload-trigger');
+    var avatarInput = document.getElementById('avatar-input');
+    var avatarImg = document.getElementById('user-avatar-img');
+    var avatarPlaceholder = document.getElementById('settingsAvatar');
+
+    if (!avatarTrigger || !avatarInput) return;
+
+    // Загружаем сохраненный аватар при старте
+    var savedAvatar = localStorage.getItem('user_avatar');
+    if (savedAvatar && avatarImg) {
+       avatarImg.src = savedAvatar;
+       avatarImg.style.display = 'block';
+       if (avatarPlaceholder) avatarPlaceholder.style.display = 'none';
+    }
+
+    // Клик по кружку открывает выбор файла
+    avatarTrigger.addEventListener('click', function() {
+      avatarInput.click();
+    });
+
+    // Читаем выбранный файл
+    avatarInput.addEventListener('change', function(e) {
+      var file = e.target.files[0];
       if (!file) return;
+
       var reader = new FileReader();
-      reader.onload = function(e) {
-        var b64 = e.target.result;
-        if (img && placeholder) { img.src = b64; img.style.cssText = 'display:block;width:100%;height:100%;border-radius:50%;object-fit:cover'; placeholder.style.display = 'none'; }
-        if (window.socket) window.socket.emit('upload_avatar', { avatarBase64: b64 });
+      reader.onload = function(event) {
+        var base64 = event.target.result;
+        avatarImg.src = base64;
+        avatarImg.style.display = 'block';
+        if (avatarPlaceholder) avatarPlaceholder.style.display = 'none';
+
+        localStorage.setItem('user_avatar', base64);
+        if (typeof toast === 'function') toast('Фото профиля обновлено', 'success');
+        if (typeof haptic === 'function') haptic('success');
       };
       reader.readAsDataURL(file);
     });
