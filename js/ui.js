@@ -2691,12 +2691,16 @@ function toggleCompact() {
 }
 
 function nukeCache() {
+  // Clear service worker caches
   if (caches) {
     caches.keys().then(function(names) {
       names.forEach(function(n) { caches.delete(n); });
     });
   }
-  localStorage.clear();
+  // Clear settings keys but preserve auth
+  var settingsKeys = ['kosmos_haptic', 'kosmos_compact', 'theme', 'dating_theme', 'kosmos_onb_tour_done', 'kosmos_onboarded'];
+  settingsKeys.forEach(function(k) { localStorage.removeItem(k); });
+  // Clear IndexedDB (localforage) but keep auth tokens intact
   if (window.localforage) localforage.clear();
   haptic('medium');
   toast('Кэш очищен!', 'success');
