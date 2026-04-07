@@ -2599,6 +2599,7 @@ function showTab(tab) {
     settingsScreen.offsetHeight;
     settingsScreen.style.animation = 'slideInRight .28s cubic-bezier(.4,0,.2,1)';
     renderSettingsScreen();
+    if (typeof SettingsController !== 'undefined') SettingsController.open();
   }
 }
 
@@ -3026,46 +3027,117 @@ document.addEventListener('input', function(e) {
   _typingTimer = setTimeout(function() { _isTypingNow = false; socket.emit('typing', { chatId: cur, isTyping: false }); }, 2000);
 });
 
-// ── Settings View Handlers ──────────────────────────────────────────────────
-var nicknameInput = document.getElementById('profile-nickname');
-if (nicknameInput) {
-  nicknameInput.addEventListener('blur', function(e) {
-    var val = e.target.value.trim();
-    if (window.socket && val !== '') window.socket.emit('update_profile', { username: val });
-  });
-}
-
-var settingsMain = document.getElementById('settings-main-view');
-var appearanceView = document.getElementById('appearance-view');
-
-document.querySelectorAll('#settingsScreen .settings-item').forEach(function(item) {
-  item.addEventListener('click', function(e) {
-    if (e.currentTarget.dataset.target === 'appearance') {
-      settingsMain.style.display = 'none';
-      appearanceView.style.display = 'block';
-    } else {
-      alert('Раздел ' + e.currentTarget.dataset.target + ' в разработке');
+// ── Settings Controller ─────────────────────────────────────────────────────
+var SettingsController = (function() {
+  var _stack = [];
+  function navigate(targetId) {
+    var target = document.getElementById(targetId);
+    if (!target) { toast('Раздел в разработке', 'error'); return; }
+    var prevId = _stack.length ? _stack[_stack.length - 1] : 'view-settings-main';
+    var prev = document.getElementById(prevId);
+    _stack.push(targetId);
+    if (prev) { prev.classList.remove('active'); prev.classList.add('left'); }
+    target.classList.remove('right');
+    target.classList.add('active');
+    if (typeof haptic === 'function') haptic('light');
+  }
+  function back() {
+    if (_stack.length === 0) return;
+    var currentId = _stack.pop();
+    var current = document.getElementById(currentId);
+    var prevId = _stack.length ? _stack[_stack.length - 1] : 'view-settings-main';
+    var prev = document.getElementById(prevId);
+    if (current) { current.classList.remove('active'); current.classList.add('right'); }
+    if (prev) { prev.classList.remove('left'); prev.classList.add('active'); }
+    if (typeof haptic === 'function') haptic('light');
+  }
+  function resetStack() {
+    _stack = [];
+    document.querySelectorAll('#settingsScreen .settings-page').forEach(function(p) {
+      p.classList.remove('active', 'left', 'right');
+    });
+    var main = document.getElementById('view-settings-main');
+    if (main) { main.classList.remove('left', 'right'); main.classList.add('active'); }
+  }
+  function syncToggles() {
+    var themeToggle = document.getElementById('toggle-dark-mode');
+    if (themeToggle) {
+      var saved = localStorage.getItem('theme');
+      var isDark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      themeToggle.checked = isDark;
     }
-  });
-});
-
-var backFromAppearance = document.getElementById('back-from-appearance');
-if (backFromAppearance) {
-  backFromAppearance.addEventListener('click', function() {
-    appearanceView.style.display = 'none';
-    settingsMain.style.display = 'block';
-  });
-}
-
-document.querySelectorAll('#settingsScreen .action-btn').forEach(function(btn) {
-  btn.addEventListener('click', function(e) {
-    if (e.currentTarget.dataset.action === 'create_chat') {
-      if (typeof showTab === 'function') showTab('chats');
-    } else {
-      alert('Функция ' + e.currentTarget.dataset.action + ' в разработке');
+    var hapticToggle = document.getElementById('toggle-haptic');
+    if (hapticToggle) {
+      hapticToggle.checked = localStorage.getItem('kosmos_haptic') !== 'off';
     }
-  });
-});
+  }
+  function saveNickname(val) {
+    if (!val || !val.trim()) return;
+    val = val.trim();
+    if (window.currentUser) {
+      window.currentUser.username = val;
+      try {
+        var raw = localStorage.getItem('kosmos_user');
+        var u = raw ? JSON.parse(raw) : {};
+        u.username = val;
+        localStorage.setItem('kosmos_user', JSON.stringify(u));
+      } catch(e) {}
+    }
+    if (window.socket && window.socket.connected) {
+      window.socket.emit('update_profile', { username: val });
+    }
+    var logoSub = document.getElementById('logoSub');
+    if (logoSub && window.currentUser) {
+      logoSub.textContent = window.currentUser.handle ? '@' + window.currentUser.handle : val;
+    }
+    toast('Никнейм сохранён', 'success');
+  }
+  function bind() {
+    document.querySelectorAll('#settingsScreen .settings-item[data-route]').forEach(function(item) {
+      item.addEventListener('click', function() { navigate(this.dataset.route); });
+    });
+    document.querySelectorAll('#settingsScreen .back-btn[data-back]').forEach(function(btn) {
+      btn.addEventListener('click', back);
+    });
+    document.querySelectorAll('#settingsScreen .action-btn[data-action]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        if (this.dataset.action === 'create_chat' && typeof showTab === 'function') showTab('chats');
+        else toast('Функция ' + this.dataset.action + ' в разработке', 'error');
+      });
+    });
+    var themeToggle = document.getElementById('toggle-dark-mode');
+    if (themeToggle) {
+      themeToggle.addEventListener('change', function() {
+        if (typeof applyTheme === 'function') applyTheme(this.checked ? 'dark' : 'light');
+      });
+    }
+    var hapticToggle = document.getElementById('toggle-haptic');
+    if (hapticToggle) {
+      hapticToggle.addEventListener('change', function() {
+        localStorage.setItem('kosmos_haptic', this.checked ? 'on' : 'off');
+        if (this.checked && typeof haptic === 'function') haptic('medium');
+      });
+    }
+    var nicknameInput = document.getElementById('profile-nickname');
+    if (nicknameInput) {
+      nicknameInput.addEventListener('blur', function() { saveNickname(this.value); });
+      nicknameInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { this.blur(); } });
+    }
+  }
+  return {
+    init: function() { bind(); },
+    open: function() {
+      resetStack();
+      syncToggles();
+      var nicknameInput = document.getElementById('profile-nickname');
+      if (nicknameInput && window.currentUser) { nicknameInput.value = window.currentUser.username || ''; }
+    },
+    back: back,
+    navigate: navigate,
+  };
+})();
+
+document.addEventListener('DOMContentLoaded', function() { SettingsController.init(); });
 
 // ── Service Worker ───────────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
