@@ -3369,43 +3369,44 @@ var SettingsController = (function() {
   }
 
   function bindAvatarUpload() {
-    var avatarTrigger = document.getElementById('avatar-upload-trigger');
-    var avatarInput = document.getElementById('avatar-input');
-    var avatarImg = document.getElementById('user-avatar-img');
-    var avatarPlaceholder = document.getElementById('settingsAvatar');
+    var trigger = document.getElementById('avatar-upload-trigger');
+    var input = document.getElementById('avatar-input');
+    var img = document.getElementById('user-avatar-img');
+    var placeholder = document.getElementById('settingsAvatar');
 
-    if (!avatarTrigger || !avatarInput) return;
-
-    // Загружаем сохраненный аватар при старте
-    var savedAvatar = localStorage.getItem('user_avatar');
-    if (savedAvatar && avatarImg) {
-       avatarImg.src = savedAvatar;
-       avatarImg.style.display = 'block';
-       if (avatarPlaceholder) avatarPlaceholder.style.display = 'none';
+    var saved = localStorage.getItem('user_avatar');
+    if (saved && img && placeholder) {
+      img.src = saved;
+      img.style.cssText = 'display:block;width:100%;height:100%;border-radius:50%;object-fit:cover';
+      if (placeholder) placeholder.style.display = 'none';
     }
 
-    // Клик по кружку открывает выбор файла
-    avatarTrigger.addEventListener('click', function() {
-      avatarInput.click();
+    if (!trigger || !input) return;
+
+    trigger.addEventListener('click', function() {
+      if (typeof haptic === 'function') haptic('light');
+      input.click();
     });
 
-    // Читаем выбранный файл
-    avatarInput.addEventListener('change', function(e) {
-      var file = e.target.files[0];
+    input.addEventListener('change', function() {
+      var file = this.files[0];
       if (!file) return;
-
       var reader = new FileReader();
-      reader.onload = function(event) {
-        var base64 = event.target.result;
-        avatarImg.src = base64;
-        avatarImg.style.display = 'block';
-        if (avatarPlaceholder) avatarPlaceholder.style.display = 'none';
-
-        localStorage.setItem('user_avatar', base64);
-        if (typeof toast === 'function') toast('Фото профиля обновлено', 'success');
-        if (typeof haptic === 'function') haptic('success');
+      reader.onload = function(e) {
+        var b64 = e.target.result;
+        localStorage.setItem('user_avatar', b64);
+        if (img && placeholder) {
+          img.src = b64;
+          img.style.cssText = 'display:block;width:100%;height:100%;border-radius:50%;object-fit:cover';
+          placeholder.style.display = 'none';
+        }
+        if (window.socket && window.socket.connected) {
+          window.socket.emit('upload_avatar', { avatarBase64: b64 });
+        }
+        if (typeof toast === 'function') toast('Фото обновлено', 'success');
       };
       reader.readAsDataURL(file);
+      this.value = '';
     });
   }
 
