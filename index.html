@@ -304,7 +304,7 @@
 
 <!-- НАСТРОЙКИ ЭКРАН -->
 <div id="settingsScreen" style="display:none;position:fixed;inset:0;bottom:72px;background:var(--bg);overflow-y:auto;z-index:99">
-<div id='settings-view' class='view'>
+<div id='settings-main-view'>
   <div class='settings-header'><h2>Настройки</h2></div>
   <div class='settings-profile-card'>
     <div class='profile-avatar-container'>
@@ -332,6 +332,16 @@
   <div class='settings-group'>
     <div class='settings-item' data-target='help'><div class='item-left'><span class='icon'>❓</span> <span class='label'>Помощь</span></div><div class='chevron'>›</div></div>
     <div class='settings-item' data-target='about'><div class='item-left'><span class='icon'>🚀</span> <span class='label'>О Космосе</span></div><div class='chevron'>›</div></div>
+  </div>
+</div>
+
+<div id='appearance-view' style='display: none;'>
+  <div class='settings-header' style='display: flex; align-items: center; gap: 15px;'>
+    <button id='back-from-appearance' class='back-btn'>‹ Назад</button>
+    <h2 style='margin: 0;'>Оформление</h2>
+  </div>
+  <div class='settings-group' style='margin-top: 20px;'>
+    <div class='settings-item'><span class='label'>Здесь скоро будут тумблеры темы</span></div>
   </div>
 </div>
 </div>

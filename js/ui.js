@@ -3027,16 +3027,43 @@ document.addEventListener('input', function(e) {
 });
 
 // ── Settings View Handlers ──────────────────────────────────────────────────
-document.querySelectorAll('#settings-view .action-btn').forEach(function(btn) {
-  btn.addEventListener('click', function(e) {
-    if (typeof haptic === 'function') haptic('medium');
-    alert('Модуль ' + e.currentTarget.dataset.action + ' в разработке');
+var nicknameInput = document.getElementById('profile-nickname');
+if (nicknameInput) {
+  nicknameInput.addEventListener('blur', function(e) {
+    var val = e.target.value.trim();
+    if (window.socket && val !== '') window.socket.emit('update_profile', { username: val });
+  });
+}
+
+var settingsMain = document.getElementById('settings-main-view');
+var appearanceView = document.getElementById('appearance-view');
+
+document.querySelectorAll('#settingsScreen .settings-item').forEach(function(item) {
+  item.addEventListener('click', function(e) {
+    if (e.currentTarget.dataset.target === 'appearance') {
+      settingsMain.style.display = 'none';
+      appearanceView.style.display = 'block';
+    } else {
+      alert('Раздел ' + e.currentTarget.dataset.target + ' в разработке');
+    }
   });
 });
-document.querySelectorAll('.settings-item').forEach(function(item) {
-  item.addEventListener('click', function(e) {
-    if (typeof haptic === 'function') haptic('light');
-    alert('Раздел ' + e.currentTarget.dataset.target + ' в разработке');
+
+var backFromAppearance = document.getElementById('back-from-appearance');
+if (backFromAppearance) {
+  backFromAppearance.addEventListener('click', function() {
+    appearanceView.style.display = 'none';
+    settingsMain.style.display = 'block';
+  });
+}
+
+document.querySelectorAll('#settingsScreen .action-btn').forEach(function(btn) {
+  btn.addEventListener('click', function(e) {
+    if (e.currentTarget.dataset.action === 'create_chat') {
+      if (typeof showTab === 'function') showTab('chats');
+    } else {
+      alert('Функция ' + e.currentTarget.dataset.action + ' в разработке');
+    }
   });
 });
 
