@@ -3026,6 +3026,20 @@ document.addEventListener('input', function(e) {
   _typingTimer = setTimeout(function() { _isTypingNow = false; socket.emit('typing', { chatId: cur, isTyping: false }); }, 2000);
 });
 
+// ── Settings View Handlers ──────────────────────────────────────────────────
+document.querySelectorAll('#settings-view .action-btn').forEach(function(btn) {
+  btn.addEventListener('click', function(e) {
+    if (typeof haptic === 'function') haptic('medium');
+    alert('Модуль ' + e.currentTarget.dataset.action + ' в разработке');
+  });
+});
+document.querySelectorAll('.settings-item').forEach(function(item) {
+  item.addEventListener('click', function(e) {
+    if (typeof haptic === 'function') haptic('light');
+    alert('Раздел ' + e.currentTarget.dataset.target + ' в разработке');
+  });
+});
+
 // ── Service Worker ───────────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/kosmos-frontend/sw.js').catch(function() {});
