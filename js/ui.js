@@ -709,11 +709,14 @@ function openChat(id) {
   var avHtml = isCh ? defaultAvSq(item.name, 36) : defaultAv(item.name, 36);
 
   document.getElementById('mainArea').innerHTML =
-    '<div class="chat-nav">' +
-      '<button class="chat-back" onclick="goBack()">\u2039</button>' +
-      '<div class="chat-nav-info">' + avHtml +
-      '<div><div class="chat-nav-name">' + escHtml(item.name) + '</div><div class="chat-nav-status">' + sub + '</div></div></div>' +
-      '<div class="hacts"><button onclick="startVideoCall()" class="chat-nav-btn">\uD83D\uDCDE</button><button onclick="toggleSearch()" class="chat-nav-btn" title="Поиск">\uD83D\uDD0D</button></div>' +
+    '<div class="nav">' +
+      '<button class="nav-back" onclick="goBack()">\u2039</button>' +
+      '<div class="nav-avatar">' + escHtml((item.name || '?')[0].toUpperCase()) + '</div>' +
+      '<div><div class="nav-name">' + escHtml(item.name) + '</div><div class="nav-status">' + sub + '</div></div>' +
+      '<div class="nav-actions">' +
+        '<svg onclick="startVideoCall()" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" style="cursor:pointer"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012.18 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 8.16a16 16 0 006.93 6.93l1.52-1.52a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>' +
+        '<svg onclick="toggleSearch()" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" style="cursor:pointer"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>' +
+      '</div>' +
     '</div>' +
     '<div id="search-bar" style="display:none;padding:8px 12px;background:var(--bg2);border-bottom:1px solid var(--sep)"><input id="search-input" placeholder="\uD83D\uDD0D Поиск по сообщениям..." oninput="searchMessages(this.value)" style="width:100%;padding:8px 12px;border-radius:20px;border:none;background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;outline:none"></div>' +
     (isCh && item.slug ? '<div style="display:flex;align-items:center;gap:8px;padding:6px 16px;background:var(--bg2);font-size:13px;border-bottom:0.5px solid var(--sep)">' +
@@ -773,12 +776,12 @@ function mHTML(m) {
   var timeStr = m.time || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
   var tickMark = m.is_read ? '\u2713\u2713' : '\u2713';
   var tickClass = m.is_read ? 'msg-status read' : 'msg-status';
-  var metaHtml = '<div class="msg-meta"><span class="msg-time">' + timeStr + '</span>' + (isMy ? '<span class="' + tickClass + '" data-msg-id="' + escAttr(m.id) + '">' + tickMark + '</span>' : '') + '</div>';
-  var bblClass = (isMy ? 'bbl me' : 'bbl them') + (hasPhoto ? ' bbl-photo' : '');
+  var metaHtml = '<div class="bubble-time">' + timeStr + (isMy ? ' <span class="' + tickClass + '" data-msg-id="' + escAttr(m.id) + '">' + tickMark + '</span>' : '') + '</div>';
+  var bblClass = 'bubble ' + (isMy ? 'out' : 'in') + (hasPhoto ? ' bbl-photo' : '');
   var textBlock = (m.text || '').trim();
   var textHtml = textBlock ? (hasPhoto ? '<div class="bbl-text-under-photo">' + escHtml(textBlock) + '</div>' : '<span style="white-space:pre-wrap">' + escHtml(textBlock) + '</span> ') : '';
-  var avHtml = isMy ? '' : '<div class="msg-av">' + escHtml((m.sender || '?')[0].toUpperCase()) + '</div>';
-  return '<div class="msg-row ' + (isMy ? 'me' : 'them') + '">' + avHtml +
+  var avHtml = isMy ? '' : '<div class="avatar-sm">' + escHtml((m.sender || '?')[0].toUpperCase()) + '</div>';
+  return '<div class="bubble-wrap ' + (isMy ? 'out' : '') + '">' + avHtml +
     '<div class="' + bblClass + '" id="msg-' + escAttr(m.id || Date.now()) + '" ondblclick="sendReaction(this,\'\u2764\uFE0F\')">' +
       nameHtml + photoHtml + audioHtml + textHtml + '<span class="msg-reaction" id="react-' + escAttr(m.id || '') + '" style="font-size:16px;display:block;margin-top:2px"></span>' + metaHtml +
     '</div></div>';
@@ -820,26 +823,24 @@ function safePhotoUrl(url) {
 }
 
 function inpHTML() {
-  return '<div class="chat-input">' +
-    '<div id="attachZone" style="display:flex;flex-direction:column;gap:8px;padding:0 4px"></div>' +
-    '<div class="epanel glass-panel" id="ep" style="bottom:70px;border-radius:16px">' + EMOJIS.map(function(e){return '<span class="ep" onclick="insE(\'' + e + '\')">' + e + '</span>'}).join('') + '</div>' +
-    '<div style="display:flex;align-items:flex-end;gap:8px">' +
-      '<button class="action-btn" onclick="openPhotoGallery()">\uD83D\uDCCE</button>' +
-      '<div class="inp-box">' +
-        '<textarea class="minput" id="mi" placeholder="Сообщение..." rows="1" maxlength="500" onkeydown="hKey(event)" oninput="onInput(this)" style="flex:1;border:none;background:transparent;resize:none;font-family:inherit;outline:none"></textarea>' +
-        '<button class="action-btn" onclick="togE()" style="padding:4px;font-size:20px">\uD83D\uDE42</button>' +
-      '</div>' +
-      '<div style="display:flex;gap:6px;align-items:flex-end;padding-bottom:4px">' +
-        '<button id="micBtn" class="action-btn" onmousedown="startVoice()" onmouseup="stopVoice()" ontouchstart="startVoice()" ontouchend="stopVoice()" style="background:rgba(255,255,255,0.1);border-radius:50%;width:40px;height:40px">\uD83C\uDFA4</button>' +
-        '<button id="camera-btn" type="button" style="background:none;border:none;padding:8px;cursor:pointer;color:var(--text3);font-size:20px;flex-shrink:0;transition:color .2s" title="Камера">\uD83D\uDCF7</button>' +
-        '<button class="sbtn" onclick="send()">' +
-          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>' +
+  return '<div id="attachZone" style="display:flex;flex-direction:column;gap:8px;padding:0 4px"></div>' +
+    '<div class="input-bar">' +
+      '<button class="btn-photo" onclick="openPhotoGallery()">' +
+        '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="3"/><circle cx="8" cy="10" r="2"/><path d="M2 17l5-5 4 4 3-3 5 5"/></svg>' +
+      '</button>' +
+      '<div class="field-wrap">' +
+        '<textarea class="minput field typed" id="mi" placeholder="Сообщение..." rows="1" maxlength="500" onkeydown="hKey(event)" oninput="onInput(this)" style="flex:1;border:none;background:transparent;resize:none;font-family:inherit;outline:none;font-size:15px;color:inherit"></textarea>' +
+        '<button class="btn-emoji" onclick="togE()">' +
+          '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c7c7cc" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9" stroke-width="2.5"/><line x1="15" y1="9" x2="15.01" y2="9" stroke-width="2.5"/></svg>' +
         '</button>' +
       '</div>' +
+      '<button class="btn-action" id="micBtn" onmousedown="startVoice()" onmouseup="stopVoice()" ontouchstart="startVoice()" ontouchend="stopVoice()">' +
+        '<svg id="micSvg" width="16" height="16" viewBox="0 0 24 24" fill="white"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/><line x1="12" y1="19" x2="12" y2="22" stroke="white" stroke-width="2"/><line x1="8" y1="22" x2="16" y2="22" stroke="white" stroke-width="2"/></svg>' +
+        '<svg id="sendSvg" width="17" height="17" viewBox="0 0 24 24" fill="none" style="display:none"><path d="M12 20V6" stroke="white" stroke-width="2.8" stroke-linecap="round"/><path d="M5 11l7-7 7 7" stroke="white" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+      '</button>' +
     '</div>' +
-    '<input type="file" id="photoInput" accept="image/*" style="display:none" onchange="handlePhotoSelect(this)">' +
-    '<span class="char-counter" id="charCount"></span>' +
-  '</div>';
+    '<div class="emoji-picker" id="ep">' + EMOJIS.map(function(e){return '<span onclick="insE(\'' + e + '\')">' + e + '</span>'}).join('') + '</div>' +
+    '<input type="file" id="photoInput" accept="image/*" style="display:none" onchange="handlePhotoSelect(this)">';
 }
 
 function hKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }
