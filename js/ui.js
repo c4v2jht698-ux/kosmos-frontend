@@ -834,7 +834,7 @@ function inpHTML() {
           '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c7c7cc" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9" stroke-width="2.5"/><line x1="15" y1="9" x2="15.01" y2="9" stroke-width="2.5"/></svg>' +
         '</button>' +
       '</div>' +
-      '<button class="btn-action" id="micBtn" onmousedown="startVoice()" onmouseup="stopVoice()" ontouchstart="startVoice()" ontouchend="stopVoice()">' +
+      '<button class="btn-action" id="actionBtn" onclick="doAction()" onmousedown="actionDown()" onmouseup="actionUp()" ontouchstart="actionDown()" ontouchend="actionUp()">' +
         '<svg id="micSvg" width="16" height="16" viewBox="0 0 24 24" fill="white"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/><line x1="12" y1="19" x2="12" y2="22" stroke="white" stroke-width="2"/><line x1="8" y1="22" x2="16" y2="22" stroke="white" stroke-width="2"/></svg>' +
         '<svg id="sendSvg" width="17" height="17" viewBox="0 0 24 24" fill="none" style="display:none"><path d="M12 20V6" stroke="white" stroke-width="2.8" stroke-linecap="round"/><path d="M5 11l7-7 7 7" stroke="white" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
       '</button>' +
@@ -845,8 +845,36 @@ function inpHTML() {
 
 function hKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }
 function aRes(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 130) + 'px'; }
+function updateActionBtn() {
+  var inp = document.getElementById('mi');
+  var mic = document.getElementById('micSvg');
+  var snd = document.getElementById('sendSvg');
+  if (!mic || !snd) return;
+  var hasText = inp && inp.value.trim().length > 0;
+  mic.style.display = hasText ? 'none' : 'block';
+  snd.style.display = hasText ? 'block' : 'none';
+}
+
+function doAction() {
+  var inp = document.getElementById('mi');
+  if (inp && inp.value.trim()) {
+    send();
+  }
+}
+
+function actionDown() {
+  var inp = document.getElementById('mi');
+  if (!inp || !inp.value.trim()) startVoice();
+}
+
+function actionUp() {
+  var inp = document.getElementById('mi');
+  if (!inp || !inp.value.trim()) stopVoice();
+}
+
 function onInput(el) {
   aRes(el);
+  updateActionBtn();
   if (socket && socket.connected && cur) socket.emit('typing', { chatId: cur, isTyping: true });
   // Update char counter
   var cc = document.getElementById('charCount');
@@ -2334,6 +2362,7 @@ async function send() {
   if (!text && !image) return;
   haptic('medium');
   inp.value = ''; inp.style.height = 'auto';
+  updateActionBtn();
 
   // Local echo — show message immediately without waiting for server
   var now = new Date();
