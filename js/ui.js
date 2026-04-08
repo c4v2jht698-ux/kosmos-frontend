@@ -2037,12 +2037,22 @@ function insE(e) { var i = document.getElementById('mi'); if (i) { i.value += e;
 function scrollBot(force) {
   var area = document.getElementById('msgArea');
   if (!area) return;
-  var isAtBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 150;
-  if (force || isAtBottom) {
-    if (force) {
+
+  var isForced = force === true;
+  var isAtBottom = (area.scrollHeight - area.scrollTop - area.clientHeight) < 80;
+
+  if (isForced || isAtBottom) {
+    if (isForced) {
       area.scrollTop = area.scrollHeight;
     } else {
-      area.scrollTo({ top: area.scrollHeight, behavior: 'smooth' });
+      try {
+        area.scrollTo({
+          top: area.scrollHeight,
+          behavior: 'smooth'
+        });
+      } catch (e) {
+        area.scrollTop = area.scrollHeight;
+      }
     }
   }
 }
