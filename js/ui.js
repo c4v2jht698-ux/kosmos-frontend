@@ -689,7 +689,7 @@ function openChat(id) {
             var loader = item.hasMore !== false ? '<div id="loadMoreBtn" style="text-align:center;padding:10px"><button onclick="loadOlderMsgs()" style="background:var(--bg2);border:1px solid var(--sep);border-radius:20px;padding:6px 16px;color:var(--text3);font-size:13px;cursor:pointer">Загрузить старые</button></div>' : '';
             area.innerHTML = loader + '<div class="chat-date"><span>Сегодня</span></div>' +
               item.msgs.map(function(m){return mHTML(m)}).join('');
-            scrollBot();
+            scrollBot(true);
             initScrollListener(id);
           }
         }
@@ -728,7 +728,7 @@ function openChat(id) {
       item.msgs.map(function(m){return mHTML(m)}).join('') +
     '</div>' +
     (isCh && String(item.created_by) !== String(currentUser && currentUser.id) ? '<div class="ro-bar">Канал только для чтения</div>' : inpHTML());
-  scrollBot();
+  scrollBot(true);
   applyChatBg();
   showChatView();
   // Load cached messages from IndexedDB
@@ -746,7 +746,7 @@ function openChat(id) {
       var area = document.getElementById('msgArea');
       if (area && item.msgs.length) {
         area.innerHTML = '<div class="chat-date"><span>Сегодня</span></div>' + item.msgs.map(function(m) { return mHTML(m); }).join('');
-        scrollBot();
+        scrollBot(true);
       }
     }).catch(function() {});
   }
@@ -760,7 +760,7 @@ function mHTML(m) {
   // photo debug removed — production ready
   var isMy = m.from === 'me';
   var hasPhoto = !!m.image;
-  var photoHtml = hasPhoto ? '<img class="chat-photo" src="' + m.image + '" style="max-width:100%;border-radius:12px;margin-top:6px;cursor:pointer;display:block" loading="lazy" decode="async" onload="scrollBot()" onclick="openImgFull(this.src)">' : '';
+  var photoHtml = hasPhoto ? '<img class="chat-photo" src="' + m.image + '" style="max-width:100%;border-radius:12px;margin-top:6px;cursor:pointer;display:block" loading="lazy" decode="async" onclick="openImgFull(this.src)">' : '';
   var audioHtml = '';
   if (m.audio) {
     audioHtml =
@@ -1066,7 +1066,7 @@ async function openPinned(type) {
       '<div class="inp-zone"><div class="inp-box">' +
         '<textarea class="minput" id="mi" placeholder="Записать заметку..." rows="1" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();saveNote()}" oninput="aRes(this)"></textarea>' +
       '</div><button class="sbtn" onclick="saveNote()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9H4l4 4-2 7 6-4 6 4-2-7 4-4h-5z"/></svg></button></div>';
-    scrollBot(); showChatView();
+    scrollBot(true); showChatView();
   } else if (type === 'ai') {
     aiMessages = await localforage.getItem('kosmos_ai_history') || [];
     main.innerHTML =
@@ -1083,7 +1083,7 @@ async function openPinned(type) {
       '<div class="inp-zone"><div class="inp-box">' +
         '<textarea class="minput" id="mi" placeholder="Спросить AI..." rows="1" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendAI()}" oninput="aRes(this)"></textarea>' +
       '</div><button class="sbtn" onclick="sendAI()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9H4l4 4-2 7 6-4 6 4-2-7 4-4h-5z"/></svg></button></div>';
-    scrollBot(); showChatView();
+    scrollBot(true); showChatView();
   } else if (type === 'video') {
     buildFeedView(main);
     showChatView();
@@ -2034,7 +2034,18 @@ function fallbackCopy(text) {
 
 // ── Utilities ───────────────────────────────────────────────────────────────
 function insE(e) { var i = document.getElementById('mi'); if (i) { i.value += e; i.focus(); } var ep = document.getElementById('ep'); if (ep) ep.classList.remove('open'); }
-function scrollBot() { var a = document.getElementById('msgArea'); if (a) a.scrollTop = a.scrollHeight; }
+function scrollBot(force) {
+  var area = document.getElementById('msgArea');
+  if (!area) return;
+  var isAtBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 150;
+  if (force || isAtBottom) {
+    if (force) {
+      area.scrollTop = area.scrollHeight;
+    } else {
+      area.scrollTo({ top: area.scrollHeight, behavior: 'smooth' });
+    }
+  }
+}
 
 function initScrollListener(chatId) {
   var area = document.getElementById('msgArea');
