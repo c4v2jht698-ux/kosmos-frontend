@@ -3650,8 +3650,9 @@ var SettingsController = (function() {
     target.classList.remove('right');
     target.classList.add('active');
     if (targetId === 'view-settings-archive') renderArchiveList();
-    if (targetId === 'view-settings-devices') renderDevicesList();
+    if (targetId === 'view-settings-devices') renderDeviceInfo();
     if (targetId === 'view-settings-data') updateStorageMetabolism();
+    if (targetId === 'view-settings-privacy') bindPrivacyToggles();
     if (typeof haptic === 'function') haptic('light');
   }
 
@@ -3742,6 +3743,11 @@ var SettingsController = (function() {
     if (themeToggle) themeToggle.addEventListener('change', function() { if (typeof applyTheme === 'function') applyTheme(this.checked ? 'dark' : 'light'); });
     var hapticToggle = document.getElementById('toggle-haptic');
     if (hapticToggle) hapticToggle.addEventListener('change', function() { localStorage.setItem('kosmos_haptic', this.checked ? 'on' : 'off'); if (this.checked && typeof haptic === 'function') haptic('medium'); });
+    // Notification toggles
+    var soundToggle = document.getElementById('toggle-sound');
+    if (soundToggle) soundToggle.addEventListener('change', function() { localStorage.setItem('kosmos_sound', this.checked ? 'on' : 'off'); });
+    var chNotifToggle = document.getElementById('toggle-channel-notif');
+    if (chNotifToggle) chNotifToggle.addEventListener('change', function() { localStorage.setItem('kosmos_channel_notif', this.checked ? 'on' : 'off'); });
     var nicknameInput = document.getElementById('profile-nickname');
     if (nicknameInput) {
       nicknameInput.addEventListener('blur', function() { saveNickname(this.value); });
@@ -3750,21 +3756,135 @@ var SettingsController = (function() {
     bindAvatarUpload();
   }
 
+  function fillProfileFields() {
+    var u = window.currentUser || {};
+    var nicknameInput = document.getElementById('profile-nickname');
+    if (nicknameInput) nicknameInput.value = u.username || '';
+    var bioInput = document.getElementById('profile-bio');
+    if (bioInput) bioInput.value = u.bio || '';
+    var ageInput = document.getElementById('profile-age');
+    if (ageInput) ageInput.value = u.age || '';
+    var cityInput = document.getElementById('profile-city');
+    if (cityInput) cityInput.value = u.city || '';
+    var settingsAvatar = document.getElementById('settingsAvatar');
+    var avatarImg = document.getElementById('user-avatar-img');
+    if (settingsAvatar) settingsAvatar.textContent = ((u.username || '?')[0]).toUpperCase();
+    // Show avatar from backend or localStorage
+    var avatarSrc = localStorage.getItem('user_avatar') || u.avatar || u.photo;
+    if (avatarImg && avatarSrc) {
+      avatarImg.src = avatarSrc;
+      avatarImg.style.cssText = 'display:block;width:100%;height:100%;border-radius:50%;object-fit:cover';
+      if (settingsAvatar) settingsAvatar.style.display = 'none';
+    } else if (avatarImg) {
+      avatarImg.style.display = 'none';
+      if (settingsAvatar) settingsAvatar.style.display = '';
+    }
+    var settingsHandle = document.getElementById('settingsHandle');
+    if (settingsHandle) settingsHandle.textContent = u.handle ? '@' + u.handle : '';
+  }
+
+  function bindProfileSave() {
+    var btn = document.getElementById('save-profile-btn');
+    if (!btn || btn.dataset.bound) return;
+    btn.dataset.bound = 'true';
+    btn.addEventListener('click', async function() {
+      var u = window.currentUser;
+      if (!u) return;
+      var data = {
+        username: (document.getElementById('profile-nickname').value || '').trim() || undefined,
+        bio: (document.getElementById('profile-bio').value || '').trim(),
+        age: parseInt(document.getElementById('profile-age').value) || undefined,
+        city: (document.getElementById('profile-city').value || '').trim() || undefined,
+      };
+      btn.disabled = true; btn.textContent = 'Сохраняю...';
+      try {
+        var r = await fetch(API + '/me/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+          body: JSON.stringify(data)
+        });
+        if (r.ok) {
+          // Update local state
+          if (data.username) { u.username = data.username; window.currentUser.username = data.username; }
+          if (data.bio !== undefined) u.bio = data.bio;
+          if (data.age) u.age = data.age;
+          if (data.city) u.city = data.city;
+          localStorage.setItem('kosmos_user', JSON.stringify(u));
+          if (typeof toast === 'function') toast('Профиль сохранён', 'success');
+        } else {
+          if (typeof toast === 'function') toast('Ошибка сохранения', 'error');
+        }
+      } catch(e) {
+        if (typeof toast === 'function') toast('Нет связи с сервером', 'error');
+      }
+      btn.disabled = false; btn.textContent = 'Сохранить профиль';
+    });
+  }
+
+  function bindPrivacyToggles() {
+    var onlineToggle = document.getElementById('toggle-online-status');
+    var readToggle = document.getElementById('toggle-read-receipts');
+    if (onlineToggle && !onlineToggle.dataset.privBound) {
+      onlineToggle.dataset.privBound = 'true';
+      // Load from currentUser
+      var u = window.currentUser;
+      if (u && u.privacy_settings) {
+        onlineToggle.checked = u.privacy_settings.onlineStatus !== false;
+        if (readToggle) readToggle.checked = u.privacy_settings.readReceipts !== false;
+      }
+      onlineToggle.addEventListener('change', function() { emitPrivacy(); });
+      if (readToggle) {
+        readToggle.dataset.privBound = 'true';
+        readToggle.addEventListener('change', function() { emitPrivacy(); });
+      }
+    }
+    function emitPrivacy() {
+      if (window.socket && window.socket.connected) {
+        window.socket.emit('update_privacy', {
+          onlineStatus: document.getElementById('toggle-online-status').checked,
+          readReceipts: document.getElementById('toggle-read-receipts').checked
+        });
+        if (typeof toast === 'function') toast('Настройки сохранены', 'success');
+      }
+    }
+  }
+
+  function renderDeviceInfo() {
+    var browserEl = document.getElementById('device-browser');
+    var loginEl = document.getElementById('device-last-login');
+    if (browserEl) {
+      var ua = navigator.userAgent;
+      var browser = 'Неизвестный браузер';
+      if (ua.includes('Chrome') && !ua.includes('Edg')) browser = 'Chrome';
+      else if (ua.includes('Safari') && !ua.includes('Chrome')) browser = 'Safari';
+      else if (ua.includes('Firefox')) browser = 'Firefox';
+      else if (ua.includes('Edg')) browser = 'Edge';
+      var os = 'Unknown';
+      if (ua.includes('Mac')) os = 'macOS';
+      else if (ua.includes('Windows')) os = 'Windows';
+      else if (ua.includes('Android')) os = 'Android';
+      else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+      else if (ua.includes('Linux')) os = 'Linux';
+      browserEl.textContent = browser + ' / ' + os;
+    }
+    if (loginEl) {
+      var loginTime = localStorage.getItem('kosmos_last_login') || new Date().toISOString();
+      loginEl.textContent = 'Последний вход: ' + new Date(loginTime).toLocaleString('ru-RU');
+    }
+  }
+
   return {
-    init: function() { bind(); },
+    init: function() { bind(); bindProfileSave(); },
     open: function() {
       resetStack();
       syncToggles();
       initAllSwitches();
-      var nicknameInput = document.getElementById('profile-nickname');
-      if (nicknameInput && window.currentUser) nicknameInput.value = window.currentUser.username || '';
-      var settingsAvatar = document.getElementById('settingsAvatar');
-      if (settingsAvatar && window.currentUser) settingsAvatar.textContent = (window.currentUser.username || '?')[0].toUpperCase();
-      var settingsHandle = document.getElementById('settingsHandle');
-      if (settingsHandle && window.currentUser) settingsHandle.textContent = window.currentUser.handle ? '@' + window.currentUser.handle : '';
+      fillProfileFields();
+      bindPrivacyToggles();
     },
     back: back,
     navigate: navigate,
+    renderDeviceInfo: renderDeviceInfo,
   };
 })();
 

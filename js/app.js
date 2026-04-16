@@ -272,6 +272,7 @@ function enterApp() {
   document.getElementById('auth').classList.add('hidden');
     document.getElementById('seedPhrase').textContent = '';
   document.getElementById('bottomNav').style.display = 'flex';
+  localStorage.setItem('kosmos_last_login', new Date().toISOString());
   applyChatBg();
   // Show tour for users who haven't seen it
   if (!localStorage.getItem('kosmos_onb_tour_done') && currentUser) {
