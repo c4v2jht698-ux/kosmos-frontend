@@ -309,7 +309,10 @@
 <div id="settingsScreen" style="display:none;position:fixed;inset:0;bottom:72px;background:var(--bg);overflow-y:auto;z-index:99">
 <div class='settings-stack'>
   <div id='view-settings-main' class='settings-page active'>
-    <div class='settings-header nav-header'><h2>Настройки</h2></div>
+    <div class='settings-header nav-header'>
+      <h2>Настройки</h2>
+      <button onclick='document.getElementById("settingsScreen").style.display="none"' style='position:absolute;right:16px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:24px;color:var(--text2);cursor:pointer;padding:4px'>✕</button>
+    </div>
 
     <div class='settings-profile-card'>
       <div class='profile-avatar-container' id='avatar-upload-trigger'>
