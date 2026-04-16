@@ -1048,11 +1048,13 @@ async function saveEditProfile() {
 
 // ── Pinned sections ──────────────────────────────────────────────────────────
 async function openPinned(type) {
+  try {
   cur = null; render();
   var main = document.getElementById('mainArea');
 
   if (type === 'important') {
-    var saved = await localforage.getItem('kosmos_notes') || [];
+    var saved = [];
+    try { saved = await localforage.getItem('kosmos_notes') || []; } catch(e) { console.warn('[important] localforage error:', e); }
     main.innerHTML =
       '<div class="chat-hdr">' +
         '<button class="back-btn" onclick="goBack()">\u2039</button>' +
@@ -1068,7 +1070,7 @@ async function openPinned(type) {
       '</div><button class="sbtn" onclick="saveNote()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9H4l4 4-2 7 6-4 6 4-2-7 4-4h-5z"/></svg></button></div>';
     scrollBot(true); showChatView();
   } else if (type === 'ai') {
-    aiMessages = await localforage.getItem('kosmos_ai_history') || [];
+    try { aiMessages = await localforage.getItem('kosmos_ai_history') || []; } catch(e) { aiMessages = []; }
     main.innerHTML =
       '<div class="chat-hdr">' +
         '<button class="back-btn" onclick="goBack()">\u2039</button>' +
@@ -1091,6 +1093,7 @@ async function openPinned(type) {
     buildDatingView(main);
     showChatView();
   }
+  } catch(e) { console.error('[openPinned] error:', e); if (typeof toast === 'function') toast('Ошибка открытия: ' + e.message, 'error'); }
 }
 
 // ── Build Feed View ──────────────────────────────────────────────────────────
