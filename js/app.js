@@ -29,8 +29,11 @@ setInterval(async function() {
       var d = await r.json();
       jwtToken = d.token;
       localStorage.setItem('kosmos_token', jwtToken);
+    } else if (r.status === 401) {
+      console.warn('[refresh] token revoked — logging out');
+      if (typeof logout === 'function') logout();
     }
-  } catch(e) {}
+  } catch(e) { console.warn('[refresh] error:', e.message); }
 }, 12 * 60 * 1000);
 
 // Inactivity logout — 30 min
@@ -321,11 +324,15 @@ function logout() {
   jwtToken = null; refreshToken = null; currentUser = null; window.currentUser = null;
   if (socket) { socket.disconnect(); socket = null; }
   cur = null; channels.length = 0; dms.length = 0;
-  document.getElementById('auth').classList.remove('hidden');
-  document.getElementById('seedResult').style.display = 'none';
-  document.getElementById('authBtn').style.display = '';
-  switchTab('login');
-  document.getElementById('mainArea').innerHTML = '<div class="empty"><div class="empty-card"><div class="empty-icon">\uD83D\uDE80</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>';
+  var authEl = document.getElementById('auth');
+  if (authEl) authEl.classList.remove('hidden');
+  var seedEl = document.getElementById('seedResult');
+  if (seedEl) seedEl.style.display = 'none';
+  var authBtn = document.getElementById('authBtn');
+  if (authBtn) authBtn.style.display = '';
+  if (typeof switchTab === 'function') switchTab('login');
+  var mainArea = document.getElementById('mainArea');
+  if (mainArea) mainArea.innerHTML = '<div class="empty"><div class="empty-card"><div class="empty-icon">\uD83D\uDE80</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>';
   applyTheme(localStorage.getItem('theme') || 'dark');
 }
 
@@ -444,7 +451,29 @@ document.getElementById('overlay').addEventListener('click', function(e) { if (e
 // Auto-login
 if (jwtToken) {
   fetch(API + '/me', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
-    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(r) {
+      if (r.status === 401) {
+        // Token expired — try refresh
+        var rt = localStorage.getItem('kosmos_refresh');
+        if (rt) {
+          return fetch(API + '/refresh', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken: rt })
+          }).then(function(rr) { return rr.ok ? rr.json() : null; })
+            .then(function(d) {
+              if (d && d.token) {
+                jwtToken = d.token;
+                localStorage.setItem('kosmos_token', jwtToken);
+                return fetch(API + '/me', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+                  .then(function(r2) { return r2.ok ? r2.json() : null; });
+              }
+              return null;
+            });
+        }
+        return null;
+      }
+      return r.ok ? r.json() : null;
+    })
     .then(function(user) {
       if (user) {
         currentUser = user;
@@ -453,10 +482,11 @@ if (jwtToken) {
       } else {
         localStorage.removeItem('kosmos_token');
         localStorage.removeItem('kosmos_user');
-        jwtToken = null;
+        localStorage.removeItem('kosmos_refresh');
+        jwtToken = null; currentUser = null; window.currentUser = null;
       }
     })
-    .catch(function() {});
+    .catch(function(e) { console.warn('[auto-login] error:', e.message); });
 }
 
 // ── Telegram Bot Auth ─────────────────────────────────────────────────────────

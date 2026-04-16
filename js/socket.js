@@ -44,7 +44,7 @@ function updateTabBadges() {
 
 function initSocket() {
   if (socket && socket.connected) return;
-  if (socket) socket.disconnect();
+  if (socket) { socket.removeAllListeners(); socket.disconnect(); }
   if (keepaliveInterval) clearInterval(keepaliveInterval);
 
   socket = io(API, {
@@ -72,6 +72,12 @@ function initSocket() {
 
   socket.on('connect_error', function(e) {
     console.warn('[socket] error:', e.message);
+  });
+
+  socket.on('disconnect', function(reason) {
+    console.warn('[socket] disconnected:', reason);
+    var sub = document.getElementById('logoSub');
+    if (sub) sub.textContent = 'переподключение...';
   });
 
   socket.on('reconnect', function(attempt) {
