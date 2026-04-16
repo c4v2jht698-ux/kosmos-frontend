@@ -610,6 +610,6 @@
 <script src="js/api.js?v=2"></script>
 <script src="js/socket.js?v=2"></script>
 <script src="js/app.js?v=2"></script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').then(function(r){console.log('[SW] registered',r.scope);}).catch(function(e){console.warn('[SW] failed',e);});}</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').then(function(r){console.log('[SW] registered',r.scope);}).catch(function(e){console.warn('[SW] failed',e);});}</script>
 </body>
 </html>
