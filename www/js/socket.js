@@ -43,14 +43,15 @@ function updateTabBadges() {
 }
 
 function initSocket() {
-  if (socket) socket.disconnect();
+  if (socket && socket.connected) return;
+  if (socket) { socket.removeAllListeners(); socket.disconnect(); }
   if (keepaliveInterval) clearInterval(keepaliveInterval);
 
   socket = io(API, {
     auth: { token: jwtToken },
     transports: ['websocket'], upgrade: false,
     reconnection: true,
-    reconnectionAttempts: Infinity,
+    reconnectionAttempts: 10,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 10000,
     timeout: 10000,
@@ -62,20 +63,28 @@ function initSocket() {
       var sub = document.getElementById('logoSub');
       if (sub) sub.textContent = currentUser.handle ? '@' + currentUser.handle : currentUser.username;
     }
-    if (cur) socket.emit('join', cur);
-    channels.forEach(function(c) { socket.emit('join', c.id); });
-    dms.forEach(function(d) { socket.emit('join', d.id); });
+    var allRooms = channels.map(function(c) { return c.id; }).concat(dms.map(function(d) { return d.id; }));
+    if (cur && allRooms.indexOf(cur) === -1) allRooms.push(cur);
+    if (allRooms.length > 0) socket.emit('join_all', allRooms);
+    // Flush outbox
+    flushOutbox();
   });
 
   socket.on('connect_error', function(e) {
     console.warn('[socket] error:', e.message);
   });
 
+  socket.on('disconnect', function(reason) {
+    console.warn('[socket] disconnected:', reason);
+    var sub = document.getElementById('logoSub');
+    if (sub) sub.textContent = 'переподключение...';
+  });
+
   socket.on('reconnect', function(attempt) {
     console.log('[socket] reconnected after', attempt, 'attempts');
-    if (cur) socket.emit('join', cur);
-    channels.forEach(function(c) { socket.emit('join', c.id); });
-    dms.forEach(function(d) { socket.emit('join', d.id); });
+    var allRooms = channels.map(function(c) { return c.id; }).concat(dms.map(function(d) { return d.id; }));
+    if (cur && allRooms.indexOf(cur) === -1) allRooms.push(cur);
+    if (allRooms.length > 0) socket.emit('join_all', allRooms);
   });
 
   keepaliveInterval = setInterval(function() {
@@ -116,7 +125,18 @@ function initSocket() {
       }
       if (localIdx !== -1) {
         if (item.msgs[localIdx].image && !m.image) m.image = item.msgs[localIdx].image;
-        item.msgs[localIdx] = m; render(); return;
+        var oldId = item.msgs[localIdx].id;
+        item.msgs[localIdx] = m;
+        // Patch DOM: swap fake ID for real server ID
+        var msgEl = document.getElementById('msg-' + oldId);
+        if (msgEl) {
+          msgEl.id = 'msg-' + m.id;
+          var status = msgEl.querySelector('.msg-status');
+          if (status) status.dataset.msgId = m.id;
+          var react = msgEl.querySelector('.msg-reaction');
+          if (react) react.id = 'react-' + m.id;
+        }
+        render(); return;
       }
     }
     item.msgs.push(m);
@@ -214,5 +234,30 @@ function initSocket() {
     } else if (data.type === 'end') {
       endCall(false);
     }
+  });
+
+  socket.on('msg_reaction', function(data) {
+    showReaction(data.msgId, data.emoji);
+  });
+
+  socket.on('p2p_signal', function(data) {
+    if (!data || !data.payload || !data.from) return;
+    var peerId = data.from;
+    function onSignal(signal) { socket.emit('p2p_signal', { target: peerId, payload: signal }); }
+    function onMessage(pid, msg) { handleP2PMessage(pid, msg); }
+    if (data.payload.type === 'offer') P2PManager.handleOffer(peerId, data.payload.sdp, onSignal, onMessage);
+    else if (data.payload.type === 'answer') P2PManager.handleAnswer(peerId, data.payload.sdp);
+    else if (data.payload.type === 'ice') P2PManager.handleIce(peerId, data.payload.candidate);
+  });
+
+  socket.on('msgs_read', function(data) {
+    if (data.chatId !== cur) return;
+    document.querySelectorAll('.msg-status').forEach(function(el) {
+      el.textContent = '\u2713\u2713';
+      el.classList.add('read');
+    });
+    // Update local state
+    var item = findItem(cur);
+    if (item) item.msgs.forEach(function(m) { if (m.from === 'me') m.is_read = true; });
   });
 }

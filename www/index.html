@@ -9,6 +9,12 @@
 <meta name="appleid-signin-use-popup" content="true">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="X-Frame-Options" content="DENY">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#060a14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Космос">
+<link rel="apple-touch-icon" href="icons/icon-192.svg">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -20,7 +26,11 @@
 <script type="text/javascript" src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js"></script>
 <link rel="stylesheet" href="css/app.css?v=2">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js" integrity="sha384-5MXQT3yrGpx6/FO6Z5JlMsn1xsN/OggV+b88W2CfpNqmvPfmv7JW/O8x78GzptfE" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script src="js/storage.js"></script>
+<script src="js/p2p.js"></script>
 </head>
 <body>
 
@@ -297,44 +307,299 @@
 
 <!-- НАСТРОЙКИ ЭКРАН -->
 <div id="settingsScreen" style="display:none;position:fixed;inset:0;bottom:72px;background:var(--bg);overflow-y:auto;z-index:99">
-  <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
-    <div style="background:var(--card);border-radius:16px;padding:16px;display:flex;align-items:center;gap:12px">
-      <div id="settingsAvatar" style="width:58px;height:58px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff;flex-shrink:0"></div>
-      <div>
-        <div id="settingsName" style="font-size:17px;font-weight:700;color:var(--text)"></div>
-        <div id="settingsHandle" style="font-size:13px;color:var(--text2);margin-top:2px"></div>
+<div class='settings-stack'>
+  <div id='view-settings-main' class='settings-page active'>
+    <div class='settings-header nav-header'><h2>Настройки</h2></div>
+
+    <div class='settings-profile-card'>
+      <div class='profile-avatar-container' id='avatar-upload-trigger'>
+        <img src='' id='user-avatar-img' style='display:none; width:100%; height:100%; border-radius:50%; object-fit:cover;'>
+        <span class='avatar-placeholder' id="settingsAvatar">W</span>
+        <input type='file' id='avatar-input' accept='image/jpeg, image/png' style='display:none;'>
+      </div>
+      <div class='profile-info'>
+        <input type='text' id='profile-nickname' class='nickname-input' placeholder='Твоё имя'>
+        <div id="settingsHandle" style="color: #8e8e93; font-size: 14px;">@username · Мой профиль</div>
+      </div>
+      <div class='qr-trigger' onclick='showMyQR()' style='font-size: 24px; cursor: pointer; padding-left: 10px;'>📱</div>
+    </div>
+
+    <div class='settings-group' style='padding:12px 16px'>
+      <textarea id='profile-bio' placeholder='О себе...' maxlength='300' rows='2' style='width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:inherit;font-size:14px;resize:none'></textarea>
+      <div style='display:flex;gap:8px;margin-top:8px'>
+        <input type='number' id='profile-age' placeholder='Возраст' min='13' max='120' style='flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:inherit;font-size:14px'>
+        <input type='text' id='profile-city' placeholder='Город' maxlength='100' style='flex:2;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:inherit;font-size:14px'>
+      </div>
+      <button id='save-profile-btn' style='margin-top:8px;width:100%;padding:10px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit'>Сохранить профиль</button>
+    </div>
+
+    <div class='settings-group'>
+      <div class='settings-item' onclick='showCreateMenu()'>
+        <div class='item-left'><div class='set-icon' style='background:#007aff'>✏️</div> <span class='label'>Создать</span></div>
+        <div class='chev'>›</div>
       </div>
     </div>
-    <div style="background:var(--card);border-radius:14px;overflow:hidden">
-      <div onclick="toggleTheme()" style="display:flex;align-items:center;gap:12px;padding:14px;border-bottom:.5px solid var(--sep);cursor:pointer">
-        <div style="width:32px;height:32px;border-radius:8px;background:#f5f0ff;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9b6ab5" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2"/></svg></div>
-        <span style="flex:1;font-size:15px;color:var(--text)">Тема оформления</span>
-        <span style="color:#c7c7cc">›</span>
+
+    <div class='settings-group'>
+      <div class='settings-item' data-route='view-settings-data'>
+        <div class='item-left'><div class='set-icon' style='background:#34c759'>💾</div> <span class='label'>Данные и память</span></div>
+        <div class='chev'>›</div>
       </div>
-      <div onclick="document.getElementById('bgPicker').click()" style="display:flex;align-items:center;gap:12px;padding:14px;border-bottom:.5px solid var(--sep);cursor:pointer">
-        <div style="width:32px;height:32px;border-radius:8px;background:#f0f6ff;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5b8dd9" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
-        <span style="flex:1;font-size:15px;color:var(--text)">Фон чата</span>
-        <span id="bgPreview" style="width:28px;height:28px;border-radius:6px;background:var(--bg);border:.5px solid var(--sep);display:block"></span>
-        <span style="color:#c7c7cc">›</span>
+      <div class='settings-item' data-route='view-settings-privacy'>
+        <div class='item-left'><div class='set-icon' style='background:#636366'>🔒</div> <span class='label'>Конфиденциальность</span></div>
+        <div class='chev'>›</div>
       </div>
-      <input type="file" id="bgPicker" accept="image/*" style="display:none" onchange="setChatBg(this)">
-      <div style="display:flex;align-items:center;gap:12px;padding:14px;border-bottom:.5px solid var(--sep)">
-        <div style="width:32px;height:32px;border-radius:8px;background:#f0fff4;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/></svg></div>
-        <span style="flex:1;font-size:15px;color:var(--text)">Уведомления</span>
-        <span style="color:#c7c7cc">›</span>
+      <div class='settings-item' data-route='view-settings-archive'>
+        <div class='item-left'><div class='set-icon' style='background:#5ac8fa'>📦</div> <span class='label'>Архив</span></div>
+        <div class='chev'>›</div>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;padding:14px">
-        <div style="width:32px;height:32px;border-radius:8px;background:#fff8f0;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e0844a" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-        <span style="flex:1;font-size:15px;color:var(--text)">Конфиденциальность</span>
-        <span style="color:#c7c7cc">›</span>
+      <div class='settings-item' data-route='view-settings-devices'>
+        <div class='item-left'><div class='set-icon' style='background:#ff9500'>📱</div> <span class='label'>Устройства</span></div>
+        <div class='chev'>›</div>
       </div>
     </div>
-    <div style="background:var(--card);border-radius:14px;overflow:hidden">
-      <div onclick="logout()" style="display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer">
-        <div style="width:32px;height:32px;border-radius:8px;background:#fff0f0;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div>
-        <span style="flex:1;font-size:15px;color:#e74c3c">Выйти</span>
+
+    <div class='settings-group'>
+      <div class='settings-item' data-route='view-settings-appearance'>
+        <div class='item-left'><div class='set-icon' style='background:#5856d6'>🎨</div> <span class='label'>Оформление</span></div>
+        <div class='chev'>›</div>
+      </div>
+      <div class='settings-item' data-route='view-settings-notifications'>
+        <div class='item-left'><div class='set-icon' style='background:#ff3b30'>🔔</div> <span class='label'>Уведомления</span></div>
+        <div class='chev'>›</div>
       </div>
     </div>
+
+    <div class='settings-group'>
+      <div class='settings-item' data-route='view-settings-help'>
+        <div class='item-left'><div class='set-icon' style='background:#af52de'>❓</div> <span class='label'>Помощь</span></div>
+        <div class='chev'>›</div>
+      </div>
+      <div class='settings-item' data-route='view-settings-about'>
+        <div class='item-left'><div class='set-icon' style='background:#007aff'>🚀</div> <span class='label'>О Космосе</span></div>
+        <div class='chev'>›</div>
+      </div>
+    </div>
+
+    <div class='settings-group' style='margin-top:16px'>
+      <div class='settings-item' onclick='shareInviteLink()' style='cursor:pointer'>
+        <div class='item-left'><div class='set-icon' style='background:#34c759'>🔗</div><span class='label'>Поделиться профилем</span></div>
+        <div class='chev'>›</div>
+      </div>
+    </div>
+
+    <div class='settings-group' style='margin-bottom: 40px;'>
+      <div class='settings-item' onclick='if(typeof logout==="function") logout();' style='justify-content: center;'>
+        <span class='label' style='color: #ff3b30; font-weight: 500;'>Выйти</span>
+      </div>
+    </div>
+  </div>
+
+  <div id='view-settings-appearance' class='settings-page right'>
+    <div class='settings-header nav-header'>
+      <button class='back-btn' data-back>‹ Назад</button>
+      <h2>Оформление</h2>
+      <div style='width: 60px;'></div>
+    </div>
+    <div class='settings-group' style='margin-top: 20px;'>
+      <div class='settings-item toggle-item'>
+        <div class='item-left'><span class='label'>Тёмная тема</span></div>
+        <label class='switch'><input type='checkbox' id='toggle-dark-mode'><span class='slider round'></span></label>
+      </div>
+      <div class='settings-item toggle-item'>
+        <div class='item-left'><span class='label'>Haptic (Вибрация)</span></div>
+        <label class='switch'><input type='checkbox' id='toggle-haptic'><span class='slider round'></span></label>
+      </div>
+    </div>
+  </div>
+
+  <div id='view-settings-privacy' class='settings-page right'>
+    <div class='settings-header nav-header'>
+      <button class='back-btn' data-back>‹ Назад</button>
+      <h2>Конфиденциальность</h2>
+      <div style='width: 60px;'></div>
+    </div>
+    <div class='settings-group' style='margin-top: 20px;'>
+      <div class='settings-item toggle-item'>
+        <div class='item-left'><span class='label'>Показывать статус онлайн</span></div>
+        <label class='switch'><input type='checkbox' id='toggle-online-status' checked><span class='slider round'></span></label>
+      </div>
+      <div class='settings-item toggle-item'>
+        <div class='item-left'><span class='label'>Показывать прочтение</span></div>
+        <label class='switch'><input type='checkbox' id='toggle-read-receipts' checked><span class='slider round'></span></label>
+      </div>
+    </div>
+    <p style='padding:0 16px;color:var(--text3);font-size:13px'>Настройки применяются ко всем чатам. Другие пользователи не увидят ваш статус и прочтение если вы их отключите.</p>
+  </div>
+
+  <div id='view-settings-archive' class='settings-page right'>
+    <div class='settings-header nav-header'>
+      <button class='back-btn' data-back>‹ Назад</button>
+      <h2>Архив</h2>
+      <div style='width: 60px;'></div>
+    </div>
+    <div id='archive-list' style='padding:8px 16px'>
+      <div style='text-align:center;padding:40px 0;color:var(--text3)'>
+        <div style='font-size:40px;margin-bottom:12px'>📦</div>
+        <p>Архив пуст</p>
+        <p style='font-size:13px;margin-top:4px'>Свайпните чат влево чтобы архивировать</p>
+      </div>
+    </div>
+  </div>
+
+  <div id='view-settings-devices' class='settings-page right'>
+    <div class='settings-header nav-header'>
+      <button class='back-btn' data-back>‹ Назад</button>
+      <h2>Устройства</h2>
+      <div style='width: 60px;'></div>
+    </div>
+    <div class='settings-group' style='margin-top: 20px;'>
+      <div class='settings-item' style='flex-direction:column;align-items:flex-start;gap:4px'>
+        <div style='display:flex;align-items:center;gap:8px'>
+          <span style='font-size:20px'>🟢</span>
+          <span class='label' style='font-weight:600'>Текущая сессия</span>
+        </div>
+        <span id='device-browser' style='color:var(--text3);font-size:13px;padding-left:28px'>—</span>
+        <span id='device-last-login' style='color:var(--text3);font-size:13px;padding-left:28px'>—</span>
+      </div>
+    </div>
+    <div class='settings-group'>
+      <div class='settings-item' onclick='if(typeof logout==="function") logout();' style='justify-content: center;'>
+        <span class='label' style='color: #ff3b30; font-weight: 500;'>Завершить все сессии</span>
+      </div>
+    </div>
+  </div>
+
+  <div id='view-settings-notifications' class='settings-page right'>
+    <div class='settings-header nav-header'>
+      <button class='back-btn' data-back>‹ Назад</button>
+      <h2>Уведомления</h2>
+      <div style='width: 60px;'></div>
+    </div>
+    <div class='settings-group' style='margin-top: 20px;'>
+      <div class='settings-item toggle-item'>
+        <div class='item-left'><span class='label'>Звуки</span></div>
+        <label class='switch'><input type='checkbox' id='toggle-sound' checked><span class='slider round'></span></label>
+      </div>
+      <div class='settings-item toggle-item'>
+        <div class='item-left'><span class='label'>Уведомления каналов</span></div>
+        <label class='switch'><input type='checkbox' id='toggle-channel-notif'><span class='slider round'></span></label>
+      </div>
+    </div>
+  </div>
+
+  <div id='view-settings-help' class='settings-page right'>
+    <div class='settings-header nav-header'>
+      <button class='back-btn' data-back>‹ Назад</button>
+      <h2>Помощь</h2>
+      <div style='width: 60px;'></div>
+    </div>
+    <div style='padding:16px'>
+      <div class='settings-group'>
+        <details style='padding:12px 16px;cursor:pointer'>
+          <summary style='font-weight:600;color:var(--text)'>Что такое seed-фраза?</summary>
+          <p style='margin-top:8px;color:var(--text2);font-size:14px;line-height:1.5'>Seed-фраза — это 12 слов, которые являются вашим паролем. Она генерируется при регистрации. Запишите её и храните в безопасном месте. Без seed-фразы восстановить аккаунт невозможно.</p>
+        </details>
+        <details style='padding:12px 16px;cursor:pointer'>
+          <summary style='font-weight:600;color:var(--text)'>Как восстановить аккаунт?</summary>
+          <p style='margin-top:8px;color:var(--text2);font-size:14px;line-height:1.5'>Нажмите "Войти" и введите вашу seed-фразу из 12 слов. Если вы потеряли seed-фразу — восстановление невозможно, это сделано для вашей безопасности.</p>
+        </details>
+        <details style='padding:12px 16px;cursor:pointer'>
+          <summary style='font-weight:600;color:var(--text)'>Как удалить сообщение?</summary>
+          <p style='margin-top:8px;color:var(--text2);font-size:14px;line-height:1.5'>Нажмите и удерживайте сообщение, затем выберите "Удалить". Удалить можно только свои сообщения.</p>
+        </details>
+        <details style='padding:12px 16px;cursor:pointer'>
+          <summary style='font-weight:600;color:var(--text)'>Как создать канал?</summary>
+          <p style='margin-top:8px;color:var(--text2);font-size:14px;line-height:1.5'>Откройте Настройки → Создать → Новый канал. Введите название и уникальный slug. Вы будете владельцем канала и сможете публиковать в него посты.</p>
+        </details>
+      </div>
+      <div class='settings-group' style='margin-top:16px'>
+        <a href='https://t.me/enter_kosmos_bot' target='_blank' class='settings-item' style='text-decoration:none;color:var(--text)'>
+          <div class='item-left'><div class='set-icon' style='background:#007aff'>💬</div><span class='label'>Написать в поддержку</span></div>
+          <div class='chev'>›</div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div id='view-settings-about' class='settings-page right'>
+    <div class='settings-header nav-header'>
+      <button class='back-btn' data-back>‹ Назад</button>
+      <h2>О Космосе</h2>
+      <div style='width: 60px;'></div>
+    </div>
+    <div style='padding:20px 16px;text-align:center'>
+      <div style='font-size:48px;margin-bottom:8px'>🚀</div>
+      <h3 style='color:var(--text);margin:0 0 4px'>Космос</h3>
+      <p style='color:var(--text3);font-size:13px;margin:0 0 20px'>Версия 5.3</p>
+      <p style='color:var(--text2);font-size:14px;line-height:1.6;max-width:300px;margin:0 auto 24px'>Мессенджер нового поколения с AI-ассистентами, лентой и знакомствами.</p>
+      <div class='settings-group' style='text-align:left'>
+        <a href='https://github.com/c4v2jht698-ux' target='_blank' class='settings-item' style='text-decoration:none;color:var(--text)'>
+          <div class='item-left'><span class='label'>GitHub</span></div>
+          <div class='chev'>›</div>
+        </a>
+        <a href='https://t.me/enter_kosmos_bot' target='_blank' class='settings-item' style='text-decoration:none;color:var(--text)'>
+          <div class='item-left'><span class='label'>Telegram</span></div>
+          <div class='chev'>›</div>
+        </a>
+      </div>
+      <p style='color:var(--text3);font-size:12px;margin-top:24px'>2024–2026</p>
+    </div>
+  </div>
+
+  <div id='view-settings-data' class='settings-page right'>
+    <div class='settings-header nav-header'>
+      <button class='back-btn' data-back>‹ Назад</button>
+      <h2>Данные и память</h2>
+      <div style='width: 60px;'></div>
+    </div>
+    <div class='settings-group' style='margin-top:0'>
+      <div class='settings-item' style='justify-content:space-between'>
+        <span style='color:var(--text2)'>Занято памяти</span>
+        <span id='storage-used' style='color:var(--text3)'>— МБ</span>
+      </div>
+    </div>
+    <div class='settings-group'>
+      <div class='settings-item' onclick='nukeCache()' style='justify-content: center;'>
+        <span class='label' style='color: #ff3b30; font-weight: 500;'>Очистить кэш</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div id="action-sheet-overlay" class="action-sheet-overlay" onclick="closeActionSheet()"></div>
+<div id="create-action-sheet" class="action-sheet">
+  <div class="action-sheet-group">
+    <button class="action-sheet-btn" onclick="initNewDialog('chat')">Создать чат</button>
+    <button class="action-sheet-btn" onclick="initNewDialog('channel')">Создать канал</button>
+    <button class="action-sheet-btn" onclick="openQRScanner()">Отсканировать QR</button>
+  </div>
+  <div class="action-sheet-group">
+    <button class="action-sheet-btn cancel" onclick="closeActionSheet()">Отмена</button>
+  </div>
+</div>
+
+<div id="my-qr-overlay" class="modal-overlay" onclick="closeMyQR()">
+  <div class="qr-card" onclick="event.stopPropagation()">
+    <div style="text-align: right; margin-bottom: 10px;"><span onclick="closeMyQR()" style="font-size: 20px; color: var(--text3); cursor: pointer;">✕</span></div>
+    <h3 style="text-align: center; margin-bottom: 20px;">Твой QR-код</h3>
+    <div style="text-align: center; background: #fff; padding: 15px; border-radius: 12px; display: inline-block;">
+      <img id="my-qr-img" src="" alt="QR" style="width: 200px; height: 200px; display: block;">
+    </div>
+    <div id="my-qr-name" style="text-align: center; margin-top: 16px; font-weight: 600; font-size: 18px;"></div>
+    <div style="text-align: center; color: var(--text3); font-size: 14px; margin-top: 4px;">Покажи код для добавления в контакты</div>
+  </div>
+</div>
+
+<div id="qr-scanner-overlay" class="scanner-overlay">
+  <div class="scanner-header">
+    <button class="back-btn" onclick="closeQRScanner()">‹ Отмена</button>
+    <h2>Наведи камеру</h2>
+    <div style="width:60px;"></div>
+  </div>
+  <div class="scanner-viewport">
+    <div id="qr-reader" style="width: 100%; border-radius: 16px; overflow: hidden;"></div>
   </div>
 </div>
 
@@ -342,5 +607,6 @@
 <script src="js/api.js?v=2"></script>
 <script src="js/socket.js?v=2"></script>
 <script src="js/app.js?v=2"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').then(function(r){console.log('[SW] registered',r.scope);}).catch(function(e){console.warn('[SW] failed',e);});}</script>
 </body>
 </html>

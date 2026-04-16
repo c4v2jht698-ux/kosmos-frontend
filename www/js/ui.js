@@ -1,3 +1,209 @@
+// ── Haptic Feedback ──────────────────────────────────────────────────────────
+function haptic(type) {
+  if (localStorage.getItem('kosmos_haptic') === 'off') return;
+  if (!navigator.vibrate) return;
+  try {
+    if (type === 'light') navigator.vibrate(10);
+    else if (type === 'medium') navigator.vibrate(20);
+    else if (type === 'heavy') navigator.vibrate([15, 30, 15]);
+  } catch(e) {}
+}
+
+// ── Init: compact mode ──────────────────────────────────────────────────────
+if (localStorage.getItem('kosmos_compact') === 'on') document.body.classList.add('compact-mode');
+
+(function initCameraNerve() {
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('#camera-btn');
+    if (!btn) return;
+    if (typeof haptic === 'function') haptic('light');
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+      .then(function(stream) {
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center';
+
+        var video = document.createElement('video');
+        video.autoplay = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+        video.style.cssText = 'width:100%;max-height:80vh;object-fit:cover';
+
+        var controls = document.createElement('div');
+        controls.style.cssText = 'display:flex;gap:24px;align-items:center;padding:24px';
+
+        var cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Отмена';
+        cancelBtn.style.cssText = 'background:none;border:none;color:#fff;font-size:17px;padding:12px 20px;cursor:pointer;opacity:.7';
+
+        var snapBtn = document.createElement('button');
+        snapBtn.style.cssText = 'width:72px;height:72px;border-radius:50%;background:#fff;border:4px solid rgba(255,255,255,.4);cursor:pointer;flex-shrink:0';
+
+        function cleanup() {
+          stream.getTracks().forEach(function(t) { t.stop(); });
+          if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        }
+
+        cancelBtn.addEventListener('click', cleanup);
+
+        snapBtn.addEventListener('click', function() {
+          if (typeof haptic === 'function') haptic('medium');
+          var canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth || 640;
+          canvas.height = video.videoHeight || 480;
+          canvas.getContext('2d').drawImage(video, 0, 0);
+          var b64 = canvas.toDataURL('image/jpeg', 0.85);
+          cleanup();
+
+          var msgObj = {
+            id: 'local-' + Date.now(),
+            from: 'me',
+            image: b64,
+            text: '',
+            time: new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
+          };
+
+          if (typeof appendMsg === 'function') {
+            var isCh = false;
+            var item = typeof findItem === 'function' && cur ? findItem(cur) : null;
+            if (item) isCh = item.type === 'channel';
+            appendMsg(msgObj, isCh);
+          }
+
+          if (typeof KosmosDB !== 'undefined') {
+            KosmosDB.saveMessage({ id: msgObj.id, chatId: cur, type: 'image', content: b64, timestamp: Date.now() });
+          }
+
+          if (typeof socket !== 'undefined' && socket && socket.connected && cur) {
+            socket.emit('chat_msg', { chatId: cur, text: '', image: b64 });
+          }
+        });
+
+        controls.appendChild(cancelBtn);
+        controls.appendChild(snapBtn);
+        overlay.appendChild(video);
+        overlay.appendChild(controls);
+        document.body.appendChild(overlay);
+
+        history.pushState({ modal: 'camera' }, '');
+        window.addEventListener('popstate', function onPop() {
+          cleanup();
+          window.removeEventListener('popstate', onPop);
+        }, { once: true });
+      })
+      .catch(function() {
+        if (typeof toast === 'function') toast('Нет доступа к камере', 'error');
+      });
+  });
+})();
+
+(function initSymbiosis() {
+  var deferredPrompt = null;
+  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+  function buildSheet() {
+    var el = document.createElement('div');
+    el.className = 'install-overlay';
+    el.id = 'install-overlay';
+    var iosHint = isIOS ? '<div class="install-ios-hint"><span style="font-size:22px">⬆️</span><span>Нажми <b>Поделиться</b> → <b>На экран Домой</b></span></div>' : '';
+    var actionBtn = isIOS ? '' : '<button class="install-btn primary" id="install-confirm">Установить</button>';
+    el.innerHTML = '<div class="install-sheet"><div class="install-card"><div class="install-header"><div class="install-icon">К</div><div class="install-title">Установить Космос</div><div class="install-sub">Добавить на главный экран для быстрого доступа</div></div>' + iosHint + actionBtn + '<button class="install-btn cancel" id="install-cancel">Не сейчас</button></div></div>';
+    document.body.appendChild(el);
+    document.getElementById('install-cancel').addEventListener('click', function() {
+      el.classList.remove('show');
+      localStorage.setItem('kosmos_install_dismissed', Date.now());
+    });
+    if (!isIOS) {
+      var confirmBtn = document.getElementById('install-confirm');
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', function() {
+          el.classList.remove('show');
+          if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(function() { deferredPrompt = null; }); }
+        });
+      }
+    }
+    el.addEventListener('click', function(e) { if (e.target === el) el.classList.remove('show'); });
+    return el;
+  }
+
+  function showInstallPrompt() {
+    var dismissed = localStorage.getItem('kosmos_install_dismissed');
+    if (dismissed && Date.now() - parseInt(dismissed) < 7 * 24 * 60 * 60 * 1000) return;
+    var overlay = document.getElementById('install-overlay') || buildSheet();
+    setTimeout(function() { overlay.classList.add('show'); }, 500);
+  }
+
+  if (!isStandalone) {
+    window.addEventListener('beforeinstallprompt', function(e) {
+      e.preventDefault();
+      deferredPrompt = e;
+      setTimeout(showInstallPrompt, 3000);
+    });
+    if (isIOS) setTimeout(showInstallPrompt, 4000);
+  }
+
+  var urlParams = new URLSearchParams(window.location.search);
+  var sharedText = urlParams.get('text') || urlParams.get('url') || urlParams.get('title');
+  if (sharedText) {
+    window.addEventListener('load', function() {
+      var input = document.getElementById('mi') || document.querySelector('.msg-input input') || document.querySelector('textarea');
+      if (input) {
+        input.value = sharedText;
+        input.focus();
+        if (typeof toast === 'function') toast('Данные получены из Поделиться', 'success');
+      }
+    });
+  }
+})();
+
+function toggleCompact() {
+  var isCompact = document.body.classList.toggle('compact-mode');
+  localStorage.setItem('kosmos_compact', isCompact ? 'on' : 'off');
+  var ui = document.getElementById('toggle-compact-ui');
+  if (ui) ui.classList.toggle('active', isCompact);
+  if (typeof haptic === 'function') haptic('light');
+}
+
+async function nukeCache() {
+  try {
+    if ('caches' in window) {
+      var keys = await caches.keys();
+      await Promise.all(keys.map(function(k) { return caches.delete(k); }));
+    }
+    if (typeof KosmosDB !== 'undefined') {
+      await new Promise(function(resolve, reject) {
+        var req = indexedDB.deleteDatabase('KosmosDB');
+        req.onsuccess = resolve;
+        req.onerror = reject;
+      });
+    }
+    if (typeof localforage !== 'undefined') await localforage.clear();
+    var el = document.getElementById('storage-used');
+    if (el) el.textContent = '0 МБ';
+    if (typeof toast === 'function') toast('Кэш очищен', 'success');
+    if (typeof haptic === 'function') haptic('medium');
+    updateStorageMetabolism();
+  } catch(e) {
+    if (typeof toast === 'function') toast('Ошибка: ' + e.message, 'error');
+  }
+}
+
+async function updateStorageMetabolism() {
+  var el = document.getElementById('storage-used');
+  if (!el) return;
+  try {
+    if (!navigator.storage || !navigator.storage.estimate) {
+      el.textContent = 'н/д';
+      return;
+    }
+    var est = await navigator.storage.estimate();
+    var mb = ((est.usage || 0) / 1024 / 1024).toFixed(1);
+    el.textContent = mb + ' МБ';
+  } catch(e) {
+    el.textContent = 'н/д';
+  }
+}
+
 // ── UI: Render, chat open, message HTML, input helpers ──────────────────────
 
 function toast(msg, type) {
@@ -237,7 +443,7 @@ async function saveInterests() {
     });
     if (currentUser) currentUser.interests = sel;
     localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
-  } catch(e) {}
+  } catch(e) { console.error('[Error]:', e.message || e); }
   document.getElementById('onboarding').classList.add('hidden');
   localStorage.setItem('kosmos_onboarded', '1');
   // Start onboarding tour for new users
@@ -277,7 +483,32 @@ function render() {
       }
       chList.innerHTML = pinned + skelHtml;
     } else {
-      chList.innerHTML = pinned + all.map(function(c){return itm(c)}).join('');
+      // DOM patching — reuse existing nodes
+      var existingNodes = {};
+      chList.querySelectorAll('.ci-wrap[data-id]').forEach(function(node) { existingNodes[node.dataset.id] = node; });
+      chList.innerHTML = pinned;
+      all.forEach(function(c) {
+        var existing = existingNodes[String(c.id)];
+        if (existing) {
+          var prev = existing.querySelector('.ci-prev');
+          var time = existing.querySelector('.ci-time');
+          var meta = existing.querySelector('.ci-meta');
+          var ci = existing.querySelector('.ci');
+          if (prev) prev.textContent = c.prev || '';
+          if (time) time.textContent = c.time || '';
+          var badge = existing.querySelector('.badge');
+          if (c.unread > 0) {
+            if (!badge) { badge = document.createElement('div'); badge.className = 'badge'; if (meta) meta.appendChild(badge); }
+            badge.textContent = c.unread;
+          } else { if (badge) badge.remove(); }
+          if (ci) ci.classList.toggle('active', cur === c.id);
+          chList.appendChild(existing);
+        } else {
+          var temp = document.createElement('div');
+          temp.innerHTML = itm(c);
+          if (temp.firstElementChild) chList.appendChild(temp.firstElementChild);
+        }
+      });
     }
   }
 
@@ -407,7 +638,7 @@ async function leaveChannel(id) {
 }
 
 async function deleteDM(id) {
-  try { await apiFetch(API + '/chats/' + encodeURIComponent(id), { method: 'DELETE' }); } catch(e) {}
+  try { await apiFetch(API + '/chats/' + encodeURIComponent(id), { method: 'DELETE' }); } catch(e) { console.error('[Error]:', e.message || e); }
   var idx = dms.findIndex(function(d){return d.id===id});
   if (idx !== -1) dms.splice(idx, 1);
   if (cur === id) { cur = null; goBack(); }
@@ -425,30 +656,46 @@ function openChat(id) {
   item.unread = 0;
   render();
 
-  if (!item._loaded && jwtToken) {
+  if (jwtToken) {
+    // Determine if we need full load or incremental
+    var lastMsgId = (item.msgs.length > 0) ? item.msgs[item.msgs.length - 1].id : null;
+    var endpoint = API + '/messages/' + encodeURIComponent(id) + (lastMsgId && item._loaded ? '?after=' + encodeURIComponent(lastMsgId) : '?limit=30');
     item._loaded = true;
-    fetch(API + '/messages/' + encodeURIComponent(id), {
-      headers: { 'Authorization': 'Bearer ' + jwtToken }
-    })
+    if (typeof item.hasMore === 'undefined') item.hasMore = true;
+    fetch(endpoint, { headers: { 'Authorization': 'Bearer ' + jwtToken } })
       .then(function(r) { return r.ok ? r.json() : []; })
       .then(function(msgs) {
-        var isCh2 = item.type === 'channel';
-        item.msgs = msgs.map(function(m) {
+        if (!msgs.length) return;
+        var newMsgs = msgs.map(function(m) {
           var ts = new Date(m.created_at * 1000);
           var time = ts.getHours().toString().padStart(2,'0') + ':' + ts.getMinutes().toString().padStart(2,'0');
           var from = currentUser && m.sender_id === currentUser.id ? 'me' : 'them';
-          return { id: m.id, from: from, text: m.text, time: time, sender: m.sender_username, image: m.image || null, audio: m.audio || null };
+          return { id: m.id, from: from, text: m.text, time: time, sender: m.sender_username, image: m.image || null, audio: m.audio || null, is_read: !!m.is_read };
         });
+        if (lastMsgId) {
+          // Incremental: append only new messages (dedup by id)
+          var existingIds = {};
+          item.msgs.forEach(function(m) { existingIds[m.id] = true; });
+          newMsgs.forEach(function(m) { if (!existingIds[m.id]) item.msgs.push(m); });
+        } else {
+          // Full load
+          item.msgs = newMsgs;
+          if (newMsgs.length < 30) item.hasMore = false;
+          if (newMsgs.length > 0) item.firstMsgId = newMsgs[0].id;
+        }
         if (cur === id) {
           var area = document.getElementById('msgArea');
           if (area) {
-            area.innerHTML = '<div class="datediv"><span>Сегодня</span></div>' +
+            var loader = item.hasMore !== false ? '<div id="loadMoreBtn" style="text-align:center;padding:10px"><button onclick="loadOlderMsgs()" style="background:var(--bg2);border:1px solid var(--sep);border-radius:20px;padding:6px 16px;color:var(--text3);font-size:13px;cursor:pointer">Загрузить старые</button></div>' : '';
+            area.innerHTML = loader + '<div class="chat-date"><span>Сегодня</span></div>' +
               item.msgs.map(function(m){return mHTML(m)}).join('');
-            scrollBot();
+            scrollBot(true);
+            initScrollListener(id);
           }
         }
         if (item.msgs.length) {
-          item.prev = item.msgs[item.msgs.length-1].text.substring(0, 36);
+          var last = item.msgs[item.msgs.length-1];
+          item.prev = last.text ? last.text.substring(0, 36) : (last.image ? '\uD83D\uDCF7 Фото' : '\uD83C\uDFA4 Голосовое');
           render();
         }
       }).catch(function(){});
@@ -462,29 +709,58 @@ function openChat(id) {
   var avHtml = isCh ? defaultAvSq(item.name, 36) : defaultAv(item.name, 36);
 
   document.getElementById('mainArea').innerHTML =
-    '<div class="chat-hdr">' +
-      '<button class="back-btn" onclick="goBack()">\u2039</button>' +
-      avHtml +
-      '<div class="hinfo"><div class="hname">' + escHtml(item.name) + '</div><div class="hsub">' + sub + '</div></div>' +
-      '<div class="hacts"><button onclick="startVideoCall()" style="background:none;border:none;color:var(--accent);font-size:24px;cursor:pointer">\uD83D\uDCDE</button><button class="hb">\uD83D\uDD0D</button></div>' +
+    '<div class="nav">' +
+      '<button class="nav-back" onclick="goBack()">\u2039</button>' +
+      '<div class="nav-avatar">' + escHtml((item.name || '?')[0].toUpperCase()) + '</div>' +
+      '<div><div class="nav-name">' + escHtml(item.name) + '</div><div class="nav-status">' + sub + '</div></div>' +
+      '<div class="nav-actions">' +
+        '<svg onclick="startVideoCall()" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" style="cursor:pointer"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012.18 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 8.16a16 16 0 006.93 6.93l1.52-1.52a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>' +
+        '<svg onclick="toggleSearch()" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" style="cursor:pointer"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>' +
+      '</div>' +
     '</div>' +
+    '<div id="search-bar" style="display:none;padding:8px 12px;background:var(--bg2);border-bottom:1px solid var(--sep)"><input id="search-input" placeholder="\uD83D\uDD0D Поиск по сообщениям..." oninput="searchMessages(this.value)" style="width:100%;padding:8px 12px;border-radius:20px;border:none;background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;outline:none"></div>' +
     (isCh && item.slug ? '<div style="display:flex;align-items:center;gap:8px;padding:6px 16px;background:var(--bg2);font-size:13px;border-bottom:0.5px solid var(--sep)">' +
       '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--accent)">https://c4v2jht698-ux.github.io/kosmos-frontend/?channel=' + encodeURIComponent(item.slug) + '</span>' +
       '<button onclick="copyChannelLink(\'' + escSearch(item.slug) + '\')" style="background:var(--accent);border:none;border-radius:8px;color:#fff;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Скопировать</button>' +
     '</div>' : '') +
-    '<div class="msg-area" id="msgArea">' +
-      '<div class="datediv"><span>Сегодня</span></div>' +
+    '<div class="chat-messages" id="msgArea">' +
+      '<div class="chat-date"><span>Сегодня</span></div>' +
       item.msgs.map(function(m){return mHTML(m)}).join('') +
     '</div>' +
     (isCh && String(item.created_by) !== String(currentUser && currentUser.id) ? '<div class="ro-bar">Канал только для чтения</div>' : inpHTML());
-  scrollBot();
+  scrollBot(true);
   applyChatBg();
   showChatView();
+  // Load cached messages from IndexedDB
+  if (typeof KosmosDB !== 'undefined' && !item.msgs.length) {
+    KosmosDB.getMessages(id).then(function(cached) {
+      if (!cached.length || cur !== id) return;
+      var existingIds = {};
+      item.msgs.forEach(function(m) { existingIds[m.id] = true; });
+      cached.forEach(function(m) {
+        if (existingIds[m.id]) return;
+        var ts = new Date(m.timestamp);
+        var time = ts.getHours().toString().padStart(2,'0') + ':' + ts.getMinutes().toString().padStart(2,'0');
+        item.msgs.push({ id: m.id, from: m.sender === 'me' ? 'me' : 'them', text: m.text || '', image: m.content && m.type === 'image' ? m.content : null, audio: m.content && m.type === 'audio' ? m.content : null, time: time, sender: m.sender || '' });
+      });
+      var area = document.getElementById('msgArea');
+      if (area && item.msgs.length) {
+        area.innerHTML = '<div class="chat-date"><span>Сегодня</span></div>' + item.msgs.map(function(m) { return mHTML(m); }).join('');
+        scrollBot(true);
+      }
+    }).catch(function() {});
+  }
+  // Mark messages as read
+  if (item.msgs.some(function(m) { return m.from !== 'me' && !m.is_read; })) {
+    fetch(API + '/api/messages/read', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken }, body: JSON.stringify({ chatId: id }) }).catch(function() {});
+  }
 }
 
 function mHTML(m) {
+  // photo debug removed — production ready
   var isMy = m.from === 'me';
-  var photoHtml = m.image ? '<img class="chat-photo" src="' + escAttr(m.image) + '" style="max-width:100%;border-radius:12px;margin-bottom:6px" onclick="openImgFull(this.src)">' : '';
+  var hasPhoto = !!m.image;
+  var photoHtml = hasPhoto ? '<img class="chat-photo" src="' + m.image + '" style="max-width:100%;border-radius:12px;margin-top:6px;cursor:pointer;display:block" loading="lazy" decode="async" onclick="openImgFull(this.src)">' : '';
   var audioHtml = '';
   if (m.audio) {
     audioHtml =
@@ -500,18 +776,21 @@ function mHTML(m) {
   var timeStr = m.time || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
   var tickMark = m.is_read ? '\u2713\u2713' : '\u2713';
   var tickClass = m.is_read ? 'msg-status read' : 'msg-status';
-  var metaHtml = '<span class="msg-meta">' + timeStr + (isMy ? ' <span class="' + tickClass + '" data-msg-id="' + escAttr(m.id) + '">' + tickMark + '</span>' : '') + '</span>';
-  var bblClass = isMy ? 'bbl my' : 'bbl';
-  return '<div class="msg-row" style="display:flex;margin-bottom:12px;width:100%;justify-content:' + (isMy ? 'flex-end' : 'flex-start') + '">' +
-    '<div class="' + bblClass + '" id="msg-' + escAttr(m.id || Date.now()) + '">' +
-      nameHtml + photoHtml + audioHtml + '<span style="white-space:pre-wrap">' + escHtml(m.text || '') + '</span> ' + metaHtml +
+  var metaHtml = '<div class="bubble-time">' + timeStr + (isMy ? ' <span class="' + tickClass + '" data-msg-id="' + escAttr(m.id) + '">' + tickMark + '</span>' : '') + '</div>';
+  var bblClass = 'bubble ' + (isMy ? 'out' : 'in') + (hasPhoto ? ' bbl-photo' : '');
+  var textBlock = (m.text || '').trim();
+  var textHtml = textBlock ? (hasPhoto ? '<div class="bbl-text-under-photo">' + escHtml(textBlock) + '</div>' : '<span style="white-space:pre-wrap">' + escHtml(textBlock) + '</span> ') : '';
+  var avHtml = isMy ? '' : '<div class="avatar-sm">' + escHtml((m.sender || '?')[0].toUpperCase()) + '</div>';
+  return '<div class="bubble-wrap ' + (isMy ? 'out' : '') + '">' + avHtml +
+    '<div class="' + bblClass + '" id="msg-' + escAttr(m.id || Date.now()) + '" ondblclick="sendReaction(this,\'\u2764\uFE0F\')">' +
+      nameHtml + photoHtml + audioHtml + textHtml + '<span class="msg-reaction" id="react-' + escAttr(m.id || '') + '" style="font-size:16px;display:block;margin-top:2px"></span>' + metaHtml +
     '</div></div>';
 }
 
 function openImgFull(src) {
   var ov = document.createElement('div');
   ov.className = 'img-fullscreen';
-  ov.onclick = function() { ov.remove(); };
+  ov.onclick = function() { var img = ov.querySelector('img'); if (img) img.src = ''; ov.remove(); };
   ov.innerHTML = '<img src="' + escAttr(src) + '">';
   document.body.appendChild(ov);
 }
@@ -544,32 +823,58 @@ function safePhotoUrl(url) {
 }
 
 function inpHTML() {
-  return '<div class="inp-wrap">' +
-    '<div id="attachZone" style="display:flex;flex-direction:column;gap:8px;padding:0 4px"></div>' +
-    '<div class="img-preview" id="imgPreview" style="display:none"><img id="imgPreviewImg"><button class="img-preview-cancel" onclick="cancelImgPreview()">\u2715</button></div>' +
-    '<div class="epanel glass-panel" id="ep" style="bottom:70px;border-radius:16px">' + EMOJIS.map(function(e){return '<span class="ep" onclick="insE(\'' + e + '\')">' + e + '</span>'}).join('') + '</div>' +
-    '<div style="display:flex;align-items:flex-end;gap:8px">' +
-      '<button class="action-btn" onclick="openPhotoGallery()">\uD83D\uDCCE</button>' +
-      '<div class="inp-box">' +
-        '<textarea class="minput" id="mi" placeholder="Сообщение..." rows="1" maxlength="500" onkeydown="hKey(event)" oninput="onInput(this)" style="flex:1;border:none;background:transparent;resize:none;font-family:inherit;outline:none"></textarea>' +
-        '<button class="action-btn" onclick="togE()" style="padding:4px;font-size:20px">\uD83D\uDE42</button>' +
-      '</div>' +
-      '<div style="display:flex;gap:6px;align-items:flex-end;padding-bottom:4px">' +
-        '<button id="micBtn" class="action-btn" onmousedown="startVoice()" onmouseup="stopVoice()" ontouchstart="startVoice()" ontouchend="stopVoice()" style="background:rgba(255,255,255,0.1);border-radius:50%;width:40px;height:40px">\uD83C\uDFA4</button>' +
-        '<button class="sbtn" onclick="send()">' +
-          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>' +
+  return '<div id="attachZone" style="display:flex;flex-direction:column;gap:8px;padding:0 4px"></div>' +
+    '<div class="input-bar">' +
+      '<button class="btn-photo" onclick="openPhotoGallery()">' +
+        '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="3"/><circle cx="8" cy="10" r="2"/><path d="M2 17l5-5 4 4 3-3 5 5"/></svg>' +
+      '</button>' +
+      '<div class="field-wrap">' +
+        '<textarea class="minput field typed" id="mi" placeholder="Сообщение..." rows="1" maxlength="500" onkeydown="hKey(event)" oninput="onInput(this)" style="flex:1;border:none;background:transparent;resize:none;font-family:inherit;outline:none;font-size:15px;color:inherit"></textarea>' +
+        '<button class="btn-emoji" onclick="togE()">' +
+          '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c7c7cc" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9" stroke-width="2.5"/><line x1="15" y1="9" x2="15.01" y2="9" stroke-width="2.5"/></svg>' +
         '</button>' +
       '</div>' +
+      '<button class="btn-action" id="actionBtn" onclick="doAction()" onmousedown="actionDown()" onmouseup="actionUp()" ontouchstart="actionDown()" ontouchend="actionUp()">' +
+        '<svg id="micSvg" width="16" height="16" viewBox="0 0 24 24" fill="white"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/><line x1="12" y1="19" x2="12" y2="22" stroke="white" stroke-width="2"/><line x1="8" y1="22" x2="16" y2="22" stroke="white" stroke-width="2"/></svg>' +
+        '<svg id="sendSvg" width="17" height="17" viewBox="0 0 24 24" fill="none" style="display:none"><path d="M12 20V6" stroke="white" stroke-width="2.8" stroke-linecap="round"/><path d="M5 11l7-7 7 7" stroke="white" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+      '</button>' +
     '</div>' +
-    '<input type="file" id="photoInput" accept="image/*" style="display:none" onchange="handlePhotoSelect(this)">' +
-    '<span class="char-counter" id="charCount"></span>' +
-  '</div>';
+    '<div class="emoji-picker" id="ep">' + EMOJIS.map(function(e){return '<span onclick="insE(\'' + e + '\')">' + e + '</span>'}).join('') + '</div>' +
+    '<input type="file" id="photoInput" accept="image/*" style="display:none" onchange="handlePhotoSelect(this)">';
 }
 
 function hKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }
 function aRes(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 130) + 'px'; }
+function updateActionBtn() {
+  var inp = document.getElementById('mi');
+  var mic = document.getElementById('micSvg');
+  var snd = document.getElementById('sendSvg');
+  if (!mic || !snd) return;
+  var hasText = inp && inp.value.trim().length > 0;
+  mic.style.display = hasText ? 'none' : 'block';
+  snd.style.display = hasText ? 'block' : 'none';
+}
+
+function doAction() {
+  var inp = document.getElementById('mi');
+  if (inp && inp.value.trim()) {
+    send();
+  }
+}
+
+function actionDown() {
+  var inp = document.getElementById('mi');
+  if (!inp || !inp.value.trim()) startVoice();
+}
+
+function actionUp() {
+  var inp = document.getElementById('mi');
+  if (!inp || !inp.value.trim()) stopVoice();
+}
+
 function onInput(el) {
   aRes(el);
+  updateActionBtn();
   if (socket && socket.connected && cur) socket.emit('typing', { chatId: cur, isTyping: true });
   // Update char counter
   var cc = document.getElementById('charCount');
@@ -742,12 +1047,12 @@ async function saveEditProfile() {
 }
 
 // ── Pinned sections ──────────────────────────────────────────────────────────
-function openPinned(type) {
+async function openPinned(type) {
   cur = null; render();
   var main = document.getElementById('mainArea');
 
   if (type === 'important') {
-    var saved = JSON.parse(localStorage.getItem('kosmos_notes') || '[]');
+    var saved = await localforage.getItem('kosmos_notes') || [];
     main.innerHTML =
       '<div class="chat-hdr">' +
         '<button class="back-btn" onclick="goBack()">\u2039</button>' +
@@ -755,15 +1060,15 @@ function openPinned(type) {
         '<div class="hinfo"><div class="hname">Важное</div><div class="hsub">Заметки для себя</div></div>' +
       '</div>' +
       '<div class="msg-area" id="msgArea">' +
-        '<div class="datediv"><span>Заметки</span></div>' +
+        '<div class="chat-date"><span>Заметки</span></div>' +
         saved.map(function(n){return '<div class="msg me"><div class="bbl">' + escHtml(n.text) + '<div class="bf"><span class="mt">' + n.time + '</span></div></div></div>'}).join('') +
       '</div>' +
       '<div class="inp-zone"><div class="inp-box">' +
         '<textarea class="minput" id="mi" placeholder="Записать заметку..." rows="1" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();saveNote()}" oninput="aRes(this)"></textarea>' +
       '</div><button class="sbtn" onclick="saveNote()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9H4l4 4-2 7 6-4 6 4-2-7 4-4h-5z"/></svg></button></div>';
-    scrollBot(); showChatView();
+    scrollBot(true); showChatView();
   } else if (type === 'ai') {
-    aiMessages = JSON.parse(localStorage.getItem('kosmos_ai_history') || '[]');
+    aiMessages = await localforage.getItem('kosmos_ai_history') || [];
     main.innerHTML =
       '<div class="chat-hdr">' +
         '<button class="back-btn" onclick="goBack()">\u2039</button>' +
@@ -771,14 +1076,14 @@ function openPinned(type) {
         '<div class="hinfo"><div class="hname">ГигаЧАТ AI</div><div class="hsub">Llama 3.3 \u00B7 Groq</div></div>' +
       '</div>' +
       '<div class="msg-area" id="msgArea">' +
-        '<div class="datediv"><span>AI Ассистент</span></div>' +
+        '<div class="chat-date"><span>AI Ассистент</span></div>' +
         (aiMessages.length ? aiMessages.map(function(m){return '<div class="msg '+(m.role==='user'?'me':'them')+'"><div class="bbl">'+escHtml(m.content)+'<div class="bf"><span class="mt">'+(m.time||'')+'</span></div></div></div>'}).join('') :
           '<div class="msg them"><div class="bbl">Привет! Я AI-ассистент Космоса. Спрашивай что угодно \uD83D\uDE80<div class="bf"><span class="mt">\u2014</span></div></div></div>') +
       '</div>' +
       '<div class="inp-zone"><div class="inp-box">' +
         '<textarea class="minput" id="mi" placeholder="Спросить AI..." rows="1" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendAI()}" oninput="aRes(this)"></textarea>' +
       '</div><button class="sbtn" onclick="sendAI()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9H4l4 4-2 7 6-4 6 4-2-7 4-4h-5z"/></svg></button></div>';
-    scrollBot(); showChatView();
+    scrollBot(true); showChatView();
   } else if (type === 'video') {
     buildFeedView(main);
     showChatView();
@@ -798,12 +1103,7 @@ function buildFeedView(main) {
       '<div style="font-weight:700;font-size:18px;color:var(--text)">Стена</div>' +
       '<button class="hb" onclick="openGlobalSearch()">\uD83D\uDD0D</button>' +
     '</div>' +
-    '<div style="display:flex;gap:6px;padding:8px 12px;background:var(--card);border-bottom:0.5px solid var(--sep);overflow-x:auto">' +
-      '<button class="feed-filter active" data-f="all" onclick="setFeedFilter(\'all\',this)">Все</button>' +
-      '<button class="feed-filter" data-f="interests" onclick="setFeedFilter(\'interests\',this)">По интересам</button>' +
-      '<button class="feed-filter" data-f="new" onclick="setFeedFilter(\'new\',this)">Новое</button>' +
-    '</div>' +
-    '<div id="feedArea" style="flex:1;overflow-y:auto;padding:0">' +
+    '<div id="feedArea" style="flex:1;overflow-y:auto;padding:0;overscroll-behavior-y:contain">' +
       '<div class="stories-row" id="storiesRow"></div>' +
       '<div id="feedList">' + skeletonCards(3) + '</div>' +
       '<div id="feedLoader" style="text-align:center;padding:16px;color:var(--text3)"></div>' +
@@ -818,26 +1118,27 @@ function buildFeedView(main) {
   feedArea.addEventListener('scroll', function() {
     if (this.scrollTop + this.clientHeight >= this.scrollHeight - 200 && !feedLoading) loadFeed();
   });
-  // Pull-to-refresh
-  var _ptrStart = 0, _ptrActive = false;
-  feedArea.addEventListener('touchstart', function(e) { if (feedArea.scrollTop <= 0) _ptrStart = e.touches[0].clientY; else _ptrStart = 0; }, { passive: true });
+  // Pull-to-refresh with visual indicator
+  var _ptrStart = 0;
+  var pullIndicator = document.createElement('div');
+  pullIndicator.style.cssText = 'text-align:center;padding:10px;color:var(--accent);display:none;font-size:13px';
+  pullIndicator.textContent = '\u2193 Потяните для обновления';
+  feedArea.insertBefore(pullIndicator, feedArea.firstChild);
+  feedArea.addEventListener('touchstart', function(e) { _ptrStart = e.touches[0].clientY; }, { passive: true });
   feedArea.addEventListener('touchmove', function(e) {
-    if (!_ptrStart) return;
     var diff = e.touches[0].clientY - _ptrStart;
-    if (diff > 60 && !_ptrActive) {
-      _ptrActive = true;
-      var ptr = document.getElementById('ptrIndicator');
-      if (ptr) ptr.classList.add('active');
-    }
+    if (diff > 40 && feedArea.scrollTop === 0) {
+      pullIndicator.style.display = 'block';
+      pullIndicator.textContent = diff > 80 ? '\u2191 Отпустите' : '\u2193 Потяните для обновления';
+    } else { pullIndicator.style.display = 'none'; }
   }, { passive: true });
-  feedArea.addEventListener('touchend', function() {
-    if (_ptrActive) {
-      _ptrActive = false;
+  feedArea.addEventListener('touchend', function(e) {
+    var diff = e.changedTouches[0].clientY - _ptrStart;
+    pullIndicator.style.display = 'none';
+    if (diff > 80 && feedArea.scrollTop === 0) {
+      toast('Обновляем ленту...', 'success');
       feedOffset = 0; feedLoading = false;
-      var list = document.getElementById('feedList');
-      if (list) list.innerHTML = skeletonCards(3);
       loadFeed();
-      setTimeout(function() { var ptr = document.getElementById('ptrIndicator'); if (ptr) ptr.classList.remove('active'); }, 1000);
     }
     _ptrStart = 0;
   });
@@ -861,11 +1162,11 @@ function buildFeedView(main) {
           }
         }
       }).catch(function() {});
-  }, 60000);
+  }, 30000);
 }
 
 // ── Build Dating View ────────────────────────────────────────────────────────
-var datingTheme = localStorage.getItem('dating_theme') || 'pink';
+var datingTheme = localStorage.getItem('dating_theme') || 'oled';
 
 var DT = {
   pink: {
@@ -889,6 +1190,17 @@ var DT = {
     skipBorder: '#fecdd3', superBorder: '#7dd3fc',
     tagBg: '#e0f2fe', tagColor: '#0369a1',
     commonColor: '#0369a1', statNum: '#0369a1',
+  },
+  oled: {
+    bg: '#000000',
+    title: '\u0417\u043D\u0430\u043A\u043E\u043C\u0441\u0442\u0432\u0430 \uD83D\uDDA4',
+    titleColor: '#ffffff', subColor: '#dcb344',
+    cardShadow: '0 8px 32px rgba(220,179,68,0.15)',
+    photoBg: '#121212',
+    likeBg: 'linear-gradient(135deg,#E6C27A,#D4AF37)', likeShadow: '0 6px 20px rgba(212,175,55,0.4)',
+    skipBorder: '#333333', superBorder: '#3b82f6',
+    tagBg: '#1a1a1a', tagColor: '#dcb344',
+    commonColor: '#dcb344', statNum: '#dcb344',
   }
 };
 
@@ -921,6 +1233,7 @@ function buildDatingView(main) {
           '<div class="dt-toggle">' +
             '<div class="dt-toggle-item' + (datingTheme === 'pink' ? ' active' : '') + '" onclick="setDatingTheme(\'pink\')">\uD83C\uDF38</div>' +
             '<div class="dt-toggle-item' + (datingTheme === 'sky' ? ' active' : '') + '" onclick="setDatingTheme(\'sky\')">\uD83C\uDF24</div>' +
+            '<div class="dt-toggle-item' + (datingTheme === 'oled' ? ' active' : '') + '" onclick="setDatingTheme(\'oled\')">\uD83D\uDDA4</div>' +
           '</div>' +
           '<div class="dt-toggle-item" style="width:32px;height:32px;background:rgba(255,255,255,0.6);border-radius:50%;border:1px solid rgba(255,255,255,0.9);cursor:pointer" onclick="openDatingProfile()">\u2699\uFE0F</div>' +
         '</div>' +
@@ -949,10 +1262,10 @@ async function loadDatingStats() {
       '<div class="dating-stat"><div class="dating-stat-num" style="color:' + t.statNum + '">' + (s.matches || 0) + '</div><div class="dating-stat-lbl">\u041C\u044D\u0442\u0447\u0438</div></div>' +
       '<div class="dating-stat"><div class="dating-stat-num" style="color:' + t.statNum + '">' + (s.likes || 0) + '</div><div class="dating-stat-lbl">\u041B\u0430\u0439\u043A\u0438</div></div>' +
       '<div class="dating-stat"><div class="dating-stat-num" style="color:' + t.statNum + '">' + (s.online || 0) + '</div><div class="dating-stat-lbl">\u041E\u043D\u043B\u0430\u0439\u043D</div></div>';
-  } catch(e) {}
+  } catch(e) { console.error('[Error]:', e.message || e); }
 }
 
-function saveNote() {
+async function saveNote() {
   var inp = document.getElementById('mi');
   if (!inp) return;
   var text = inp.value.trim();
@@ -960,9 +1273,9 @@ function saveNote() {
   inp.value = ''; inp.style.height = 'auto';
   var now = new Date();
   var time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-  var saved = JSON.parse(localStorage.getItem('kosmos_notes') || '[]');
+  var saved = await localforage.getItem('kosmos_notes') || [];
   saved.push({ text: text, time: time });
-  localStorage.setItem('kosmos_notes', JSON.stringify(saved));
+  localforage.setItem('kosmos_notes', saved);
   var area = document.getElementById('msgArea');
   var d = document.createElement('div');
   d.innerHTML = '<div class="msg me"><div class="bbl">' + escHtml(text) + '<div class="bf"><span class="mt">' + time + '</span></div></div></div>';
@@ -973,45 +1286,82 @@ function saveNote() {
 // ── AI Chat ──────────────────────────────────────────────────────────────────
 var aiMessages = [];
 
+function stripMd(t) {
+  if (!t) return t;
+  return t
+    .replace(/```[\w]*\n?([\s\S]*?)```/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/_(.*?)_/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^[-*]{3,}$/gm, '')
+    .trim();
+}
+
 async function sendAI() {
   var inp = document.getElementById('mi');
   if (!inp) return;
   var text = inp.value.trim();
   if (!text) return;
   inp.value = ''; inp.style.height = 'auto';
+
   var now = new Date();
   var time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+
   aiMessages.push({ role: 'user', content: text, time: time });
   var area = document.getElementById('msgArea');
   var d = document.createElement('div');
   d.innerHTML = '<div class="msg me"><div class="bbl">' + escHtml(text) + '<div class="bf"><span class="mt">' + time + '</span></div></div></div>';
   area.appendChild(d.firstChild);
+
   var loading = document.createElement('div');
   loading.className = 'typing';
   loading.innerHTML = '<div class="tdots"><span></span><span></span><span></span></div>';
   area.appendChild(loading);
   scrollBot();
+
   try {
-    var res = await fetch(API + '/ai/chat', {
+    var history = aiMessages.slice(-4).map(function(m) {
+      return { role: m.role, content: m.content };
+    });
+    console.log('Отправлено контекста:', history.length);
+    var res = await fetch(API + '/api/ai/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
-      body: JSON.stringify({ messages: aiMessages.filter(function(m){return m.role==='user'||m.role==='assistant'}).map(function(m){return {role:m.role,content:m.content}}) }),
+      body: JSON.stringify({ prompt: text, history: history, chatId: 'gigachat-local' }),
     });
     var data = await res.json();
     loading.remove();
-    var aiText = data.text || data.error || 'Нет ответа';
+
+    data.gemini = stripMd(data.gemini);
+    data.claude = stripMd(data.claude);
+
     var aiTime = new Date().getHours().toString().padStart(2,'0') + ':' + new Date().getMinutes().toString().padStart(2,'0');
-    aiMessages.push({ role: 'assistant', content: aiText, time: aiTime });
-    d = document.createElement('div');
-    d.innerHTML = '<div class="msg them"><div class="bbl">' + escHtml(aiText) + '<div class="bf"><span class="mt">' + aiTime + '</span></div></div></div>';
-    area.appendChild(d.firstChild);
+
+    if (data.gemini) {
+      aiMessages.push({ role: 'assistant', content: 'Gemini: ' + data.gemini, time: aiTime });
+      var dG = document.createElement('div');
+      dG.innerHTML = '<div class="msg them"><div class="bbl" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd"><b>\u2728 Gemini:</b><br>' + escHtml(data.gemini) + '<div class="bf"><span class="mt">' + aiTime + '</span></div></div></div>';
+      area.appendChild(dG.firstChild);
+    }
+
+    if (data.claude) {
+      aiMessages.push({ role: 'assistant', content: 'Claude: ' + data.claude, time: aiTime });
+      var dC = document.createElement('div');
+      dC.innerHTML = '<div class="msg them"><div class="bbl" style="background:#fce7f3;color:#be185d;border:1px solid #fbcfe8"><b>\uD83E\uDDE0 Claude:</b><br>' + escHtml(data.claude) + '<div class="bf"><span class="mt">' + aiTime + '</span></div></div></div>';
+      area.appendChild(dC.firstChild);
+    }
+
     scrollBot();
-    localStorage.setItem('kosmos_ai_history', JSON.stringify(aiMessages.slice(-50)));
+    localforage.setItem('kosmos_ai_history', aiMessages.slice(-50));
+
   } catch(e) {
     loading.remove();
-    d = document.createElement('div');
-    d.innerHTML = '<div class="msg them"><div class="bbl">Ошибка: нет связи с сервером<div class="bf"><span class="mt">\u2014</span></div></div></div>';
-    area.appendChild(d.firstChild);
+    var err = document.createElement('div');
+    err.innerHTML = '<div class="msg them"><div class="bbl">Ошибка: ИИ-сотрудники не отвечают<div class="bf"><span class="mt">\u2014</span></div></div></div>';
+    area.appendChild(err.firstChild);
     scrollBot();
   }
 }
@@ -1032,6 +1382,7 @@ var feedLoading = false;
 var myFeedChannel = null;
 
 async function loadFeed() {
+  console.log('[feed] loading...');
   if (feedLoading) return;
   feedLoading = true;
   var list = document.getElementById('feedList');
@@ -1039,9 +1390,9 @@ async function loadFeed() {
   if (loader) loader.textContent = '';
   if (feedOffset === 0 && list) {
     try {
-      var cached = JSON.parse(localStorage.getItem('feed_cache') || '[]');
+      var cached = await localforage.getItem('feed_cache') || [];
       if (cached.length) list.innerHTML = cached.map(function(p){return postCard(p)}).join('');
-    } catch(e) {}
+    } catch(e) { console.error('[Error]:', e.message || e); }
   }
   try {
     var ctrl = new AbortController();
@@ -1056,7 +1407,7 @@ async function loadFeed() {
     myFeedChannel = data.myFeedChannel || null;
     if (feedOffset === 0 && list) {
       list.innerHTML = '';
-      try { localStorage.setItem('feed_cache', JSON.stringify(posts.slice(0, 10))); } catch(e) {}
+      try { await localforage.setItem('feed_cache', posts.slice(0, 10)); } catch(e) { console.error('[Error]:', e.message || e); }
     }
     if (!posts.length) {
       var msg = feedOffset === 0 ? 'Нет постов. Напиши первый!' : 'Вы всё прочитали \u2713';
@@ -1140,10 +1491,10 @@ async function feedShare(postId) {
   if (choice === '2') {
     var post = document.querySelector('[data-pid="' + postId + '"]');
     var text = post ? (post.querySelector('div[style*="pre-wrap"]') || {}).textContent || '' : '';
-    var saved = JSON.parse(localStorage.getItem('kosmos_notes') || '[]');
+    var saved = await localforage.getItem('kosmos_notes') || [];
     var time = new Date().getHours().toString().padStart(2,'0') + ':' + new Date().getMinutes().toString().padStart(2,'0');
     saved.push({ text: '\uD83D\uDCCC ' + text, time: time });
-    localStorage.setItem('kosmos_notes', JSON.stringify(saved));
+    localforage.setItem('kosmos_notes', saved);
     toast('Сохранено в Важное!', 'success');
   } else if (choice === '1') {
     var handle = prompt('Введите @username друга:');
@@ -1171,6 +1522,7 @@ function setFeedFilter(f, btn) {
 
 // ── Post Reactions ──────────────────────────────────────────────────────────
 async function postReact(btn, postId, reaction) {
+  haptic('light');
   btn.style.animation = 'likeBounce .4s ease';
   setTimeout(function() { btn.style.animation = ''; }, 400);
   try {
@@ -1192,7 +1544,7 @@ async function postReact(btn, postId, reaction) {
         btn.style.borderColor = 'var(--accent)';
       }
     }
-  } catch(e) {}
+  } catch(e) { console.error('[Error]:', e.message || e); }
 }
 
 // ── Comments Bottom Sheet ───────────────────────────────────────────────────
@@ -1232,7 +1584,7 @@ async function openComments(postId) {
           '</div></div>';
       }).join('');
     }
-  } catch(e) {}
+  } catch(e) { console.error('[Error]:', e.message || e); }
 }
 
 async function submitComment(postId) {
@@ -1272,7 +1624,7 @@ async function submitComment(postId) {
         ccBtn.innerHTML = ccBtn.innerHTML.replace(/>(\d*)<\/button>/, '>' + (num+1) + '</button>');
       }
     }
-  } catch(e) {}
+  } catch(e) { console.error('[Error]:', e.message || e); }
 }
 
 // ── Public Profile ──────────────────────────────────────────────────────────
@@ -1536,6 +1888,7 @@ function showDatingCard() {
 }
 
 async function datingAction(targetId, action) {
+  haptic('light');
   var card = document.getElementById('datingCardEl');
   if (card) card.classList.add(action === 'like' || action === 'super' ? 'swipe-right' : 'swipe-left');
   var t = DT[datingTheme] || DT.pink;
@@ -1550,6 +1903,7 @@ async function datingAction(targetId, action) {
 
     setTimeout(function() {
       if (data.match) {
+        haptic('heavy');
         var area = document.getElementById('datingArea');
         if (area) {
           area.innerHTML =
@@ -1680,7 +2034,71 @@ function fallbackCopy(text) {
 
 // ── Utilities ───────────────────────────────────────────────────────────────
 function insE(e) { var i = document.getElementById('mi'); if (i) { i.value += e; i.focus(); } var ep = document.getElementById('ep'); if (ep) ep.classList.remove('open'); }
-function scrollBot() { var a = document.getElementById('msgArea'); if (a) a.scrollTop = a.scrollHeight; }
+function scrollBot(force) {
+  var area = document.getElementById('msgArea');
+  if (!area) return;
+
+  var isForced = force === true;
+  var isAtBottom = (area.scrollHeight - area.scrollTop - area.clientHeight) < 80;
+
+  if (isForced || isAtBottom) {
+    if (isForced) {
+      area.scrollTop = area.scrollHeight;
+    } else {
+      try {
+        area.scrollTo({
+          top: area.scrollHeight,
+          behavior: 'smooth'
+        });
+      } catch (e) {
+        area.scrollTop = area.scrollHeight;
+      }
+    }
+  }
+}
+
+function initScrollListener(chatId) {
+  var area = document.getElementById('msgArea');
+  if (!area || area._scrollListenerSet) return;
+  area._scrollListenerSet = true;
+  area.addEventListener('scroll', function() {
+    if (area.scrollTop < 80) loadOlderMsgs();
+  });
+}
+
+async function loadOlderMsgs() {
+  var item = findItem(cur);
+  if (!item || item.hasMore === false || item._loadingOlder || !item.firstMsgId) return;
+  item._loadingOlder = true;
+  var btn = document.getElementById('loadMoreBtn');
+  if (btn) btn.innerHTML = '<span style="color:var(--text3);font-size:13px">Загрузка...</span>';
+  try {
+    var r = await fetch(API + '/messages/' + encodeURIComponent(cur) + '?before=' + encodeURIComponent(item.firstMsgId) + '&limit=30', {
+      headers: { 'Authorization': 'Bearer ' + jwtToken }
+    });
+    var msgs = r.ok ? await r.json() : [];
+    if (!msgs.length) { item.hasMore = false; if (btn) btn.remove(); item._loadingOlder = false; return; }
+    var olderMsgs = msgs.map(function(m) {
+      var ts = new Date(m.created_at * 1000);
+      var time = ts.getHours().toString().padStart(2,'0') + ':' + ts.getMinutes().toString().padStart(2,'0');
+      var from = currentUser && m.sender_id === currentUser.id ? 'me' : 'them';
+      return { id: m.id, from: from, text: m.text, time: time, sender: m.sender_username, image: m.image || null, audio: m.audio || null, is_read: !!m.is_read };
+    });
+    if (olderMsgs.length < 30) item.hasMore = false;
+    item.firstMsgId = olderMsgs[0].id;
+    item.msgs = olderMsgs.concat(item.msgs);
+    // Re-render preserving scroll position
+    var area = document.getElementById('msgArea');
+    if (area) {
+      var oldHeight = area.scrollHeight;
+      var loader = item.hasMore !== false ? '<div id="loadMoreBtn" style="text-align:center;padding:10px"><button onclick="loadOlderMsgs()" style="background:var(--bg2);border:1px solid var(--sep);border-radius:20px;padding:6px 16px;color:var(--text3);font-size:13px;cursor:pointer">Загрузить старые</button></div>' : '';
+      area.innerHTML = loader + '<div class="chat-date"><span>Сегодня</span></div>' +
+        item.msgs.map(function(m){return mHTML(m)}).join('');
+      area.scrollTop = area.scrollHeight - oldHeight;
+    }
+  } catch(e) { console.error('[Error]:', e.message || e); }
+  item._loadingOlder = false;
+}
 function showChatView() {
   document.body.classList.add('chat-open');
   history.pushState({ chat: true }, '');
@@ -1699,39 +2117,70 @@ function goBack() {
 }
 
 // ── Context Menu (long press on message) ────────────────────────────────────
+// Glass overlay (created once)
+var _glassOverlay = document.querySelector('.glass-overlay');
+if (!_glassOverlay) {
+  _glassOverlay = document.createElement('div');
+  _glassOverlay.className = 'glass-overlay';
+  document.body.appendChild(_glassOverlay);
+}
+_glassOverlay.addEventListener('click', dismissContextMenu);
+
 var _longPressTimer = null;
+var _lpStartX = 0, _lpStartY = 0;
+var _elevatedRow = null;
+
 var _mainAreaNode = document.getElementById('mainArea');
 if (_mainAreaNode) {
   _mainAreaNode.addEventListener('touchstart', startPress, { passive: true });
   _mainAreaNode.addEventListener('touchend', cancelPress);
-  _mainAreaNode.addEventListener('touchmove', cancelPress);
+  _mainAreaNode.addEventListener('touchmove', function(e) {
+    if (!_longPressTimer) return;
+    var t = e.touches[0];
+    if (Math.abs(t.clientX - _lpStartX) > 10 || Math.abs(t.clientY - _lpStartY) > 10) cancelPress();
+  });
   _mainAreaNode.addEventListener('mousedown', startPress);
   _mainAreaNode.addEventListener('mouseup', cancelPress);
-  _mainAreaNode.addEventListener('mousemove', cancelPress);
   _mainAreaNode.addEventListener('contextmenu', function(e) {
-    if (e.target.closest('.bbl')) e.preventDefault();
+    var bbl = e.target.closest('.bbl');
+    if (bbl) { e.preventDefault(); showContextMenu(bbl, e.clientX, e.clientY); }
   });
 }
+
 function startPress(e) {
   var bbl = e.target.closest('.bbl');
   if (!bbl) return;
-  var x = e.touches ? e.touches[0].clientX : e.clientX;
-  var y = e.touches ? e.touches[0].clientY : e.clientY;
+  _lpStartX = e.touches ? e.touches[0].clientX : e.clientX;
+  _lpStartY = e.touches ? e.touches[0].clientY : e.clientY;
   _longPressTimer = setTimeout(function() {
     _longPressTimer = null;
-    showContextMenu(bbl, x, y);
-  }, 500);
+    showContextMenu(bbl, _lpStartX, _lpStartY);
+  }, 400);
 }
 function cancelPress() {
   if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
 }
-document.addEventListener('click', function() { var m = document.querySelector('.ctx-menu'); if (m) m.remove(); });
+
+function dismissContextMenu() {
+  var menu = document.querySelector('.ctx-menu');
+  if (menu) { menu.classList.remove('active'); setTimeout(function() { menu.remove(); }, 200); }
+  if (_elevatedRow) { _elevatedRow.classList.remove('elevated'); _elevatedRow = null; }
+  _glassOverlay.classList.remove('active');
+  haptic('light');
+}
 
 function showContextMenu(bbl, x, y) {
-  var old = document.querySelector('.ctx-menu');
-  if (old) old.remove();
+  dismissContextMenu();
+  haptic('heavy');
 
-  // Find msg ID — bbl itself has id="msg-..." in new layout, or check parent
+  // Elevate the message row
+  var row = bbl.closest('.msg-row');
+  if (row) { row.classList.add('elevated'); _elevatedRow = row; }
+
+  // Show glass overlay
+  _glassOverlay.classList.add('active');
+
+  // Find msg ID
   var msgId = bbl.id ? bbl.id.replace('msg-', '') : null;
   if (!msgId) { var msgEl = bbl.closest('[id^="msg-"]'); if (msgEl) msgId = msgEl.id.replace('msg-', ''); }
   var isMine = bbl.classList.contains('my');
@@ -1742,30 +2191,36 @@ function showContextMenu(bbl, x, y) {
   var meta = clone.querySelector('.msg-meta');
   if (meta) meta.remove();
   var txt = clone.innerText.trim();
+  if (!txt && bbl.dataset && bbl.dataset.content) txt = bbl.dataset.content;
 
   var menu = document.createElement('div');
-  menu.className = 'ctx-menu glass-panel';
-  var menuX = x > window.innerWidth - 180 ? window.innerWidth - 180 : x;
-  menu.style.cssText = 'position:fixed;top:' + y + 'px;left:' + menuX + 'px;z-index:9999;display:flex;flex-direction:column;min-width:170px';
+  menu.className = 'ctx-menu';
   menu.dataset.text = txt;
   menu.dataset.msgId = msgId || '';
 
-  var html = '<button class="ctx-btn" onclick="setReply(this)"><span>\u21A9</span> Ответить</button>';
-  html += '<button class="ctx-btn" onclick="copyMsgText(this)"><span>\uD83D\uDCCB</span> Копировать</button>';
+  var html = '<button class="ctx-btn" onclick="setReply(this)">Ответить</button>';
+  html += '<div class="ctx-divider"></div>';
+  html += '<button class="ctx-btn" onclick="copyMsgText(this)">Копировать</button>';
   if (isMine && msgId) {
-    html += '<hr style="margin:0;border:none;border-top:1px solid var(--glass-border)">';
-    html += '<button class="ctx-btn" onclick="editMessage(\'' + escSearch(msgId) + '\',this)"><span>\u270F\uFE0F</span> Изменить</button>';
-    html += '<button class="ctx-btn danger" onclick="deleteMessage(\'' + escSearch(msgId) + '\',this)"><span>\uD83D\uDDD1</span> Удалить</button>';
+    html += '<div class="ctx-divider"></div>';
+    html += '<button class="ctx-btn danger" onclick="deleteMessage(\'' + escSearch(msgId) + '\',this)">Удалить</button>';
   }
   menu.innerHTML = html;
+
+  // Position near the message
   document.body.appendChild(menu);
-  var rect = menu.getBoundingClientRect();
-  if (rect.bottom > window.innerHeight) menu.style.top = (y - rect.height) + 'px';
+  var menuRect = menu.getBoundingClientRect();
+  var menuX = x > window.innerWidth - 170 ? window.innerWidth - 170 : x;
+  var menuY = y;
+  if (menuY + menuRect.height > window.innerHeight - 20) menuY = y - menuRect.height;
+  menu.style.cssText = 'position:fixed;top:' + menuY + 'px;left:' + menuX + 'px';
+
+  // Animate in
+  requestAnimationFrame(function() { menu.classList.add('active'); });
 }
 
 function deleteMessage(msgId, el) {
-  var menu = el.closest('.ctx-menu');
-  if (menu) menu.remove();
+  dismissContextMenu();
   if (!msgId || !socket || !socket.connected || !cur) return;
   socket.emit('delete_msg', { chatId: cur, msgId: msgId });
   // Optimistic: remove from DOM immediately
@@ -1779,7 +2234,7 @@ function deleteMessage(msgId, el) {
 function editMessage(msgId, el) {
   var menu = el.closest('.ctx-menu');
   var oldText = menu ? menu.dataset.text : '';
-  if (menu) menu.remove();
+  dismissContextMenu();
   if (!msgId || !socket || !socket.connected || !cur) return;
   var newText = prompt('Редактировать сообщение:', oldText);
   if (newText === null || newText.trim() === oldText) return;
@@ -1813,9 +2268,25 @@ function copyMsgText(el) {
   var menu = el.closest('.ctx-menu');
   var text = menu ? menu.dataset.text : '';
   navigator.clipboard.writeText(text).then(function() {
-    showToast('', 'Скопировано');
+    toast('Скопировано', 'success');
   }).catch(function() {});
-  if (menu) menu.remove();
+  dismissContextMenu();
+}
+
+function copyFullMsg(msgId) {
+  dismissContextMenu();
+  var msgEl = msgId ? document.getElementById('msg-' + msgId) : null;
+  var fullText = '';
+  if (msgEl) {
+    var clone = msgEl.cloneNode(true);
+    var meta = clone.querySelector('.msg-meta');
+    if (meta) meta.remove();
+    fullText = clone.innerText.trim();
+  }
+  if (!fullText) return;
+  navigator.clipboard.writeText(fullText).then(function() {
+    toast('Текст скопирован', 'success');
+  }).catch(function() {});
 }
 
 // ── Reply to Message ────────────────────────────────────────────────────────
@@ -1823,7 +2294,7 @@ var _replyTo = null;
 function setReply(el) {
   var menu = el.closest('.ctx-menu');
   var text = menu ? menu.dataset.text : '';
-  if (menu) menu.remove();
+  dismissContextMenu();
   _replyTo = { text: text.substring(0, 80) };
 
   var zone = document.getElementById('attachZone');
@@ -1848,8 +2319,18 @@ function cancelReply() {
   renderAttachZone();
 }
 
-// ── Photo Sharing ───────────────────────────────────────────────────────────
+// ── Photo Sharing (Cloudinary) ──────────────────────────────────────────────
 var _pendingImage = null;
+var _pendingPhotoFile = null;
+
+async function uploadPhoto(file) {
+  var formData = new FormData();
+  formData.append('photo', file);
+  var r = await fetch(API + '/api/upload', { method: 'POST', headers: { 'Authorization': 'Bearer ' + jwtToken }, body: formData });
+  var data = await r.json();
+  if (!data.url) throw new Error(data.error || 'Upload failed');
+  return data.url;
+}
 
 function openPhotoGallery() {
   var input = document.createElement('input');
@@ -1857,26 +2338,13 @@ function openPhotoGallery() {
   input.onchange = function(e) {
     var file = e.target.files[0];
     if (!file) return;
+    console.log('фото выбрано', file.size);
     if (file.size > 10 * 1024 * 1024) { toast('Файл слишком большой (макс 10МБ)', 'error'); return; }
-    var img = new Image();
-    img.src = URL.createObjectURL(file);
-    img.onload = function() {
-      var canvas = document.createElement('canvas');
-      var w = img.width, h = img.height, max = 1200;
-      if (w > h && w > max) { h *= max / w; w = max; }
-      else if (h > max) { w *= max / h; h = max; }
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      _pendingImage = canvas.toDataURL('image/jpeg', 0.7);
-      URL.revokeObjectURL(img.src);
-      // Show preview in attachZone
-      _attachedPhoto = _pendingImage;
-      renderAttachZone();
-      // Also update old preview if exists
-      var preview = document.getElementById('imgPreview');
-      var prevImg = document.getElementById('imgPreviewImg');
-      if (preview && prevImg) { prevImg.src = _pendingImage; preview.style.display = 'flex'; }
-    };
+    _pendingPhotoFile = file;
+    // Preview from blob URL (no base64 needed)
+    _pendingImage = URL.createObjectURL(file);
+    _attachedPhoto = _pendingImage;
+    renderAttachZone();
   };
   input.click();
 }
@@ -1895,7 +2363,7 @@ function handlePhotoSelect(input) {
     else if (h > max) { w *= max / h; h = max; }
     canvas.width = w; canvas.height = h;
     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-    _pendingImage = canvas.toDataURL('image/jpeg', 0.7);
+    _pendingImage = canvas.toDataURL('image/jpeg', 0.5);
     _attachedPhoto = _pendingImage;
     URL.revokeObjectURL(img.src);
     renderAttachZone();
@@ -1905,17 +2373,17 @@ function handlePhotoSelect(input) {
 function cancelImgPreview() {
   _pendingImage = null; _attachedPhoto = null;
   renderAttachZone();
-  var preview = document.getElementById('imgPreview');
-  if (preview) preview.style.display = 'none';
 }
 
-function send() {
+async function send() {
   var inp = document.getElementById('mi');
   if (!inp) return;
   var text = inp.value.trim();
   var image = _pendingImage;
   if (!text && !image) return;
+  haptic('medium');
   inp.value = ''; inp.style.height = 'auto';
+  updateActionBtn();
 
   // Local echo — show message immediately without waiting for server
   var now = new Date();
@@ -1939,14 +2407,60 @@ function send() {
     render();
   }
 
-  if (socket && socket.connected && cur) {
+  // Check if this is an AI bot chat
+  var isAiChat = cur && (cur.indexOf('gemini-bot') !== -1 || cur.indexOf('claude-bot') !== -1);
+  if (isAiChat && text) {
+    fetch(API + '/api/ai/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+      body: JSON.stringify({ prompt: text, chatId: cur })
+    }).catch(function(){});
+  } else if (cur) {
     var payload = { chatId: cur, text: text || '', replyTo: _replyTo ? _replyTo.text : undefined };
-    if (image) payload.image = image;
-    socket.emit('chat_msg', payload);
+    // Upload photo to Cloudinary if file exists, else use base64 fallback
+    if (_pendingPhotoFile) {
+      try {
+        var imageUrl = await uploadPhoto(_pendingPhotoFile);
+        payload.image = imageUrl;
+        console.log('[photo] uploaded to cloudinary:', imageUrl);
+      } catch(e) {
+        console.error('[photo] upload failed, using base64:', e.message);
+        if (image) payload.image = image;
+      }
+      _pendingPhotoFile = null;
+    } else if (image && image.startsWith('data:')) {
+      payload.image = image;
+    }
+    var dbMsg = { id: localMsg.id, chatId: cur, sender: 'me', type: payload.image ? 'image' : 'text', content: payload.text || payload.image || '', timestamp: Date.now() };
+
+    if (!navigator.onLine) {
+      console.log('[Sync] Нет сети. Кладем в локальную очередь.');
+      if (typeof KosmosDB !== 'undefined') {
+        KosmosDB.saveMessage(dbMsg);
+        if (KosmosDB.addToQueue) KosmosDB.addToQueue(dbMsg);
+      }
+      var offEl = document.getElementById('msg-' + localMsg.id);
+      if (offEl) {
+        offEl.style.opacity = '0.6';
+        var offTime = offEl.querySelector('.msg-meta');
+        if (offTime) offTime.innerText += ' ⏳';
+      }
+      _pendingImage = null;
+    } else if (typeof P2PManager !== 'undefined' && P2PManager.getPeers().indexOf(cur) !== -1) {
+      P2PManager.send(cur, { type: payload.image ? 'image' : 'text', text: payload.text, image: payload.image || null, sender: currentUser ? currentUser.username : '' });
+      if (typeof KosmosDB !== 'undefined') KosmosDB.saveMessage(dbMsg);
+      _pendingImage = null;
+    } else if (socket && socket.connected) {
+      socket.emit('chat_msg', payload, function() { _pendingImage = null; });
+      if (typeof KosmosDB !== 'undefined') KosmosDB.saveMessage(dbMsg);
+    } else {
+      addToOutbox(payload).then(function() { _pendingImage = null; });
+    }
   }
   _pendingImage = null;
-  var preview = document.getElementById('imgPreview');
-  if (preview) preview.style.display = 'none';
+  _pendingPhotoFile = null;
+  _attachedPhoto = null;
+  renderAttachZone();
   cancelReply();
   var cc = document.getElementById('charCount');
   if (cc) { cc.textContent = ''; cc.className = 'char-counter'; }
@@ -1966,7 +2480,7 @@ async function loadStories(container) {
         '<div class="story-name">' + escHtml(g.username || '') + '</div></div>';
     });
     if (container) container.innerHTML = html;
-  } catch(e) {}
+  } catch(e) { console.error('[Error]:', e.message || e); }
 }
 
 function createStory() {
@@ -2026,7 +2540,7 @@ async function viewStory(userId) {
       '</div>';
     document.body.appendChild(viewer);
     setTimeout(function() { viewer.remove(); }, 5000);
-  } catch(e) {}
+  } catch(e) { console.error('[Error]:', e.message || e); }
 }
 
 // ── Badges ──────────────────────────────────────────────────────────────────
@@ -2254,42 +2768,84 @@ function generateMyQR() {
     height: 220,
     colorDark: '#000',
     colorLight: '#fff',
-    correctLevel: QRCode.CorrectLevel.H
+    correctLevel: QRCode.CorrectLevel.M
   });
 }
 
 var qrStream = null;
 var qrScanInterval = null;
 
-function startQRScan() {
+function handleQRResult(data) {
+  var match = data.match(/[?&]u=([^&]+)/);
+  if (match) {
+    var qrOverlay = document.getElementById('qrOverlay');
+    if (qrOverlay) qrOverlay.style.display = 'none';
+    if (typeof showTab === 'function') showTab('chats');
+    fetch(API + '/users?search=' + encodeURIComponent(match[1]), {
+      headers: { 'Authorization': 'Bearer ' + jwtToken }
+    }).then(function(r) { return r.json(); })
+      .then(function(users) {
+        if (users && users.length > 0) startDM(users[0].id, users[0].username, users[0].handle);
+        else toast('Пользователь не найден', 'error');
+      }).catch(function() { toast('Ошибка поиска', 'error'); });
+  }
+}
+
+var _qrScanning = false;
+async function startQRScan() {
   var video = document.getElementById('qrVideo');
   var result = document.getElementById('qrScanResult');
   result.textContent = 'Наведите камеру на QR-код...';
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-    .then(function(stream) {
-      qrStream = stream;
-      video.srcObject = stream;
+
+  try {
+    var stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    qrStream = stream;
+    video.srcObject = stream;
+    _qrScanning = true;
+
+    if ('BarcodeDetector' in window) {
+      // Native API — fast and accurate
+      var detector = new BarcodeDetector({ formats: ['qr_code'] });
+      video.onloadedmetadata = function() {
+        video.play();
+        (function scan() {
+          if (!_qrScanning) return;
+          detector.detect(video).then(function(codes) {
+            if (codes.length > 0) {
+              result.textContent = 'Найден: ' + codes[0].rawValue;
+              stopQRScan();
+              handleQRResult(codes[0].rawValue);
+              return;
+            }
+            if (_qrScanning) requestAnimationFrame(scan);
+          }).catch(function() { if (_qrScanning) requestAnimationFrame(scan); });
+        })();
+      };
+    } else {
+      // Fallback — jsQR
       video.play();
       qrScanInterval = setInterval(function() {
         if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
         var canvas = document.getElementById('qrCanvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
-        var imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-        var code = jsQR(imageData.data, imageData.width, imageData.height);
+        var scale = video.videoWidth > 0 ? Math.min(1, 400 / video.videoWidth) : 1;
+        canvas.width = video.videoWidth * scale;
+        canvas.height = video.videoHeight * scale;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
         if (code) {
           result.textContent = 'Найден: ' + code.data;
           stopQRScan();
-          var match = code.data.match(/[?&]u=([^&]+)/);
-          if (match) searchUsers(match[1]);
+          handleQRResult(code.data);
         }
       }, 300);
-    })
-    .catch(function() { result.textContent = 'Нет доступа к камере'; });
+    }
+  } catch(e) { result.textContent = 'Нет доступа к камере'; }
 }
 
 function stopQRScan() {
+  _qrScanning = false;
   if (qrStream) { qrStream.getTracks().forEach(function(t) { t.stop(); }); qrStream = null; }
   if (qrScanInterval) { clearInterval(qrScanInterval); qrScanInterval = null; }
 }
@@ -2327,6 +2883,7 @@ function showTab(tab) {
     settingsScreen.offsetHeight;
     settingsScreen.style.animation = 'slideInRight .28s cubic-bezier(.4,0,.2,1)';
     renderSettingsScreen();
+    if (typeof SettingsController !== 'undefined') SettingsController.open();
   }
 }
 
@@ -2335,24 +2892,119 @@ function renderQRScreen() {
   var username = u.username || u.handle || 'unknown';
   var name = u.name || username;
   document.getElementById('qrScreenUsername').textContent = '@' + username;
-  document.getElementById('qrScanLabel').textContent = 'Scan to chat with @' + username;
+  document.getElementById('qrScanLabel').innerHTML = 'Наведи камеру телефона или используй сканер<br><span style="color:var(--text3);font-size:12px">@' + escHtml(username) + '</span>';
   document.getElementById('qrAvatarCenter').textContent = (name || '?')[0].toUpperCase();
   var div = document.getElementById('qrCodeDiv');
-  div.innerHTML = '<div style="width:200px;height:200px;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:13px">Генерация...</div>';
-  new QRCode(div, { text: 'https://c4v2jht698-ux.github.io/kosmos-frontend/?u=' + encodeURIComponent(username), width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
+  div.innerHTML = '';
+  new QRCode(div, { text: 'https://c4v2jht698-ux.github.io/kosmos-frontend/?u=' + encodeURIComponent(username), width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.M });
 }
 
 function renderSettingsScreen() {
-  var u = currentUser || {};
+  var u = window.currentUser || {};
   var name = u.name || u.username || 'Пользователь';
   var username = u.username || u.handle || '';
+  var avatarEl = document.getElementById('settingsAvatar');
+  var avatarImg = document.getElementById('user-avatar-img');
+  if (avatarEl) avatarEl.textContent = (name || '?')[0].toUpperCase();
+  // Show actual avatar image if available
+  if (avatarImg && (u.avatar || u.photo)) {
+    avatarImg.src = u.avatar || u.photo;
+    avatarImg.style.display = 'block';
+    if (avatarEl) avatarEl.style.display = 'none';
+  } else if (avatarImg) {
+    avatarImg.style.display = 'none';
+    if (avatarEl) avatarEl.style.display = '';
+  }
   document.getElementById('settingsName').textContent = name;
   document.getElementById('settingsHandle').textContent = '@' + username;
-  document.getElementById('settingsAvatar').textContent = (name || '?')[0].toUpperCase();
+
+  var curTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+  var themeLabel = curTheme === 'light' ? 'Светлая' : 'Тёмная';
+  var hapticOn = localStorage.getItem('kosmos_haptic') !== 'off';
+  var compactOn = localStorage.getItem('kosmos_compact') === 'on';
+
+  var container = document.querySelector('#settingsScreen .settings-actions');
+  if (!container) {
+    container = document.createElement('div');
+    container.className = 'settings-actions';
+    container.style.cssText = 'background:var(--card);border-radius:14px;overflow:hidden';
+    var parent = document.querySelector('#settingsScreen > div');
+    // insert after the avatar card
+    if (parent.children.length > 1) parent.insertBefore(container, parent.children[1]);
+    else parent.appendChild(container);
+  }
+
+  container.innerHTML =
+    '<div class="ci" onclick="cycleTheme()" style="display:flex;align-items:center;gap:12px;padding:14px;border-bottom:.5px solid var(--sep);cursor:pointer;min-height:48px">' +
+      '<div style="width:32px;height:32px;border-radius:8px;background:#f5f0ff;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9b6ab5" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2"/></svg></div>' +
+      '<span style="flex:1;font-size:15px;color:var(--text)">Тема оформления</span>' +
+      '<span style="font-size:13px;color:var(--text2)">' + escHtml(themeLabel) + '</span>' +
+      '<span style="color:#c7c7cc">›</span>' +
+    '</div>' +
+    '<div class="ci" onclick="toggleHaptic()" style="display:flex;align-items:center;gap:12px;padding:14px;border-bottom:.5px solid var(--sep);cursor:pointer;min-height:48px">' +
+      '<div style="width:32px;height:32px;border-radius:8px;background:#f0fff4;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>' +
+      '<span style="flex:1;font-size:15px;color:var(--text)">Taptic Engine</span>' +
+      '<div class="toggle-switch' + (hapticOn ? ' active' : '') + '"></div>' +
+    '</div>' +
+    '<div class="ci" onclick="toggleCompact()" style="display:flex;align-items:center;gap:12px;padding:14px;border-bottom:.5px solid var(--sep);cursor:pointer;min-height:48px">' +
+      '<div style="width:32px;height:32px;border-radius:8px;background:#f0f6ff;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5b8dd9" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg></div>' +
+      '<span style="flex:1;font-size:15px;color:var(--text)">Компактный режим</span>' +
+      '<div class="toggle-switch' + (compactOn ? ' active' : '') + '"></div>' +
+    '</div>' +
+    '<div class="ci" onclick="nukeCache()" style="display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer;min-height:48px">' +
+      '<div style="width:32px;height:32px;border-radius:8px;background:#fff0f0;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></div>' +
+      '<span style="flex:1;font-size:15px;color:var(--text)">Очистка кэша</span>' +
+      '<span style="color:#c7c7cc">›</span>' +
+    '</div>';
+}
+
+function cycleTheme() {
+  var cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  var next = cur === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  haptic('light');
+  renderSettingsScreen();
+}
+
+function toggleHaptic() {
+  var isOff = localStorage.getItem('kosmos_haptic') === 'off';
+  localStorage.setItem('kosmos_haptic', isOff ? 'on' : 'off');
+  haptic('light');
+  renderSettingsScreen();
+}
+
+function toggleCompact() {
+  var isOn = localStorage.getItem('kosmos_compact') === 'on';
+  if (isOn) {
+    localStorage.removeItem('kosmos_compact');
+    document.body.classList.remove('compact-mode');
+  } else {
+    localStorage.setItem('kosmos_compact', 'on');
+    document.body.classList.add('compact-mode');
+  }
+  haptic('medium');
+  renderSettingsScreen();
+}
+
+function nukeCache() {
+  // Clear service worker caches
+  if (caches) {
+    caches.keys().then(function(names) {
+      names.forEach(function(n) { caches.delete(n); });
+    });
+  }
+  // Clear settings keys but preserve auth
+  var settingsKeys = ['kosmos_haptic', 'kosmos_compact', 'theme', 'dating_theme', 'kosmos_onb_tour_done', 'kosmos_onboarded'];
+  settingsKeys.forEach(function(k) { localStorage.removeItem(k); });
+  // Clear IndexedDB (localforage) but keep auth tokens intact
+  if (window.localforage) localforage.clear();
+  haptic('medium');
+  toast('Кэш очищен!', 'success');
+  setTimeout(function() { location.reload(); }, 600);
 }
 
 function shareQR() {
-  var u = currentUser || {};
+  var u = window.currentUser || {};
   var username = u.username || u.handle || 'unknown';
   var url = 'https://c4v2jht698-ux.github.io/kosmos-frontend/?u=' + encodeURIComponent(username);
   if (navigator.share) { navigator.share({ title: 'Космос', text: 'Напиши мне в Космос!', url: url }); }
@@ -2364,8 +3016,7 @@ function setChatBg(input) {
   // Support both file input element and direct base64 string
   if (typeof input === 'string') {
     try {
-      localStorage.removeItem('chatBg');
-      localStorage.setItem('chatBg', input);
+      localforage.setItem('chatBg', input);
       applyChatBg(input);
       toast('Фон сохранен', 'success');
     } catch(e) { toast('Ошибка: недостаточно памяти', 'error'); }
@@ -2383,19 +3034,18 @@ function setChatBg(input) {
     else if (h > max) { w *= max / h; h = max; }
     canvas.width = w; canvas.height = h;
     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-    var compressed = canvas.toDataURL('image/jpeg', 0.7);
+    var compressed = canvas.toDataURL('image/jpeg', 0.5);
     URL.revokeObjectURL(img.src);
     try {
-      localStorage.removeItem('chatBg');
-      localStorage.setItem('chatBg', compressed);
+      localforage.setItem('chatBg', compressed);
       applyChatBg(compressed);
       toast('Фон установлен!', 'success');
     } catch(e) { toast('Ошибка: недостаточно памяти', 'error'); }
   };
 }
 
-function applyChatBg(base64) {
-  var bg = base64 || localStorage.getItem('chatBg');
+async function applyChatBg(base64) {
+  var bg = base64 || await localforage.getItem('chatBg');
   var areas = document.querySelectorAll('.msg-area');
   areas.forEach(function(area) {
     if (bg) {
@@ -2438,7 +3088,7 @@ function renderAttachZone() {
     html += '<div class="reply-quote glass-panel" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-left:3px solid var(--accent);border-radius:6px;margin-top:8px;font-size:14px"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:12px">\u21A9 ' + escHtml(_replyTo.text) + '</span><button onclick="cancelReply()" class="action-btn" style="padding:0;font-size:16px">\u2716</button></div>';
   }
   if (_attachedPhoto) {
-    html += '<div style="position:relative;display:inline-block;margin-top:8px"><img src="' + _attachedPhoto + '" style="max-height:100px;border-radius:8px;border:1px solid var(--glass-border)"><button onclick="cancelAttach()" style="position:absolute;top:-8px;right:-8px;background:#ff3b30;color:#fff;border-radius:50%;border:none;width:24px;height:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.2)">\u2715</button></div>';
+    html += '<div style="position:relative;display:inline-block;margin-top:8px"><img src="' + _attachedPhoto + '" style="width:60px;height:60px;object-fit:cover;border-radius:8px"><button onclick="cancelAttach()" style="position:absolute;top:-6px;right:-6px;background:#ff4444;border:none;border-radius:50%;width:18px;height:18px;color:white;font-size:11px;cursor:pointer;padding:0">\u2715</button></div>';
   }
   z.innerHTML = html;
 }
@@ -2457,19 +3107,33 @@ async function startVoice() {
   if (!cur) { toast('Откройте чат для записи', 'error'); return; }
   try {
     _voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    _mediaRecorder = new MediaRecorder(_voiceStream, { mimeType: 'audio/webm' });
+    var options = { mimeType: 'audio/webm', audioBitsPerSecond: 64000 };
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) { options.mimeType = 'audio/mp4'; }
+    _mediaRecorder = new MediaRecorder(_voiceStream, options);
     _audioChunks = [];
     _mediaRecorder.ondataavailable = function(e) { _audioChunks.push(e.data); };
     _mediaRecorder.onstop = function() {
-      var blob = new Blob(_audioChunks, { type: 'audio/webm' });
+      var blob = new Blob(_audioChunks, { type: _mediaRecorder.mimeType });
       var reader = new FileReader();
       reader.onloadend = function() {
-        if (socket && socket.connected && cur) {
+        if (reader.result.length > 10 * 1024 * 1024) {
+          toast('Голосовое слишком большое', 'error');
+        } else if (socket && socket.connected && cur) {
           socket.emit('chat_msg', { chatId: cur, type: 'audio', audio: reader.result, text: 'Голосовое сообщение' });
+          if (typeof KosmosDB !== 'undefined' && KosmosDB.saveMessage) {
+            KosmosDB.saveMessage({
+              id: Date.now() + '-voice',
+              chatId: cur,
+              sender: 'me',
+              type: 'audio',
+              content: reader.result,
+              timestamp: Date.now()
+            });
+          }
         }
+        if (_voiceStream) { _voiceStream.getTracks().forEach(function(t) { t.stop(); }); _voiceStream = null; }
       };
       reader.readAsDataURL(blob);
-      if (_voiceStream) { _voiceStream.getTracks().forEach(function(t) { t.stop(); }); _voiceStream = null; }
     };
     _mediaRecorder.start();
     _isRecording = true;
@@ -2582,6 +3246,111 @@ function endCall(emitSignal) {
   _callChatId = null; _pendingOffer = null;
 }
 
+// ── Reactions ────────────────────────────────────────────────────────────────
+function sendReaction(el, emoji) {
+  var msgId = el.id.replace('msg-', '');
+  if (socket && socket.connected) socket.emit('msg_reaction', { msgId: msgId, chatId: cur, emoji: emoji });
+  showReaction(msgId, emoji);
+}
+
+function showReaction(msgId, emoji) {
+  var el = document.getElementById('react-' + msgId);
+  if (el) el.textContent = el.textContent === emoji ? '' : emoji;
+}
+
+// ── In-Chat Search ───────────────────────────────────────────────────────────
+function toggleSearch() {
+  var bar = document.getElementById('search-bar');
+  if (!bar) return;
+  var isHidden = bar.style.display === 'none';
+  bar.style.display = isHidden ? 'block' : 'none';
+  if (isHidden) { var inp = document.getElementById('search-input'); if (inp) inp.focus(); }
+  else { var inp = document.getElementById('search-input'); if (inp) inp.value = ''; }
+}
+
+var _searchMsgTimer = null;
+function searchMessages(q) {
+  clearTimeout(_searchMsgTimer);
+  if (!q || q.length < 2 || !cur) return;
+  _searchMsgTimer = setTimeout(function() {
+    fetch(API + '/api/messages/search?q=' + encodeURIComponent(q) + '&chat_id=' + encodeURIComponent(cur), {
+      headers: { 'Authorization': 'Bearer ' + jwtToken }
+    }).then(function(r) { return r.ok ? r.json() : []; })
+      .then(function(msgs) {
+        if (!msgs.length) return;
+        var el = document.getElementById('msg-' + msgs[0].id);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.style.transition = 'background 0.3s';
+          el.style.background = 'rgba(255,215,0,0.25)';
+          setTimeout(function() { el.style.background = ''; }, 2000);
+        }
+      }).catch(function() {});
+  }, 400);
+}
+
+// ── P2P Message Handling ─────────────────────────────────────────────────────
+function handleP2PMessage(peerId, msg) {
+  if (!msg || !msg.type) return;
+  var item = typeof findItem === 'function' ? findItem(peerId) : null;
+  if (msg.type !== 'text' && msg.type !== 'image') return;
+  var ts = new Date();
+  var time = ts.getHours().toString().padStart(2,'0') + ':' + ts.getMinutes().toString().padStart(2,'0');
+  var m = { id: 'p2p-' + Date.now(), from: 'them', text: msg.text || '', image: msg.image || null, time: time, sender: msg.sender || peerId };
+  if (item) {
+    item.msgs.push(m);
+    item.prev = m.text || 'Фото';
+    item.time = time;
+    if (cur === peerId) { if (typeof appendMsg === 'function') appendMsg(m, item.type === 'channel'); }
+    else { item.unread = (item.unread || 0) + 1; }
+    if (typeof render === 'function') render();
+  }
+  if (typeof KosmosDB !== 'undefined') KosmosDB.saveMessage({ id: m.id, chatId: peerId, type: msg.type, text: m.text, timestamp: Date.now() });
+}
+
+function initP2PForChat(chatId) {
+  if (typeof P2PManager === 'undefined' || !socket || !socket.connected) return;
+  if (P2PManager.getPeers().indexOf(chatId) !== -1) return;
+  P2PManager.createOffer(chatId, function(signal) { socket.emit('p2p_signal', { target: chatId, payload: signal }); }, function(pid, msg) { handleP2PMessage(pid, msg); });
+}
+
+document.addEventListener('p2p_msg', function(e) {
+  if (!e.detail || !e.detail.peerId || !e.detail.payload) return;
+  handleP2PMessage(e.detail.peerId, e.detail.payload);
+});
+
+// ── Outbox (offline message queue — IndexedDB via localforage) ────────────────
+async function flushOutbox() {
+  var outbox = await localforage.getItem('_outbox') || [];
+  if (!outbox.length || !socket || !socket.connected) return;
+  console.log('[outbox] flushing', outbox.length, 'messages');
+  outbox.forEach(function(msg) {
+    var outId = msg._outId;
+    delete msg._outId;
+    socket.emit('chat_msg', msg, function(ack) {
+      if (ack && ack.ok) {
+        removeMsgFromOutbox(outId);
+        console.log('[outbox] delivered:', outId);
+      }
+    });
+  });
+}
+
+async function removeMsgFromOutbox(outId) {
+  var outbox = await localforage.getItem('_outbox') || [];
+  outbox = outbox.filter(function(m) { return m._outId !== outId; });
+  await localforage.setItem('_outbox', outbox);
+}
+
+async function addToOutbox(payload) {
+  payload._outId = 'out-' + Date.now();
+  var outbox = await localforage.getItem('_outbox') || [];
+  outbox.push(payload);
+  await localforage.setItem('_outbox', outbox);
+  toast('Сохранено в очередь отправки', 'success');
+  console.log('[outbox] saved, queue:', outbox.length);
+}
+
 // ── Typing Indicator ─────────────────────────────────────────────────────────
 var _typingTimer = null, _isTypingNow = false, _typingClearTimer = null;
 
@@ -2592,4 +3361,647 @@ document.addEventListener('input', function(e) {
   clearTimeout(_typingTimer);
   _typingTimer = setTimeout(function() { _isTypingNow = false; socket.emit('typing', { chatId: cur, isTyping: false }); }, 2000);
 });
+
+// ── Action Sheet & Settings Helpers ──────────────────────────────────────────
+function closeActionSheet() {
+  var overlay = document.getElementById('action-sheet-overlay');
+  var sheet = document.getElementById('create-action-sheet');
+  if (overlay) overlay.classList.remove('active');
+  if (sheet) sheet.classList.remove('active');
+}
+
+function initNewDialog(type) {
+  closeActionSheet();
+  setTimeout(function() {
+    if (type === 'channel' && typeof showModal === 'function') {
+        showModal('newChat');
+    } else if (typeof showModal === 'function') {
+        showModal('newChat');
+    }
+  }, 300);
+}
+
+function renderArchiveList() {
+  var container = document.getElementById('archive-list');
+  if (!container) return;
+
+  var archivedChats = [
+    { id: 1, name: "Спам-рассылка", msg: "Купите наши курсы!", time: "14:20", unread: 5, avatar: "С" },
+    { id: 2, name: "Старый проект", msg: "Правки приняты, спасибо.", time: "Вчера", unread: 0, avatar: "П" }
+  ];
+
+  if (archivedChats.length === 0) return;
+
+  var html = '';
+  archivedChats.forEach(function(chat) {
+    var unreadBadge = chat.unread > 0 ? '<div class="badge">' + chat.unread + '</div>' : '';
+    var safeName = typeof escHtml === 'function' ? escHtml(chat.name) : chat.name;
+    var safeMsg = typeof escHtml === 'function' ? escHtml(chat.msg) : chat.msg;
+    var safeTime = typeof escHtml === 'function' ? escHtml(chat.time) : chat.time;
+    var safeAvatar = typeof escHtml === 'function' ? escHtml(chat.avatar) : chat.avatar;
+
+    html += '<div class="chat-item" onclick="unarchiveChat(' + chat.id + ')" style="display:flex; padding: 12px 16px; border-bottom: 1px solid var(--border-color); align-items: center; cursor:pointer;">' +
+      '<div class="avatar" style="width: 46px; height: 46px; border-radius: 50%; background: #5AC8FA; color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-right: 12px;">' + safeAvatar + '</div>' +
+      '<div class="chat-info" style="flex: 1; overflow: hidden;">' +
+        '<div style="display: flex; justify-content: space-between; margin-bottom: 4px;">' +
+          '<span style="font-weight: 600; font-size: 16px;">' + safeName + '</span>' +
+          '<span style="color: var(--text3); font-size: 13px;">' + safeTime + '</span>' +
+        '</div>' +
+        '<div style="color: var(--text2); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + safeMsg + '</div>' +
+      '</div>' +
+      '<div style="margin-left: 10px;">' + unreadBadge + '</div>' +
+    '</div>';
+  });
+
+  html += '<div onclick="if(typeof toast === \'function\') toast(\'Все чаты возвращены!\', \'success\')" style="padding: 16px; text-align: center; color: #007AFF; cursor: pointer; font-weight: 500;">Вернуть все чаты</div>';
+  container.innerHTML = html;
+}
+
+function renderDevicesList() {
+  var container = document.getElementById('view-settings-devices');
+  if (!container) return;
+
+  var oldSessionsDiv = document.getElementById('other-sessions');
+  if (!oldSessionsDiv) {
+    oldSessionsDiv = document.createElement('div');
+    oldSessionsDiv.id = 'other-sessions';
+    oldSessionsDiv.className = 'settings-group';
+    container.insertBefore(oldSessionsDiv, container.lastElementChild);
+  }
+
+  var sessions = [
+    { os: "macOS", browser: "Safari", location: "Бангкок, Таиланд", time: "Активен вчера" },
+    { os: "iOS", browser: "Kosmos App", location: "Бангкок, Таиланд", time: "Активен 2 часа назад" }
+  ];
+
+  var html = '<div style="padding: 8px 16px; font-size: 13px; color: var(--text3); text-transform: uppercase;">Другие устройства</div>';
+  sessions.forEach(function(s) {
+    var safeOs = typeof escHtml === 'function' ? escHtml(s.os) : s.os;
+    var safeBrowser = typeof escHtml === 'function' ? escHtml(s.browser) : s.browser;
+    var safeLoc = typeof escHtml === 'function' ? escHtml(s.location) : s.location;
+    var safeTime = typeof escHtml === 'function' ? escHtml(s.time) : s.time;
+
+    html += '<div class="settings-item" style="flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px 16px; cursor: pointer;" onclick="if(typeof toast === \'function\') toast(\'Сеанс ' + safeOs + ' завершен\', \'success\')">' +
+      '<div style="font-weight: 500;">' + safeOs + ' · ' + safeBrowser + '</div>' +
+      '<div style="font-size: 13px; color: var(--text2);">' + safeLoc + '</div>' +
+      '<div style="font-size: 13px; color: var(--text3);">' + safeTime + '</div>' +
+    '</div>';
+  });
+  oldSessionsDiv.innerHTML = html;
+}
+
+function unarchiveChat(id) {
+  if (typeof haptic === 'function') haptic('light');
+  if (typeof toast === 'function') toast("Чат " + id + " восстановлен из архива.", "success");
+}
+
+// ── QR & Action Sheet Logic ─────────────────────────────────────────────────
+var html5QrCode = null;
+
+window.addEventListener('popstate', function(e) {
+  var qrOverlay = document.getElementById('qr-scanner-overlay');
+  var actionSheet = document.getElementById('action-sheet-overlay');
+  var myQrOverlay = document.getElementById('my-qr-overlay');
+
+  if (qrOverlay && qrOverlay.classList.contains('active')) closeQRScanner(true);
+  if (actionSheet && actionSheet.classList.contains('active')) closeActionSheet(true);
+  if (myQrOverlay && myQrOverlay.classList.contains('active')) closeMyQR(true);
+});
+
+window.showCreateMenu = function() {
+  history.pushState({ modal: 'actionsheet' }, '');
+  var overlay = document.getElementById('action-sheet-overlay');
+  var sheet = document.getElementById('create-action-sheet');
+  if (overlay) overlay.classList.add('active');
+  if (sheet) sheet.classList.add('active');
+  if (typeof haptic === 'function') haptic('light');
+};
+
+window.closeActionSheet = function(fromPopState) {
+  var overlay = document.getElementById('action-sheet-overlay');
+  var sheet = document.getElementById('create-action-sheet');
+  if (overlay) overlay.classList.remove('active');
+  if (sheet) sheet.classList.remove('active');
+  if (fromPopState !== true) history.back();
+};
+
+window.showMyQR = function() {
+  history.pushState({ modal: 'myqr' }, '');
+  var overlay = document.getElementById('my-qr-overlay');
+  var nameDiv = document.getElementById('my-qr-name');
+  var img = document.getElementById('my-qr-img');
+
+  var username = (window.currentUser && window.currentUser.username) ? window.currentUser.username : 'User';
+  var handle = (window.currentUser && window.currentUser.handle) ? window.currentUser.handle : ('@' + username.toLowerCase().replace(/\s+/g, ''));
+
+  img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=kosmos://add/' + encodeURIComponent(handle);
+  nameDiv.innerText = handle;
+
+  if (overlay) overlay.classList.add('active');
+  if (typeof haptic === 'function') haptic('light');
+};
+
+window.closeMyQR = function(fromPopState) {
+  var overlay = document.getElementById('my-qr-overlay');
+  if (overlay) overlay.classList.remove('active');
+  if (fromPopState !== true) history.back();
+};
+
+window.openQRScanner = function() {
+  var sheetOverlay = document.getElementById('action-sheet-overlay');
+
+  if (sheetOverlay && sheetOverlay.classList.contains('active')) {
+      sheetOverlay.classList.remove('active');
+      var sheet = document.getElementById('create-action-sheet');
+      if (sheet) sheet.classList.remove('active');
+      history.replaceState({ modal: 'qr' }, '');
+  } else {
+      history.pushState({ modal: 'qr' }, '');
+  }
+
+  if (typeof Html5Qrcode === 'undefined') {
+    if (typeof toast === 'function') toast('Библиотека сканера еще загружается...', 'error');
+    if (sheetOverlay) history.back();
+    return;
+  }
+
+  var overlay = document.getElementById('qr-scanner-overlay');
+  if (overlay) overlay.classList.add('active');
+
+  html5QrCode = new Html5Qrcode("qr-reader");
+
+  setTimeout(function() {
+    html5QrCode.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      function(decodedText) {
+        if (typeof haptic === 'function') haptic('success');
+        closeQRScanner();
+
+        if (decodedText.startsWith('kosmos://add/')) {
+          var handle = decodedText.split('kosmos://add/')[1];
+          if (typeof toast === 'function') toast('Найден контакт: ' + handle, 'success');
+        } else {
+          if (typeof toast === 'function') toast('Отсканировано: ' + decodedText, 'success');
+        }
+      },
+      function(err) {
+        // Ошибки сканирования кадра игнорируются
+      }
+    ).catch(function(err) {
+      if (typeof toast === 'function') toast('Ошибка камеры: проверьте разрешения HTTPS', 'error');
+      closeQRScanner();
+    });
+  }, 400);
+};
+
+window.closeQRScanner = function(fromPopState) {
+  var overlay = document.getElementById('qr-scanner-overlay');
+  if (overlay) overlay.classList.remove('active');
+  if (html5QrCode) {
+    html5QrCode.stop().then(function() {
+      html5QrCode.clear();
+      html5QrCode = null;
+    }).catch(function(e) {
+      console.error("Ошибка закрытия камеры", e);
+    });
+  }
+  if (fromPopState !== true) history.back();
+};
+
+// ── Settings Controller ─────────────────────────────────────────────────────
+var SettingsController = (function() {
+  var _stack = [];
+
+  function initAllSwitches() {
+    var switches = [
+      { id: 'toggle-auto-download', key: 'kosmos_auto_dl', default: true },
+      { id: 'toggle-data-saver', key: 'kosmos_data_saver', default: false },
+      { id: 'toggle-online-status', key: 'kosmos_online_status', default: true },
+      { id: 'toggle-read-receipts', key: 'kosmos_read_receipts', default: true },
+      { id: 'toggle-sound', key: 'kosmos_sound', default: true },
+      { id: 'toggle-channel-notif', key: 'kosmos_channel_notif', default: false }
+    ];
+    switches.forEach(function(sw) {
+      var el = document.getElementById(sw.id);
+      if (!el) return;
+      var saved = localStorage.getItem(sw.key);
+      var isActive = saved !== null ? saved === 'true' : sw.default;
+      el.classList.toggle('active', isActive);
+      if (!el.dataset.bound) {
+        el.dataset.bound = 'true';
+        el.addEventListener('click', function() {
+          var on = !this.classList.contains('active');
+          this.classList.toggle('active', on);
+          localStorage.setItem(sw.key, on ? 'true' : 'false');
+          if (typeof haptic === 'function') haptic('light');
+        });
+      }
+    });
+    var themeUi = document.getElementById('toggle-dark-mode-ui');
+    if (themeUi) {
+      var isDark = localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      themeUi.classList.toggle('active', isDark);
+    }
+    var themeItem = document.querySelector('[onclick*="toggle-dark-mode"]');
+    if (themeItem && !themeItem.dataset.themeBound) {
+      themeItem.dataset.themeBound = 'true';
+      var hiddenToggle = document.getElementById('toggle-dark-mode');
+      if (hiddenToggle) {
+        hiddenToggle.addEventListener('change', function() {
+          var ui = document.getElementById('toggle-dark-mode-ui');
+          if (ui) ui.classList.toggle('active', this.checked);
+        });
+      }
+    }
+    var hapticUi = document.getElementById('toggle-haptic-ui');
+    if (hapticUi) hapticUi.classList.toggle('active', localStorage.getItem('kosmos_haptic') !== 'off');
+    var compactUi = document.getElementById('toggle-compact-ui');
+    if (compactUi) compactUi.classList.toggle('active', document.body.classList.contains('compact-mode'));
+  }
+
+  function syncToggles() {
+    var themeToggle = document.getElementById('toggle-dark-mode');
+    if (themeToggle) {
+      var saved = localStorage.getItem('theme');
+      themeToggle.checked = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    var hapticToggle = document.getElementById('toggle-haptic');
+    if (hapticToggle) hapticToggle.checked = localStorage.getItem('kosmos_haptic') !== 'off';
+  }
+
+  function resetStack() {
+    _stack = [];
+    document.querySelectorAll('#settingsScreen .settings-page').forEach(function(p) {
+      var isMain = p.id === 'view-settings-main';
+      p.classList.toggle('active', isMain);
+      p.classList.toggle('right', !isMain);
+      p.classList.remove(isMain ? 'right' : 'left');
+    });
+  }
+
+  function navigate(targetId) {
+    var target = document.getElementById(targetId);
+    if (!target) { if (typeof toast === 'function') toast('Раздел в разработке', 'error'); return; }
+    var prevId = _stack.length ? _stack[_stack.length - 1] : 'view-settings-main';
+    var prev = document.getElementById(prevId);
+    _stack.push(targetId);
+    if (prev) { prev.classList.remove('active'); prev.classList.add('left'); }
+    target.classList.remove('right');
+    target.classList.add('active');
+    if (targetId === 'view-settings-archive') renderArchiveList();
+    if (targetId === 'view-settings-devices') renderDeviceInfo();
+    if (targetId === 'view-settings-data') updateStorageMetabolism();
+    if (targetId === 'view-settings-privacy') bindPrivacyToggles();
+    if (typeof haptic === 'function') haptic('light');
+  }
+
+  function back() {
+    if (_stack.length === 0) return;
+    var currentId = _stack.pop();
+    var current = document.getElementById(currentId);
+    var prevId = _stack.length ? _stack[_stack.length - 1] : 'view-settings-main';
+    var prev = document.getElementById(prevId);
+    if (current) { current.classList.remove('active'); current.classList.add('right'); }
+    if (prev) { prev.classList.remove('left'); prev.classList.add('active'); }
+    if (typeof haptic === 'function') haptic('light');
+  }
+
+  function saveNickname(val) {
+    if (!val || !val.trim()) return;
+    val = val.trim();
+    if (window.currentUser) {
+      window.currentUser.username = val;
+      try {
+        var u = JSON.parse(localStorage.getItem('kosmos_user') || '{}');
+        u.username = val;
+        localStorage.setItem('kosmos_user', JSON.stringify(u));
+      } catch(e) {}
+    }
+    if (window.socket && window.socket.connected) window.socket.emit('update_profile', { username: val });
+    var logoSub = document.getElementById('logoSub');
+    if (logoSub && window.currentUser) logoSub.textContent = window.currentUser.handle ? '@' + window.currentUser.handle : val;
+    if (typeof toast === 'function') toast('Никнейм сохранён', 'success');
+  }
+
+  function bindAvatarUpload() {
+    var trigger = document.getElementById('avatar-upload-trigger');
+    var input = document.getElementById('avatar-input');
+    var img = document.getElementById('user-avatar-img');
+    var placeholder = document.getElementById('settingsAvatar');
+
+    var saved = localStorage.getItem('user_avatar');
+    if (saved && img && placeholder) {
+      img.src = saved;
+      img.style.cssText = 'display:block;width:100%;height:100%;border-radius:50%;object-fit:cover';
+      if (placeholder) placeholder.style.display = 'none';
+    }
+
+    if (!trigger || !input) return;
+
+    trigger.addEventListener('click', function() {
+      if (typeof haptic === 'function') haptic('light');
+      input.click();
+    });
+
+    input.addEventListener('change', function() {
+      var file = this.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var b64 = e.target.result;
+        localStorage.setItem('user_avatar', b64);
+        if (img && placeholder) {
+          img.src = b64;
+          img.style.cssText = 'display:block;width:100%;height:100%;border-radius:50%;object-fit:cover';
+          placeholder.style.display = 'none';
+        }
+        if (window.socket && window.socket.connected) {
+          window.socket.emit('upload_avatar', { avatarBase64: b64 });
+        }
+        if (typeof toast === 'function') toast('Фото обновлено', 'success');
+      };
+      reader.readAsDataURL(file);
+      this.value = '';
+    });
+  }
+
+  function bind() {
+    document.querySelectorAll('#settingsScreen .settings-item[data-route]').forEach(function(item) {
+      item.addEventListener('click', function() { navigate(this.dataset.route); });
+    });
+    document.querySelectorAll('#settingsScreen .back-btn[data-back]').forEach(function(btn) {
+      btn.addEventListener('click', back);
+    });
+    document.querySelectorAll('#settingsScreen .action-btn[data-action]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        if (this.dataset.action === 'create_chat' && typeof showTab === 'function') showTab('chats');
+        else if (typeof toast === 'function') toast('Функция ' + this.dataset.action + ' в разработке', 'error');
+      });
+    });
+    var themeToggle = document.getElementById('toggle-dark-mode');
+    if (themeToggle) themeToggle.addEventListener('change', function() { if (typeof applyTheme === 'function') applyTheme(this.checked ? 'dark' : 'light'); });
+    var hapticToggle = document.getElementById('toggle-haptic');
+    if (hapticToggle) hapticToggle.addEventListener('change', function() { localStorage.setItem('kosmos_haptic', this.checked ? 'on' : 'off'); if (this.checked && typeof haptic === 'function') haptic('medium'); });
+    // Notification toggles
+    var soundToggle = document.getElementById('toggle-sound');
+    if (soundToggle) soundToggle.addEventListener('change', function() { localStorage.setItem('kosmos_sound', this.checked ? 'on' : 'off'); });
+    var chNotifToggle = document.getElementById('toggle-channel-notif');
+    if (chNotifToggle) chNotifToggle.addEventListener('change', function() { localStorage.setItem('kosmos_channel_notif', this.checked ? 'on' : 'off'); });
+    var nicknameInput = document.getElementById('profile-nickname');
+    if (nicknameInput) {
+      nicknameInput.addEventListener('blur', function() { saveNickname(this.value); });
+      nicknameInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') this.blur(); });
+    }
+    bindAvatarUpload();
+  }
+
+  function fillProfileFields() {
+    var u = window.currentUser || {};
+    var nicknameInput = document.getElementById('profile-nickname');
+    if (nicknameInput) nicknameInput.value = u.username || '';
+    var bioInput = document.getElementById('profile-bio');
+    if (bioInput) bioInput.value = u.bio || '';
+    var ageInput = document.getElementById('profile-age');
+    if (ageInput) ageInput.value = u.age || '';
+    var cityInput = document.getElementById('profile-city');
+    if (cityInput) cityInput.value = u.city || '';
+    var settingsAvatar = document.getElementById('settingsAvatar');
+    var avatarImg = document.getElementById('user-avatar-img');
+    if (settingsAvatar) settingsAvatar.textContent = ((u.username || '?')[0]).toUpperCase();
+    // Show avatar from backend or localStorage
+    var avatarSrc = localStorage.getItem('user_avatar') || u.avatar || u.photo;
+    if (avatarImg && avatarSrc) {
+      avatarImg.src = avatarSrc;
+      avatarImg.style.cssText = 'display:block;width:100%;height:100%;border-radius:50%;object-fit:cover';
+      if (settingsAvatar) settingsAvatar.style.display = 'none';
+    } else if (avatarImg) {
+      avatarImg.style.display = 'none';
+      if (settingsAvatar) settingsAvatar.style.display = '';
+    }
+    var settingsHandle = document.getElementById('settingsHandle');
+    if (settingsHandle) settingsHandle.textContent = u.handle ? '@' + u.handle : '';
+  }
+
+  function bindProfileSave() {
+    var btn = document.getElementById('save-profile-btn');
+    if (!btn || btn.dataset.bound) return;
+    btn.dataset.bound = 'true';
+    btn.addEventListener('click', async function() {
+      var u = window.currentUser;
+      if (!u) return;
+      var data = {
+        username: (document.getElementById('profile-nickname').value || '').trim() || undefined,
+        bio: (document.getElementById('profile-bio').value || '').trim(),
+        age: parseInt(document.getElementById('profile-age').value) || undefined,
+        city: (document.getElementById('profile-city').value || '').trim() || undefined,
+      };
+      btn.disabled = true; btn.textContent = 'Сохраняю...';
+      try {
+        var r = await fetch(API + '/me/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+          body: JSON.stringify(data)
+        });
+        if (r.ok) {
+          // Update local state
+          if (data.username) { u.username = data.username; window.currentUser.username = data.username; }
+          if (data.bio !== undefined) u.bio = data.bio;
+          if (data.age) u.age = data.age;
+          if (data.city) u.city = data.city;
+          localStorage.setItem('kosmos_user', JSON.stringify(u));
+          if (typeof toast === 'function') toast('Профиль сохранён', 'success');
+        } else {
+          if (typeof toast === 'function') toast('Ошибка сохранения', 'error');
+        }
+      } catch(e) {
+        if (typeof toast === 'function') toast('Нет связи с сервером', 'error');
+      }
+      btn.disabled = false; btn.textContent = 'Сохранить профиль';
+    });
+  }
+
+  function bindPrivacyToggles() {
+    var onlineToggle = document.getElementById('toggle-online-status');
+    var readToggle = document.getElementById('toggle-read-receipts');
+    if (onlineToggle && !onlineToggle.dataset.privBound) {
+      onlineToggle.dataset.privBound = 'true';
+      // Load from currentUser
+      var u = window.currentUser;
+      if (u && u.privacy_settings) {
+        onlineToggle.checked = u.privacy_settings.onlineStatus !== false;
+        if (readToggle) readToggle.checked = u.privacy_settings.readReceipts !== false;
+      }
+      onlineToggle.addEventListener('change', function() { emitPrivacy(); });
+      if (readToggle) {
+        readToggle.dataset.privBound = 'true';
+        readToggle.addEventListener('change', function() { emitPrivacy(); });
+      }
+    }
+    function emitPrivacy() {
+      if (window.socket && window.socket.connected) {
+        window.socket.emit('update_privacy', {
+          onlineStatus: document.getElementById('toggle-online-status').checked,
+          readReceipts: document.getElementById('toggle-read-receipts').checked
+        });
+        if (typeof toast === 'function') toast('Настройки сохранены', 'success');
+      }
+    }
+  }
+
+  function renderDeviceInfo() {
+    var browserEl = document.getElementById('device-browser');
+    var loginEl = document.getElementById('device-last-login');
+    if (browserEl) {
+      var ua = navigator.userAgent;
+      var browser = 'Неизвестный браузер';
+      if (ua.includes('Chrome') && !ua.includes('Edg')) browser = 'Chrome';
+      else if (ua.includes('Safari') && !ua.includes('Chrome')) browser = 'Safari';
+      else if (ua.includes('Firefox')) browser = 'Firefox';
+      else if (ua.includes('Edg')) browser = 'Edge';
+      var os = 'Unknown';
+      if (ua.includes('Mac')) os = 'macOS';
+      else if (ua.includes('Windows')) os = 'Windows';
+      else if (ua.includes('Android')) os = 'Android';
+      else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+      else if (ua.includes('Linux')) os = 'Linux';
+      browserEl.textContent = browser + ' / ' + os;
+    }
+    if (loginEl) {
+      var loginTime = localStorage.getItem('kosmos_last_login') || new Date().toISOString();
+      loginEl.textContent = 'Последний вход: ' + new Date(loginTime).toLocaleString('ru-RU');
+    }
+  }
+
+  return {
+    init: function() { bind(); bindProfileSave(); },
+    open: function() {
+      resetStack();
+      syncToggles();
+      initAllSwitches();
+      fillProfileFields();
+      bindPrivacyToggles();
+    },
+    back: back,
+    navigate: navigate,
+    renderDeviceInfo: renderDeviceInfo,
+  };
+})();
+
+document.addEventListener('DOMContentLoaded', function() { SettingsController.init(); });
+
+// ── Share Invite Link ────────────────────────────────────────────────────────
+function shareInviteLink() {
+  var user = window.currentUser;
+  if (!user) { if (typeof toast === 'function') toast('Сначала войдите в аккаунт', 'error'); return; }
+  var myId = btoa(JSON.stringify({ uid: user.id, name: user.username }));
+  var url = window.location.origin + window.location.pathname + '?invite=' + myId;
+  if (navigator.share) {
+    navigator.share({ title: 'Космос', text: 'Присоединяйся: ' + (user.username || ''), url: url }).catch(function() {});
+  } else {
+    navigator.clipboard.writeText(url).then(function() {
+      if (typeof toast === 'function') toast('Ссылка скопирована', 'success');
+    }).catch(function() {
+      if (typeof toast === 'function') toast(url, 'success');
+    });
+  }
+  if (typeof haptic === 'function') haptic('light');
+}
+
+// ── Deep Link Invite ────────────────────────────────────────────────────────
+function processInfectionVector() {
+  var params = new URLSearchParams(window.location.search);
+  var invite = params.get('invite');
+  if (!invite) return;
+
+  history.replaceState({}, '', window.location.pathname);
+
+  var inviterId;
+  try {
+    var decoded = atob(invite);
+    var data = JSON.parse(decoded);
+    inviterId = data.uid || data.id || decoded;
+  } catch(e) {
+    inviterId = invite;
+  }
+
+  if (!inviterId) return;
+
+  function tryOpenInvite() {
+    if (!window.currentUser || !window.jwtToken) {
+      setTimeout(tryOpenInvite, 500);
+      return;
+    }
+
+    var myId = window.currentUser.id;
+    var ids = [myId, inviterId].sort();
+    var chatId = 'dm-' + ids[0] + '-' + ids[1];
+
+    if (typeof KosmosDB !== 'undefined') {
+      KosmosDB.saveMessage({
+        id: 'invite-' + Date.now(),
+        chatId: chatId,
+        type: 'system',
+        text: 'Вы перешли по приглашению',
+        timestamp: Date.now()
+      });
+    }
+
+    fetch(window.API + '/chats/dm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + window.jwtToken },
+      body: JSON.stringify({ targetUserId: inviterId })
+    }).then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(d) {
+        var finalChatId = (d && (d.chatId || d.id)) || chatId;
+        if (typeof startDM === 'function') {
+          startDM(inviterId, 'Пользователь', '');
+        } else if (typeof openChat === 'function') {
+          openChat(finalChatId);
+        }
+        if (typeof toast === 'function') toast('Чат открыт по приглашению', 'success');
+      }).catch(function() {
+        if (typeof openChat === 'function') openChat(chatId);
+      });
+  }
+
+  tryOpenInvite();
+}
+
+processInfectionVector();
+
+// ── Offline Queue Sync ──────────────────────────────────────────────────────
+window.addEventListener('online', async function() {
+    console.log('[Sync] Соединение восстановлено. Проверяем оффлайн-очередь...');
+
+    if (typeof KosmosDB === 'undefined' || !KosmosDB.getQueue) return;
+
+    var queue = await KosmosDB.getQueue();
+    if (queue.length > 0) {
+        console.log('[Sync] Найдено ' + queue.length + ' сообщений. Отправляем...');
+
+        for (var i = 0; i < queue.length; i++) {
+            var msg = queue[i];
+            if (typeof P2PManager !== 'undefined' && P2PManager.getPeers().indexOf(msg.chatId) !== -1) {
+                P2PManager.send(msg.chatId, msg);
+            } else if (socket && socket.connected) {
+                socket.emit('chat_msg', msg);
+            }
+
+            await KosmosDB.removeFromQueue(msg.id);
+
+            var msgEl = document.getElementById('msg-' + msg.id);
+            if (msgEl) {
+                msgEl.style.opacity = '1';
+                var timeEl = msgEl.querySelector('.msg-meta');
+                if (timeEl) timeEl.innerText = timeEl.innerText.replace('⏳', '').trim();
+            }
+        }
+    }
+});
+
+// ── Service Worker ───────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/kosmos-frontend/sw.js').catch(function() {});
+}
 

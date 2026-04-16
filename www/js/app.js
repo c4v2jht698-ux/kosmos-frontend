@@ -1,3 +1,6 @@
+// ── Theme (apply before render) ──────────────────────────────────────────────
+(function() { var t = localStorage.getItem('theme') || 'dark'; document.documentElement.setAttribute('data-theme', t); })();
+
 // ── Config & State ──────────────────────────────────────────────────────────
 var API = 'https://kosmos-backend-1.onrender.com';
 var EMOJIS = ['\u2764\uFE0F','\uD83D\uDE02','\uD83D\uDC4D','\uD83D\uDD25','\uD83D\uDE2E','\uD83D\uDC4F','\uD83C\uDF89','\uD83D\uDE4F'];
@@ -6,6 +9,7 @@ var GS = ['g1','g2','g3','g4','g5','g6','g7'];
 var jwtToken = localStorage.getItem('kosmos_token');
 var refreshToken = localStorage.getItem('kosmos_refresh');
 var currentUser = JSON.parse(localStorage.getItem('kosmos_user') || 'null');
+window.currentUser = currentUser;
 var socket = null;
 var typingTimeout = null;
 var cur = null;
@@ -25,8 +29,11 @@ setInterval(async function() {
       var d = await r.json();
       jwtToken = d.token;
       localStorage.setItem('kosmos_token', jwtToken);
+    } else if (r.status === 401) {
+      console.warn('[refresh] token revoked — logging out');
+      if (typeof logout === 'function') logout();
     }
-  } catch(e) {}
+  } catch(e) { console.warn('[refresh] error:', e.message); }
 }, 12 * 60 * 1000);
 
 // Inactivity logout — 30 min
@@ -60,7 +67,7 @@ function switchTab(mode) {
   document.getElementById('authToggleBtn').onclick = function() { switchTab(mode === 'register' ? 'login' : 'register'); };
   document.getElementById('authToggleBtn').style.display = '';
   clearAuthMessages();
-  applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
+  applyTheme(localStorage.getItem('theme') || 'dark');
 }
 
 function buildSeedGrid() {
@@ -174,6 +181,7 @@ function enterAfterReg() {
     jwtToken = pendingToken;
     refreshToken = pendingRefresh;
     currentUser = pendingUser;
+    window.currentUser = currentUser;
     localStorage.setItem('kosmos_token', jwtToken);
     if (pendingRefresh) localStorage.setItem('kosmos_refresh', pendingRefresh);
     localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
@@ -246,6 +254,7 @@ async function submitAuth() {
     jwtToken = data.token;
     refreshToken = data.refreshToken;
     currentUser = data.user;
+    window.currentUser = currentUser;
     localStorage.setItem('kosmos_token', jwtToken);
     if (data.refreshToken) localStorage.setItem('kosmos_refresh', data.refreshToken);
     localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
@@ -263,6 +272,7 @@ function enterApp() {
   document.getElementById('auth').classList.add('hidden');
     document.getElementById('seedPhrase').textContent = '';
   document.getElementById('bottomNav').style.display = 'flex';
+  localStorage.setItem('kosmos_last_login', new Date().toISOString());
   applyChatBg();
   // Show tour for users who haven't seen it
   if (!localStorage.getItem('kosmos_onb_tour_done') && currentUser) {
@@ -307,20 +317,24 @@ function logout() {
   if (qr) qr.style.display = 'none';
   var st = document.getElementById('settingsScreen');
   if (st) st.style.display = 'none';
-  localStorage.removeItem('chatBg');
+  localforage.removeItem('chatBg');
   localStorage.removeItem('kosmos_token');
   localStorage.removeItem('kosmos_refresh');
   localStorage.removeItem('kosmos_user');
   localStorage.removeItem('kosmos_onboarded');
-  jwtToken = null; refreshToken = null; currentUser = null;
+  jwtToken = null; refreshToken = null; currentUser = null; window.currentUser = null;
   if (socket) { socket.disconnect(); socket = null; }
   cur = null; channels.length = 0; dms.length = 0;
-  document.getElementById('auth').classList.remove('hidden');
-  document.getElementById('seedResult').style.display = 'none';
-  document.getElementById('authBtn').style.display = '';
-  switchTab('login');
-  document.getElementById('mainArea').innerHTML = '<div class="empty"><div class="empty-card"><div class="empty-icon">\uD83D\uDE80</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>';
-  applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
+  var authEl = document.getElementById('auth');
+  if (authEl) authEl.classList.remove('hidden');
+  var seedEl = document.getElementById('seedResult');
+  if (seedEl) seedEl.style.display = 'none';
+  var authBtn = document.getElementById('authBtn');
+  if (authBtn) authBtn.style.display = '';
+  if (typeof switchTab === 'function') switchTab('login');
+  var mainArea = document.getElementById('mainArea');
+  if (mainArea) mainArea.innerHTML = '<div class="empty"><div class="empty-card"><div class="empty-icon">\uD83D\uDE80</div><h2>Добро пожаловать в Космос</h2><p>Выбери чат слева или создай новый</p></div></div>';
+  applyTheme(localStorage.getItem('theme') || 'dark');
 }
 
 var _splashDone = false;
@@ -345,13 +359,13 @@ function closeSplash() {
 
 // ── Theme ────────────────────────────────────────────────────────────────────
 function applyTheme(theme) {
-  if (theme !== 'blue' && theme !== 'pink') theme = 'blue';
+  if (theme !== 'dark' && theme !== 'light') theme = 'dark';
   document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('theme', theme);
 }
 function toggleTheme() {
-  var cur = document.documentElement.getAttribute('data-theme') || 'blue';
-  var next = cur === 'blue' ? 'pink' : 'blue';
-  localStorage.setItem('kosmos_theme', next);
+  var cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  var next = cur === 'dark' ? 'light' : 'dark';
   applyTheme(next);
 }
 
@@ -404,7 +418,7 @@ function openTelegramAuth() {
 var _refCode = new URLSearchParams(window.location.search).get('ref') || '';
 
 // ── Init on load ─────────────────────────────────────────────────────────────
-applyTheme(localStorage.getItem('kosmos_theme') || 'blue');
+applyTheme(localStorage.getItem('theme') || 'dark');
 buildSeedGrid();
 
 document.getElementById('overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
@@ -438,18 +452,42 @@ document.getElementById('overlay').addEventListener('click', function(e) { if (e
 // Auto-login
 if (jwtToken) {
   fetch(API + '/me', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
-    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(r) {
+      if (r.status === 401) {
+        // Token expired — try refresh
+        var rt = localStorage.getItem('kosmos_refresh');
+        if (rt) {
+          return fetch(API + '/refresh', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken: rt })
+          }).then(function(rr) { return rr.ok ? rr.json() : null; })
+            .then(function(d) {
+              if (d && d.token) {
+                jwtToken = d.token;
+                localStorage.setItem('kosmos_token', jwtToken);
+                return fetch(API + '/me', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+                  .then(function(r2) { return r2.ok ? r2.json() : null; });
+              }
+              return null;
+            });
+        }
+        return null;
+      }
+      return r.ok ? r.json() : null;
+    })
     .then(function(user) {
       if (user) {
         currentUser = user;
+        window.currentUser = currentUser;
         localStorage.setItem('kosmos_user', JSON.stringify(user));
       } else {
         localStorage.removeItem('kosmos_token');
         localStorage.removeItem('kosmos_user');
-        jwtToken = null;
+        localStorage.removeItem('kosmos_refresh');
+        jwtToken = null; currentUser = null; window.currentUser = null;
       }
     })
-    .catch(function() {});
+    .catch(function(e) { console.warn('[auto-login] error:', e.message); });
 }
 
 // ── Telegram Bot Auth ─────────────────────────────────────────────────────────
@@ -498,6 +536,7 @@ async function startTelegramBotAuth() {
           jwtToken = cd.token;
           refreshToken = cd.refreshToken;
           currentUser = cd.user;
+          window.currentUser = currentUser;
           localStorage.setItem('kosmos_token', jwtToken);
           if (cd.refreshToken) localStorage.setItem('kosmos_refresh', cd.refreshToken);
           localStorage.setItem('kosmos_user', JSON.stringify(cd.user));
@@ -556,6 +595,7 @@ function onAppleAuth() {
           jwtToken = data.token;
           refreshToken = data.refreshToken;
           currentUser = data.user;
+          window.currentUser = currentUser;
           localStorage.setItem('kosmos_token', jwtToken);
           if (data.refreshToken) localStorage.setItem('kosmos_refresh', data.refreshToken);
           localStorage.setItem('kosmos_user', JSON.stringify(data.user));
@@ -640,3 +680,21 @@ window.addEventListener('online', function() {
     if (document.body.classList.contains('chat-open')) goBack();
   });
 })();
+
+// ── Settings helpers ────────────────────────────────────────────────────────
+function showCreateMenu() {
+  if (typeof showTab === 'function') showTab('chats');
+}
+
+function openPinned(type) {
+  if (type === 'ai') {
+    // Open DM with AI assistant (autonomous-cto)
+    if (typeof openChat === 'function') {
+      var myId = window.myUser && window.myUser.id;
+      if (myId) {
+        var ids = ['autonomous-cto', myId].sort();
+        openChat('dm-' + ids[0] + '-' + ids[1]);
+      }
+    }
+  }
+}
