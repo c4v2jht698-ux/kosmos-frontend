@@ -9,6 +9,7 @@ var GS = ['g1','g2','g3','g4','g5','g6','g7'];
 var jwtToken = localStorage.getItem('kosmos_token');
 var refreshToken = localStorage.getItem('kosmos_refresh');
 var currentUser = JSON.parse(localStorage.getItem('kosmos_user') || 'null');
+window.currentUser = currentUser;
 var socket = null;
 var typingTimeout = null;
 var cur = null;
@@ -177,6 +178,7 @@ function enterAfterReg() {
     jwtToken = pendingToken;
     refreshToken = pendingRefresh;
     currentUser = pendingUser;
+    window.currentUser = currentUser;
     localStorage.setItem('kosmos_token', jwtToken);
     if (pendingRefresh) localStorage.setItem('kosmos_refresh', pendingRefresh);
     localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
@@ -249,6 +251,7 @@ async function submitAuth() {
     jwtToken = data.token;
     refreshToken = data.refreshToken;
     currentUser = data.user;
+    window.currentUser = currentUser;
     localStorage.setItem('kosmos_token', jwtToken);
     if (data.refreshToken) localStorage.setItem('kosmos_refresh', data.refreshToken);
     localStorage.setItem('kosmos_user', JSON.stringify(currentUser));
@@ -315,7 +318,7 @@ function logout() {
   localStorage.removeItem('kosmos_refresh');
   localStorage.removeItem('kosmos_user');
   localStorage.removeItem('kosmos_onboarded');
-  jwtToken = null; refreshToken = null; currentUser = null;
+  jwtToken = null; refreshToken = null; currentUser = null; window.currentUser = null;
   if (socket) { socket.disconnect(); socket = null; }
   cur = null; channels.length = 0; dms.length = 0;
   document.getElementById('auth').classList.remove('hidden');
@@ -445,6 +448,7 @@ if (jwtToken) {
     .then(function(user) {
       if (user) {
         currentUser = user;
+        window.currentUser = currentUser;
         localStorage.setItem('kosmos_user', JSON.stringify(user));
       } else {
         localStorage.removeItem('kosmos_token');
@@ -501,6 +505,7 @@ async function startTelegramBotAuth() {
           jwtToken = cd.token;
           refreshToken = cd.refreshToken;
           currentUser = cd.user;
+          window.currentUser = currentUser;
           localStorage.setItem('kosmos_token', jwtToken);
           if (cd.refreshToken) localStorage.setItem('kosmos_refresh', cd.refreshToken);
           localStorage.setItem('kosmos_user', JSON.stringify(cd.user));
@@ -559,6 +564,7 @@ function onAppleAuth() {
           jwtToken = data.token;
           refreshToken = data.refreshToken;
           currentUser = data.user;
+          window.currentUser = currentUser;
           localStorage.setItem('kosmos_token', jwtToken);
           if (data.refreshToken) localStorage.setItem('kosmos_refresh', data.refreshToken);
           localStorage.setItem('kosmos_user', JSON.stringify(data.user));

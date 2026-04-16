@@ -2900,10 +2900,21 @@ function renderQRScreen() {
 }
 
 function renderSettingsScreen() {
-  var u = currentUser || {};
+  var u = window.currentUser || {};
   var name = u.name || u.username || 'Пользователь';
   var username = u.username || u.handle || '';
-  document.getElementById('settingsAvatar').textContent = (name || '?')[0].toUpperCase();
+  var avatarEl = document.getElementById('settingsAvatar');
+  var avatarImg = document.getElementById('user-avatar-img');
+  if (avatarEl) avatarEl.textContent = (name || '?')[0].toUpperCase();
+  // Show actual avatar image if available
+  if (avatarImg && (u.avatar || u.photo)) {
+    avatarImg.src = u.avatar || u.photo;
+    avatarImg.style.display = 'block';
+    if (avatarEl) avatarEl.style.display = 'none';
+  } else if (avatarImg) {
+    avatarImg.style.display = 'none';
+    if (avatarEl) avatarEl.style.display = '';
+  }
   document.getElementById('settingsName').textContent = name;
   document.getElementById('settingsHandle').textContent = '@' + username;
 
@@ -2993,7 +3004,7 @@ function nukeCache() {
 }
 
 function shareQR() {
-  var u = currentUser || {};
+  var u = window.currentUser || {};
   var username = u.username || u.handle || 'unknown';
   var url = 'https://c4v2jht698-ux.github.io/kosmos-frontend/?u=' + encodeURIComponent(username);
   if (navigator.share) { navigator.share({ title: 'Космос', text: 'Напиши мне в Космос!', url: url }); }
