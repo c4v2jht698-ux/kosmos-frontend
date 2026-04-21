@@ -34,7 +34,9 @@ function _fillChatsFromData(data) {
       members: ch.members || 0,
       prev: ch.last_text || '', time: ch.last_time || '',
       _ts: parseInt(ch.last_ts) || 0,
-      unread: 0, msgs: [], _loaded: false, created_by: ch.created_by,
+      unread: ch.unread || 0, msgs: [], _loaded: false, created_by: ch.created_by,
+      pinned: !!ch.pinned, notification_mode: ch.notification_mode || 'all',
+      muted: !!ch.muted, draft: ch.draft || null,
     });
   });
   (data.dms || []).forEach(function(dm) {
@@ -42,10 +44,13 @@ function _fillChatsFromData(data) {
     dms.push({
       id: dm.chat_id, type: 'chat', name: name,
       g: GS[name.charCodeAt(0) % GS.length],
-      em: name[0].toUpperCase(), online: false,
+      em: name[0].toUpperCase(), online: !!dm.online,
       prev: dm.last_text || '', time: dm.last_time || '',
       _ts: parseInt(dm.last_ts) || 0,
-      unread: 0, msgs: [], _loaded: false,
+      unread: dm.unread || 0, msgs: [], _loaded: false,
+      pinned: !!dm.pinned, notification_mode: dm.notification_mode || 'all',
+      muted: !!dm.muted, draft: dm.draft || null,
+      last_seen_at: dm.last_seen_at || null,
     });
   });
 }

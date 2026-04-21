@@ -455,6 +455,9 @@ function findItem(id) { return channels.find(function(x){return x.id===id}) || d
 
 function render() {
   var all = channels.concat(dms).sort(function(a, b) {
+    // Pinned chats always first
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
     if (!a._ts && !b._ts) return 0;
     if (!a._ts) return 1;
     if (!b._ts) return -1;
@@ -538,6 +541,8 @@ function itm(c) {
       '</div>' +
       '<div class="ci-meta">' +
         '<div class="ci-time">' + escHtml(c.time || '') + '</div>' +
+        (c.pinned ? '<span style="color:#007aff;font-size:12px">📌</span>' : '') +
+        (c.muted ? '<span style="color:#8e8e93;font-size:12px">🔇</span>' : '') +
         (c.unread ? '<div class="badge">' + parseInt(c.unread||0) + '</div>' : '') +
       '</div>' +
     '</div>' +
@@ -647,6 +652,17 @@ async function deleteDM(id) {
 
 // ── Chat View ───────────────────────────────────────────────────────────────
 function openChat(id) {
+  // Save draft of previous chat
+  if (cur) {
+    var prevInp = document.getElementById('mi');
+    var draftText = prevInp ? prevInp.value.trim() : '';
+    if (draftText && jwtToken) {
+      fetch(API + '/me/drafts/' + encodeURIComponent(cur), { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken }, body: JSON.stringify({ text: draftText }) }).catch(function() {});
+    } else if (!draftText && jwtToken && cur) {
+      // Clear draft if empty
+      fetch(API + '/me/drafts/' + encodeURIComponent(cur), { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken }, body: JSON.stringify({ text: '' }) }).catch(function() {});
+    }
+  }
   if (cur && socket) socket.emit('leave', cur);
   cur = id;
   if (socket) socket.emit('join', id);
@@ -731,6 +747,19 @@ function openChat(id) {
   scrollBot(true);
   applyChatBg();
   showChatView();
+  // Restore draft for this chat
+  if (jwtToken) {
+    fetch(API + '/me/drafts', { headers: { 'Authorization': 'Bearer ' + jwtToken } })
+      .then(function(r) { return r.ok ? r.json() : []; })
+      .then(function(drafts) {
+        if (cur !== id) return;
+        var d = drafts.find(function(x) { return x.chatId === id; });
+        if (d && d.text) {
+          var inp = document.getElementById('mi');
+          if (inp) { inp.value = d.text; updateActionBtn(); }
+        }
+      }).catch(function() {});
+  }
   // Load cached messages from IndexedDB
   if (typeof KosmosDB !== 'undefined' && !item.msgs.length) {
     KosmosDB.getMessages(id).then(function(cached) {
@@ -750,9 +779,15 @@ function openChat(id) {
       }
     }).catch(function() {});
   }
-  // Mark messages as read
+  // Mark messages as read via socket (v8.1) with HTTP fallback
   if (item.msgs.some(function(m) { return m.from !== 'me' && !m.is_read; })) {
-    fetch(API + '/api/messages/read', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken }, body: JSON.stringify({ chatId: id }) }).catch(function() {});
+    var lastMsg = null;
+    for (var ri = item.msgs.length - 1; ri >= 0; ri--) { if (item.msgs[ri].from !== 'me') { lastMsg = item.msgs[ri]; break; } }
+    if (socket && socket.connected && lastMsg) {
+      socket.emit('mark_read', { chatId: id, lastMsgId: lastMsg.id });
+    } else {
+      fetch(API + '/api/messages/read', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken }, body: JSON.stringify({ chatId: id }) }).catch(function() {});
+    }
   }
 }
 
@@ -1902,6 +1937,11 @@ async function datingAction(targetId, action) {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
       body: JSON.stringify({ targetId: targetId, action: action }),
     });
+    if (!res.ok) {
+      if (typeof toast === 'function') toast('Ошибка: ' + res.status, 'error');
+      setTimeout(function() { datingIdx++; showDatingCard(); }, 350);
+      return;
+    }
     var data = await res.json();
 
     setTimeout(function() {
@@ -1926,15 +1966,19 @@ async function datingAction(targetId, action) {
       }
     }, 350);
   } catch(e) {
+    console.error('[dating] action error:', e);
+    if (typeof toast === 'function') toast('Нет связи. Лайк не сохранён', 'error');
     setTimeout(function() { datingIdx++; showDatingCard(); }, 350);
   }
 }
 
 function openMatchChat(targetId) {
-  var ids = [currentUser.id, targetId].sort();
+  var me = window.currentUser;
+  if (!me || !me.id) { if (typeof toast === 'function') toast('Войдите заново', 'error'); return; }
+  var ids = [me.id, targetId].sort();
   var chatId = 'dm-' + ids.join('-');
   goBack();
-  loadMyChats().then(function() { openChat(chatId); });
+  loadMyChats().then(function() { openChat(chatId); }).catch(function(e) { console.error('[match chat] load error:', e); openChat(chatId); });
 }
 
 function openDatingProfile() {
@@ -2454,7 +2498,15 @@ async function send() {
       if (typeof KosmosDB !== 'undefined') KosmosDB.saveMessage(dbMsg);
       _pendingImage = null;
     } else if (socket && socket.connected) {
-      socket.emit('chat_msg', payload, function() { _pendingImage = null; });
+      payload.clientMsgId = localMsg.id;
+      socket.emit('chat_msg', payload, function(ack) {
+        _pendingImage = null;
+        // Server confirmed — patch local ID with server ID if provided
+        if (ack && ack.id && ack.id !== localMsg.id) {
+          var el = document.getElementById('msg-' + localMsg.id);
+          if (el) { el.id = 'msg-' + ack.id; }
+        }
+      });
       if (typeof KosmosDB !== 'undefined') KosmosDB.saveMessage(dbMsg);
     } else {
       addToOutbox(payload).then(function() { _pendingImage = null; });

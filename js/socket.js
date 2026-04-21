@@ -260,4 +260,36 @@ function initSocket() {
     var item = findItem(cur);
     if (item) item.msgs.forEach(function(m) { if (m.from === 'me') m.is_read = true; });
   });
+
+  // v8.1: Real-time notifications
+  socket.on('notification', function(data) {
+    if (!data) return;
+    var text = '';
+    switch (data.type) {
+      case 'follow': text = (data.actor || 'Кто-то') + ' подписался на вас'; break;
+      case 'post_like': text = (data.actor || 'Кто-то') + ' лайкнул ваш пост'; break;
+      case 'post_react': text = (data.actor || '') + ' ' + (data.emoji || '❤️'); break;
+      case 'post_comment': text = (data.actor || 'Кто-то') + ' комментировал'; break;
+      case 'mention': text = (data.actor || 'Кто-то') + ' упомянул вас'; break;
+      case 'match': text = '💫 Новый мэтч!'; break;
+      case 'invite_joined': text = (data.actor || 'Кто-то') + ' присоединился по вашей ссылке'; break;
+      default: text = data.text || 'Новое уведомление';
+    }
+    if (typeof showToast === 'function') showToast('Космос', text);
+    if (typeof haptic === 'function') haptic('light');
+    // Update inbox badge if exists
+    var badge = document.getElementById('inbox-badge');
+    if (badge) {
+      var c = parseInt(badge.textContent || '0') + 1;
+      badge.textContent = c > 99 ? '99+' : c;
+      badge.style.display = '';
+    }
+  });
+
+  // v8.1: mark_read event from other device
+  socket.on('mark_read', function(data) {
+    if (!data || !data.chatId) return;
+    var item = findItem(data.chatId);
+    if (item) { item.unread = 0; render(); updateTabBadges(); }
+  });
 }
