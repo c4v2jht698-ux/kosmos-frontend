@@ -686,15 +686,7 @@ function showCreateMenu() {
   if (typeof showTab === 'function') showTab('chats');
 }
 
-function openPinned(type) {
-  if (type === 'ai') {
-    // Open DM with AI assistant (autonomous-cto)
-    if (typeof openChat === 'function') {
-      var myId = window.myUser && window.myUser.id;
-      if (myId) {
-        var ids = ['autonomous-cto', myId].sort();
-        openChat('dm-' + ids[0] + '-' + ids[1]);
-      }
-    }
-  }
-}
+// openPinned определён в js/ui.js — полная версия для 'important', 'ai',
+// 'video', 'social'. Раньше здесь был дубликат с куцей реализацией только
+// для 'ai', который перезаписывал полную версию (app.js грузится после ui.js),
+// из-за чего клик по "Важное" и "ГигаЧАТ" не работал.
