@@ -52,8 +52,14 @@ html{position:fixed;width:100%;height:100dvh;overflow:hidden;overscroll-behavior
 body{
   font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Roboto,sans-serif;
   height:100dvh;width:100%;display:flex;overflow:hidden;position:fixed;
-  font-size:15px;color:var(--text);background:var(--bg);
+  font-size:15px;color:var(--text);
+  background:radial-gradient(ellipse at 30% 20%,#BBC9A0 0%,#A9BA8B 45%,#94A772 100%);
+  background-attachment:fixed;
   overscroll-behavior:none;touch-action:pan-y;-webkit-font-smoothing:antialiased;
+}
+[data-theme="light"] body{
+  background:radial-gradient(ellipse at 30% 20%,#F7D1D9 0%,#F2C0CC 45%,#E5AAB5 100%);
+  background-attachment:fixed;
 }
 @supports not (height:100dvh){body{height:100%}}
 
@@ -169,10 +175,8 @@ body{
 /* ── Avatars ── */
 .av{width:52px;height:52px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;color:#fff;position:relative}
 .av.sq{border-radius:50%}
-.g1{background:linear-gradient(135deg,#667eea,#764ba2)}.g2{background:linear-gradient(135deg,#f093fb,#f5576c)}
-.g3{background:linear-gradient(135deg,#4facfe,#00f2fe)}.g4{background:linear-gradient(135deg,#43e97b,#38f9d7)}
-.g5{background:linear-gradient(135deg,#fa709a,#fee140)}.g6{background:linear-gradient(135deg,#a18cd1,#fbc2eb)}
-.g7{background:linear-gradient(135deg,#ffecd2,#fcb69f)}
+.g1{background:radial-gradient(ellipse at 30% 25%,#F7D1D9,#E5AAB5)}
+.g2{background:radial-gradient(ellipse at 30% 25%,#BBC9A0,#94A772)}
 .ci-info{flex:1;min-width:0}
 .ci-name{font-weight:600;font-size:16px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
 .ci-prev{font-size:14px;font-weight:400;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}

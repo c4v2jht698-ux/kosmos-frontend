@@ -468,16 +468,16 @@ function render() {
   if (chList) {
     var pinned =
       '<div class="ci" onclick="openPinned(\'important\')">' +
-        '<div class="av g4 sq" style="width:48px;height:48px;font-size:20px"><span style="color:#fff">\u2B50</span></div>' +
+        '<div class="av g1 sq" style="width:48px;height:48px;font-size:20px"><span style="color:#fff">\u2B50</span></div>' +
         '<div class="ci-info"><div class="ci-name">Важное</div><div class="ci-prev">Заметки для себя</div></div></div>' +
       '<div class="ci" onclick="openPinned(\'ai\')">' +
-        '<div class="av g1 sq" style="width:48px;height:48px;font-size:20px"><span style="color:#fff">\uD83E\uDD16</span></div>' +
+        '<div class="av g2 sq" style="width:48px;height:48px;font-size:20px"><span style="color:#fff">\uD83E\uDD16</span></div>' +
         '<div class="ci-info"><div class="ci-name">ГигаЧАТ AI</div><div class="ci-prev">Умный ассистент</div></div></div>' +
       '<div class="ci" onclick="navTo(\'feed\')">' +
-        '<div class="av g3 sq" style="width:48px;height:48px;font-size:20px"><span style="color:#fff">\uD83D\uDCF0</span></div>' +
+        '<div class="av g1 sq" style="width:48px;height:48px;font-size:20px"><span style="color:#fff">\uD83D\uDCF0</span></div>' +
         '<div class="ci-info"><div class="ci-name">Стена</div><div class="ci-prev">Посты и новости</div></div></div>' +
       '<div class="ci" onclick="navTo(\'dating\')">' +
-        '<div class="av g5 sq" style="width:48px;height:48px;font-size:20px"><span style="color:#fff">\uD83D\uDC95</span></div>' +
+        '<div class="av g2 sq" style="width:48px;height:48px;font-size:20px"><span style="color:#fff">\uD83D\uDC95</span></div>' +
         '<div class="ci-info"><div class="ci-name">Знакомства</div><div class="ci-prev">Свайпай и общайся</div></div></div>';
     if (!all.length && jwtToken) {
       var skelHtml = '';
@@ -1093,7 +1093,7 @@ async function openPinned(type) {
     main.innerHTML =
       '<div class="chat-hdr">' +
         '<button class="back-btn" onclick="goBack()">\u2039</button>' +
-        '<div class="av g4 sq" style="width:36px;height:36px;font-size:16px"><span style="color:#fff">\u2605</span></div>' +
+        '<div class="av g1 sq" style="width:36px;height:36px;font-size:16px"><span style="color:#fff">\u2605</span></div>' +
         '<div class="hinfo"><div class="hname">Важное</div><div class="hsub">Заметки для себя</div></div>' +
       '</div>' +
       '<div class="msg-area" id="msgArea">' +

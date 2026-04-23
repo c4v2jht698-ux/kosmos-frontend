@@ -4,7 +4,7 @@
 // ── Config & State ──────────────────────────────────────────────────────────
 var API = 'https://kosmos-backend-1.onrender.com';
 var EMOJIS = ['\u2764\uFE0F','\uD83D\uDE02','\uD83D\uDC4D','\uD83D\uDD25','\uD83D\uDE2E','\uD83D\uDC4F','\uD83C\uDF89','\uD83D\uDE4F'];
-var GS = ['g1','g2','g3','g4','g5','g6','g7'];
+var GS = ['g1','g2'];
 
 var jwtToken = localStorage.getItem('kosmos_token');
 var refreshToken = localStorage.getItem('kosmos_refresh');
