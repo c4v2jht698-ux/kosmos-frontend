@@ -16,7 +16,7 @@ html{position:fixed;width:100%;height:100dvh;overflow:hidden;overscroll-behavior
 
 /* ── Цветовая палитра (Dark — default) ── */
 :root{
-  --bg:#000000;--bg2:#0a0a0a;--card:#121212;
+  --bg:#A9BA8B;--bg2:#94A772;--card:#9CAF7A;
   --accent:#dcb344;--accent2:#B8962D;--accent-hover:#B8962D;--green:#34C759;--pink:#F43F5E;
   --accent-gradient:linear-gradient(135deg,#F9D976 0%,#E1B24B 50%,#B8962D 100%);
   --text:#ffffff;--text2:#b0b0b0;--text3:rgba(255,255,255,0.5);--muted:#8e8e93;
@@ -33,7 +33,7 @@ html{position:fixed;width:100%;height:100dvh;overflow:hidden;overscroll-behavior
 
 /* ── Light Theme ── */
 [data-theme="light"]{
-  --bg:#ffffff;--bg2:#f2f2f7;--card:#ffffff;
+  --bg:#F2C0CC;--bg2:#F5C9D0;--card:#F7D1D9;
   --text:#000000;--text2:#3c3c43;--text3:rgba(60,60,67,0.6);--muted:#8e8e93;
   --sep:#d1d1d6;
   --bubble-them:#e9e9eb;--bubble-me:#dcb344;
